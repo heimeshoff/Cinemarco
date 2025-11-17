@@ -97,6 +97,19 @@ Each skill is a directory containing a `SKILL.md` file with:
 
 ---
 
+### 🚀 `tailscale-deploy/` - Tailscale Deployment
+**Deploys** applications with Tailscale sidecar
+
+**Use when:**
+- "Deploy to production", "Set up Tailscale"
+- Need Docker compose deployment configuration
+- Setting up private networking
+- Deploying to Portainer or home server
+
+**Creates:** docker-compose.yml with app + Tailscale sidecar for private network access
+
+---
+
 ## Quick Selection Guide
 
 ### By Task Type
@@ -110,6 +123,8 @@ Each skill is a directory containing a `SKILL.md` file with:
 | "Implement API" | `fsharp-backend` | `fsharp-validation`, `fsharp-persistence` |
 | "Add UI component" | `fsharp-frontend` | `fsharp-shared` |
 | "Write tests" | `fsharp-tests` | Depends on what's tested |
+| "Deploy to production" | `tailscale-deploy` | Complete application |
+| "Set up Tailscale" | `tailscale-deploy` | - |
 
 ### By Project Layer
 
