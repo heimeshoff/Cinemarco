@@ -8,3 +8,4 @@ data/
 .ionide/
 *.user
 .DS_Store
+.env

@@ -1,25 +1,47 @@
-version: '3.8'
+name: fsharp-counter
 
 services:
   counter-app:
     build: .
     image: fsharp-counter-app:latest
     container_name: fsharp-counter-app
-    ports:
-      - "5000:5000"
+    # ports removed - accessed via Tailscale only
+    # - "5000:5000"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
     environment:
       - ASPNETCORE_URLS=http://+:5000
       - ASPNETCORE_ENVIRONMENT=Production
-    networks:
-      - counter-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
 
-networks:
-  counter-network:
-    driver: bridge
+  tailscale-counter:
+    image: tailscale/tailscale:latest
+    container_name: tailscale_counter
+    network_mode: "service:counter-app"
+    depends_on:
+      - counter-app
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_EXTRA_ARGS=--hostname=fsharp-counter
+      - TS_USERSPACE=true
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+    command: >
+      sh -c "
+        tailscaled --state=/var/lib/tailscale/tailscaled.state --tun=userspace-networking &
+        sleep 5 &&
+        tailscale up --authkey=$$TS_AUTHKEY $$TS_EXTRA_ARGS &&
+        sleep 2 &&
+        tailscale serve --https=443 http://127.0.0.1:5000 &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
 
 volumes:
-  data:
-    driver: local
+  tailscale_state:

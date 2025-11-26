@@ -39,12 +39,32 @@ let main args =
     // Serve static files from dist/public
     let publicPath = Path.Combine(Directory.GetCurrentDirectory(), "dist", "public")
     if Directory.Exists(publicPath) then
-        app.UseStaticFiles(StaticFileOptions(
-            FileProvider = new PhysicalFileProvider(publicPath)
+        let fileProvider = new PhysicalFileProvider(publicPath)
+
+        // Serve index.html for root path
+        app.UseDefaultFiles(DefaultFilesOptions(
+            FileProvider = fileProvider
         )) |> ignore
+
+        // Serve static files
+        app.UseStaticFiles(StaticFileOptions(
+            FileProvider = fileProvider
+        )) |> ignore
+
+        printfn $"📁 Serving static files from: {publicPath}"
+    else
+        printfn $"⚠️ Static files directory not found: {publicPath}"
 
     // API routes
     app.UseGiraffe(Api.webApp())
+
+    // SPA fallback: serve index.html for non-API routes
+    if Directory.Exists(publicPath) then
+        let indexPath = Path.Combine(publicPath, "index.html")
+        if File.Exists(indexPath) then
+            app.MapFallbackToFile("index.html", StaticFileOptions(
+                FileProvider = new PhysicalFileProvider(publicPath)
+            )) |> ignore
 
     printfn "🚀 Server starting on http://localhost:5000"
     printfn "📊 Counter API ready at /api/ICounterApi/*"
