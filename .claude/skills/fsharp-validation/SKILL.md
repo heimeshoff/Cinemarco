@@ -1,9 +1,12 @@
 ---
 name: fsharp-validation
 description: |
-  Create comprehensive validation logic for F# backends with field validators, entity validation, error accumulation, and async validation.
-  Use when implementing input validation, complex validation rules, or need to validate API requests before processing.
-  Creates reusable validators in src/Server/Validation.fs with patterns for required fields, length checks, email, business rules, and database checks.
+  Create validation logic for F# backends with error accumulation and async validation.
+  Use when: "add validation", "validate X", "input validation", "complex validation",
+  "business rules", "check email", "required fields", "async validation",
+  "database uniqueness", "cross-field validation", "validation errors".
+  Creates validators in src/Server/Validation.fs. Use for complex scenarios;
+  basic validation patterns are in fsharp-backend skill.
 allowed-tools: Read, Edit, Write, Grep
 ---
 

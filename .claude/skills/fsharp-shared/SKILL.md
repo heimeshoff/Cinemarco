@@ -1,10 +1,12 @@
 ---
 name: fsharp-shared
 description: |
-  Define shared domain types and API contracts for F# full-stack applications using records, discriminated unions, and Fable.Remoting interfaces.
-  Use when starting new features, defining data structures, or creating API contracts shared between client and server.
+  Define shared domain types and API contracts for F# full-stack applications.
+  Use when: "define types", "create entity", "add model", "API contract", "shared types",
+  "domain model", "record", "discriminated union", "data structure", "DTO",
+  "interface", "type definition", "new entity", "modify types".
   Creates types in src/Shared/Domain.fs and API interfaces in src/Shared/Api.fs.
-  Ensures type safety across the stack with compile-time checking.
+  Always start here when adding new features.
 allowed-tools: Read, Edit, Write, Grep, Glob
 ---
 

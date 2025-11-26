@@ -1,10 +1,11 @@
 ---
 name: fsharp-persistence
 description: |
-  Implement data persistence using SQLite with Dapper, JSON file storage, or event sourcing patterns.
-  Use when adding database tables, CRUD operations, file storage, or event logs.
-  Creates code in src/Server/Persistence.fs with patterns for queries, transactions, relationships, and async I/O.
-  Includes SQLite schema creation, parameterized queries, and proper connection management.
+  Implement data persistence using SQLite with Dapper, JSON files, or event sourcing.
+  Use when: "database", "save data", "store", "CRUD", "create table", "query", "SQL",
+  "SQLite", "Dapper", "file storage", "JSON file", "event sourcing", "persistence",
+  "read from database", "write to database", "data access", "repository".
+  Creates code in src/Server/Persistence.fs with async I/O patterns.
 allowed-tools: Read, Edit, Write, Grep, Bash
 ---
 

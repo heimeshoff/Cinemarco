@@ -85,6 +85,18 @@ Each skill is a directory containing a `SKILL.md` file with:
 
 ---
 
+### 🧭 `fsharp-routing/` - Client-Side Routing
+**Implements** SPA navigation with Feliz.Router
+
+**Use when:**
+- "Add routing", "Create pages"
+- URL handling and deep linking
+- Multi-page SPA structure
+
+**Creates:** Route definitions, URL parsing, navigation in `src/Client/`
+
+---
+
 ### 🧪 `fsharp-tests/` - Testing with Expecto
 **Writes** comprehensive tests
 
@@ -122,6 +134,7 @@ Each skill is a directory containing a `SKILL.md` file with:
 | "Add database table" | `fsharp-persistence` | `fsharp-backend` |
 | "Implement API" | `fsharp-backend` | `fsharp-validation`, `fsharp-persistence` |
 | "Add UI component" | `fsharp-frontend` | `fsharp-shared` |
+| "Add routing/pages" | `fsharp-routing` | `fsharp-frontend` |
 | "Write tests" | `fsharp-tests` | Depends on what's tested |
 | "Deploy to production" | `tailscale-deploy` | Complete application |
 | "Set up Tailscale" | `tailscale-deploy` | - |
@@ -136,8 +149,9 @@ Each skill is a directory containing a `SKILL.md` file with:
 | `src/Server/Domain.fs` | `fsharp-backend` |
 | `src/Server/Persistence.fs` | `fsharp-persistence` |
 | `src/Server/Api.fs` | `fsharp-backend` |
-| `src/Client/State.fs` | `fsharp-frontend` |
-| `src/Client/View.fs` | `fsharp-frontend` |
+| `src/Client/State.fs` | `fsharp-frontend`, `fsharp-routing` |
+| `src/Client/View.fs` | `fsharp-frontend`, `fsharp-routing` |
+| `src/Client/Types.fs` (Route) | `fsharp-routing` |
 | `src/Tests/` | `fsharp-tests` |
 
 ## Usage Pattern
@@ -185,6 +199,11 @@ fsharp-validation → integrate with fsharp-backend
 **Adding UI component:**
 ```
 fsharp-frontend (View section)
+```
+
+**Adding pages/navigation:**
+```
+fsharp-routing → fsharp-frontend
 ```
 
 **Adding database table:**

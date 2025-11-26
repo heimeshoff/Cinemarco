@@ -1,10 +1,11 @@
 ---
 name: fsharp-backend
 description: |
-  Implement F# backend using Giraffe + Fable.Remoting with proper separation: Validation → Domain (pure logic) → Persistence (I/O) → API.
-  Use when implementing server-side logic, API endpoints, or business rules.
-  Ensures validation at boundaries, pure domain functions, and proper error handling with Result types.
-  Creates code in src/Server/ files: Validation.fs, Domain.fs, Persistence.fs, Api.fs.
+  Implement F# backend using Giraffe + Fable.Remoting with proper layer separation.
+  Use when: "implement backend", "add API", "create endpoint", "server logic", "business rules",
+  "backend for X", "API implementation", "server-side", "Giraffe", "Fable.Remoting".
+  Layers: Validation → Domain (pure) → Persistence (I/O) → API.
+  Creates code in src/Server/: Validation.fs, Domain.fs, Persistence.fs, Api.fs.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
@@ -35,45 +36,26 @@ Persistence (Database/File I/O)
 
 **Purpose:** Validate input at API boundary before processing
 
-### Pattern
+> For detailed validation patterns, see the **fsharp-validation** skill.
+
+### Basic Pattern
 ```fsharp
 module Validation
 
-open System
+open Shared.Domain
 
-// Reusable validators
-let validateRequired (fieldName: string) (value: string) =
-    if String.IsNullOrWhiteSpace(value) then
-        Some $"{fieldName} is required"
-    else
-        None
-
-let validateLength (fieldName: string) (minLen: int) (maxLen: int) (value: string) =
-    let len = value.Length
-    if len < minLen || len > maxLen then
-        Some $"{fieldName} must be between {minLen} and {maxLen} characters"
-    else
-        None
-
-// Entity validation
-let validateTodoItem (item: TodoItem) : Result<TodoItem, string list> =
+let validateCreateRequest (req: CreateTodoRequest) : Result<CreateTodoRequest, string list> =
     let errors = [
-        validateRequired "Title" item.Title
-        validateLength "Title" 1 100 item.Title
-
-        match item.Description with
-        | Some desc -> validateLength "Description" 0 500 desc
-        | None -> None
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok item else Error errors
+        if String.IsNullOrWhiteSpace(req.Title) then "Title is required"
+        if req.Title.Length > 100 then "Title too long"
+    ]
+    if errors.IsEmpty then Ok req else Error errors
 ```
 
 **Key points:**
-- Return `Option<string>` from validators (None = valid)
-- Accumulate all errors (don't stop at first)
-- Use `Result<'T, string list>` for multiple errors
-- Convert to `Result<'T, string>` if needed
+- Validate at API boundary, before domain logic
+- Return `Result<'T, string list>` to accumulate errors
+- Convert to single string for API: `String.concat "; " errors`
 
 ## Layer 2: Domain (`src/Server/Domain.fs`)
 
