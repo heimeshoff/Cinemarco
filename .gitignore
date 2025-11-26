@@ -1,0 +1,10 @@
+bin/
+obj/
+node_modules/
+dist/
+.vite/
+data/
+.fake/
+.ionide/
+*.user
+.DS_Store
