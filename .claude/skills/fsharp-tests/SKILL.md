@@ -1,10 +1,11 @@
 ---
 name: fsharp-tests
 description: |
-  Write comprehensive tests using Expecto for F# applications including domain logic, validation, async operations, and state transitions.
-  Use when implementing tests, ensuring code quality, or verifying functionality.
-  Creates test files in src/Tests/ with patterns for unit tests, property tests, and async tests.
-  Tests domain logic (pure functions), validation rules, persistence operations, and Elmish state management.
+  Write comprehensive tests using Expecto for F# applications.
+  Use when: "add tests", "write tests", "test X", "unit test", "testing", "verify",
+  "Expecto", "test coverage", "TDD", "property test", "async test", "test case".
+  Creates tests in src/Tests/ for domain logic, validation, persistence, and state.
+  Focus on pure functions (domain) and validation rules for best coverage.
 allowed-tools: Read, Edit, Write, Grep, Bash
 ---
 

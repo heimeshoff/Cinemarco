@@ -1,10 +1,11 @@
 ---
 name: fsharp-feature
 description: |
-  Orchestrates end-to-end F# full-stack feature development following Elmish MVU + Giraffe + Fable.Remoting patterns.
-  Use when user requests "add X feature", "implement Y", or needs guidance through complete stack implementation.
-  Guides through: Shared types → Backend (validation/domain/persistence/API) → Frontend (state/view) → Tests.
-  Requires project with src/Shared, src/Server, src/Client structure.
+  Orchestrates end-to-end F# full-stack feature development across all layers.
+  Use when: "add feature", "implement X", "build Y", "create new feature", "full stack",
+  "new functionality", "add capability", "implement end-to-end", "complete feature".
+  Guides through: Shared types → Backend → Frontend → Tests.
+  Use this for features that touch multiple layers of the application.
 ---
 
 # F# Full-Stack Feature Development

@@ -2,8 +2,9 @@
 name: fsharp-frontend
 description: |
   Implement F# frontend using Elmish MVU architecture with Feliz for React components.
-  Use when creating UI, managing client state, or building interactive features with Elmish.React + Feliz.
-  Creates state management in src/Client/State.fs (Model/Msg/update/Cmd) and UI in src/Client/View.fs.
+  Use when: "add UI", "create component", "build form", "frontend", "client-side", "user interface",
+  "view", "display", "render", "Elmish", "Feliz", "button", "input", "state management".
+  Creates Model/Msg/update in src/Client/State.fs and views in src/Client/View.fs.
   Follows strict MVU pattern with RemoteData for async operations and TailwindCSS/DaisyUI for styling.
 allowed-tools: Read, Edit, Write, Grep
 ---

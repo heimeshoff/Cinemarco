@@ -1,10 +1,12 @@
 ---
 name: tailscale-deploy
 description: |
-  Deploy F# full-stack applications with Tailscale sidecar for private network access without public ports or authentication.
-  Use when deploying to production, setting up Docker compose with Tailscale, or need private networking setup.
-  Creates docker-compose.yml with app + Tailscale sidecar pattern for secure private access.
-  Includes Portainer deployment, troubleshooting, and configuration for F# Giraffe + Elmish applications.
+  Deploy F# applications with Tailscale sidecar for private network access.
+  Use when: "deploy", "production", "Tailscale", "docker-compose", "Docker",
+  "Portainer", "private network", "deployment", "ship it", "go live",
+  "home server", "self-host", "container", "release".
+  Creates docker-compose.yml with app + Tailscale sidecar for secure access.
+  No public ports, no authentication needed - Tailscale handles it.
 allowed-tools: Read, Edit, Write, Grep, Bash
 ---
 
