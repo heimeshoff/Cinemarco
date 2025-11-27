@@ -127,12 +127,9 @@ let getContentType (filename: string) =
     | ".webp" -> "image/webp"
     | _ -> "application/octet-stream"
 
-/// Delete all cached images (for cleanup)
-let clearCache () =
-    let imagesDir = getImagesDir()
-    if Directory.Exists imagesDir then
-        Directory.Delete(imagesDir, true)
-        printfn "Image cache cleared"
+// Note: There is intentionally NO clearCache function.
+// Images are stored permanently and should never be automatically deleted.
+// Manual deletion requires direct file system access.
 
 /// Get cache statistics
 let getCacheStats () =

@@ -6,13 +6,30 @@ open Types
 open Shared.Api
 open Shared.Domain
 
-/// TMDB image base URL
+/// TMDB image base URL (for search results)
 let private tmdbImageBase = "https://image.tmdb.org/t/p"
 
-/// Get poster URL with size
-let private getPosterUrl (size: string) (path: string option) =
+/// Get poster URL from TMDB CDN (for search results)
+let private getTmdbPosterUrl (size: string) (path: string option) =
     match path with
     | Some p -> $"{tmdbImageBase}/{size}{p}"
+    | None -> ""
+
+/// Get local cached poster URL (for library items)
+let private getLocalPosterUrl (path: string option) =
+    match path with
+    | Some p ->
+        // Remove leading slash from TMDB path
+        let filename = if p.StartsWith("/") then p.Substring(1) else p
+        $"/images/posters/{filename}"
+    | None -> ""
+
+/// Get local cached backdrop URL (for library items)
+let private getLocalBackdropUrl (path: string option) =
+    match path with
+    | Some p ->
+        let filename = if p.StartsWith("/") then p.Substring(1) else p
+        $"/images/backdrops/{filename}"
     | None -> ""
 
 /// Navigation item component
@@ -181,11 +198,11 @@ let private posterCard (item: TmdbSearchResult) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "relative aspect-[2/3] rounded-lg overflow-hidden bg-base-300 shadow-md hover:shadow-xl transition-shadow"
                 prop.children [
-                    // Poster image
+                    // Poster image (from TMDB CDN for search results)
                     match item.PosterPath with
                     | Some _ ->
                         Html.img [
-                            prop.src (getPosterUrl "w342" item.PosterPath)
+                            prop.src (getTmdbPosterUrl "w342" item.PosterPath)
                             prop.alt item.Title
                             prop.className "w-full h-full object-cover"
                         ]
@@ -359,7 +376,7 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                             match state.SelectedItem.PosterPath with
                             | Some _ ->
                                 Html.img [
-                                    prop.src (getPosterUrl "w500" state.SelectedItem.PosterPath)
+                                    prop.src (getTmdbPosterUrl "w500" state.SelectedItem.PosterPath)
                                     prop.alt state.SelectedItem.Title
                                     prop.className "w-full h-full object-cover opacity-30"
                                 ]
@@ -541,7 +558,7 @@ let private notificationToast (message: string) (isSuccess: bool) (dispatch: Msg
         ]
     ]
 
-/// Library entry card for displaying items in library
+/// Library entry card for displaying items in library (uses local cached images)
 let private libraryEntryCard (entry: LibraryEntry) =
     let (title, posterPath, year) =
         match entry.Media with
@@ -561,7 +578,7 @@ let private libraryEntryCard (entry: LibraryEntry) =
                     match posterPath with
                     | Some _ ->
                         Html.img [
-                            prop.src (getPosterUrl "w342" posterPath)
+                            prop.src (getLocalPosterUrl posterPath)
                             prop.alt title
                             prop.className "w-full h-full object-cover"
                         ]
