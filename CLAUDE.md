@@ -1,8 +1,12 @@
-# F# Full-Stack Blueprint - Claude Code Instructions
+# Cinemarco - Claude Code Instructions
 
-## Your Role
+## Git Commit Attribution
 
-You are developing F# web applications using this blueprint. The codebase uses Elmish.React + Feliz (frontend), Giraffe + Fable.Remoting (backend), SQLite (persistence), and deploys via Docker + Tailscale.
+Do not include "Co-Authored-By" or any Claude attribution in commit messages. All commits should be attributed solely to the repository owner.
+
+## About Cinemarco
+
+Cinemarco is a personal cinema memory tracker - a local-first application for tracking movies and series you've watched, who you watched them with, and your personal ratings and notes. Built with F# using Elmish.React + Feliz (frontend), Giraffe + Fable.Remoting (backend), SQLite (persistence), and deployed via Docker + Tailscale.
 
 ## Before Implementing Anything
 
@@ -10,21 +14,23 @@ You are developing F# web applications using this blueprint. The codebase uses E
 
 1. Check `/docs/09-QUICK-REFERENCE.md` for code templates
 2. Read the specific guide for your task (see Documentation Map below)
-3. Look at existing code to match patterns
+3. Check `/specs/` for domain specifications
+4. Look at existing code to match patterns
 
 ## Documentation Map
 
 | Task | Read This First |
 |------|-----------------|
 | Complete new feature | `/docs/09-QUICK-REFERENCE.md` + specific guides below |
-| Domain types/API contracts | `/docs/04-SHARED-TYPES.md` |
-| Frontend (UI, state) | `/docs/02-FRONTEND-GUIDE.md` |
-| Backend (API, logic) | `/docs/03-BACKEND-GUIDE.md` |
-| Database/files | `/docs/05-PERSISTENCE.md` |
+| Domain types/API contracts | `/docs/04-SHARED-TYPES.md` + `/specs/DOMAIN-MODEL.md` |
+| Frontend (UI, state) | `/docs/02-FRONTEND-GUIDE.md` + `/specs/UI-UX-SPECIFICATION.md` |
+| Backend (API, logic) | `/docs/03-BACKEND-GUIDE.md` + `/specs/API-CONTRACT.md` |
+| Database/files | `/docs/05-PERSISTENCE.md` + `/specs/DATABASE-SCHEMA.md` |
 | Tests | `/docs/06-TESTING.md` |
 | Docker/deployment | `/docs/07-BUILD-DEPLOY.md` |
 | Tailscale networking | `/docs/08-TAILSCALE-INTEGRATION.md` |
 | Architecture overview | `/docs/00-ARCHITECTURE.md` |
+| Implementation roadmap | `/milestones.md` |
 
 ## Using Skills
 
@@ -154,7 +160,7 @@ npm run dev                         # Frontend with HMR
 dotnet test                         # Run tests
 
 # Build
-docker build -t app .               # Build image
+docker build -t cinemarco .         # Build image
 docker-compose up -d                # Deploy with Tailscale
 ```
 
@@ -184,5 +190,5 @@ Before marking a feature complete:
 | Backend | Giraffe + Fable.Remoting |
 | Database | SQLite + Dapper |
 | Tests | Expecto |
-| Runtime | .NET 8+ |
+| Runtime | .NET 9+ |
 | Deployment | Docker + Tailscale |

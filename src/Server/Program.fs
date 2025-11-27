@@ -51,9 +51,9 @@ let main args =
             FileProvider = fileProvider
         )) |> ignore
 
-        printfn $"📁 Serving static files from: {publicPath}"
+        printfn $"Serving static files from: {publicPath}"
     else
-        printfn $"⚠️ Static files directory not found: {publicPath}"
+        printfn $"Static files directory not found: {publicPath}"
 
     // API routes
     app.UseGiraffe(Api.webApp())
@@ -66,8 +66,8 @@ let main args =
                 FileProvider = new PhysicalFileProvider(publicPath)
             )) |> ignore
 
-    printfn "🚀 Server starting on http://localhost:5000"
-    printfn "📊 Counter API ready at /api/ICounterApi/*"
+    printfn "Cinemarco server starting on http://localhost:5000"
+    printfn "API ready at /api/ICinemarcoApi/*"
 
     app.Run("http://0.0.0.0:5000")
     0

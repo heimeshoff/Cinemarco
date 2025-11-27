@@ -3,174 +3,274 @@ module View
 open Feliz
 open State
 open Types
-open Shared.Domain
+open Shared.Api
 
-/// Floating orb component for animated background
-let private floatingOrbs =
-    React.fragment [
-        Html.div [ prop.className "floating-orb orb-1" ]
-        Html.div [ prop.className "floating-orb orb-2" ]
-        Html.div [ prop.className "floating-orb orb-3" ]
-    ]
+/// Navigation item component
+let private navItem (page: Page) (currentPage: Page) (dispatch: Msg -> unit) =
+    let isActive = page = currentPage
+    let icon =
+        match page with
+        | HomePage -> "home"
+        | LibraryPage -> "library"
+        | FriendsPage -> "users"
+        | TagsPage -> "tag"
+        | CollectionsPage -> "folder"
+        | StatsPage -> "bar-chart-2"
+        | TimelinePage -> "calendar"
+        | GraphPage -> "git-branch"
+        | ImportPage -> "download"
+        | NotFoundPage -> "alert-circle"
 
-/// 3D pushable increment button with high affordance
-let private incrementButton (dispatch: Msg -> unit) =
-    Html.button [
-        prop.className "pushable-button"
-        prop.onClick (fun _ -> dispatch IncrementCounter)
-        prop.children [
-            Html.span [ prop.className "pushable-shadow" ]
-            Html.span [ prop.className "pushable-edge" ]
-            Html.span [
-                prop.className "pushable-front"
-                prop.children [
-                    Html.span [
-                        prop.className "flex items-center gap-3"
-                        prop.children [
-                            Html.span [
-                                prop.className "text-2xl"
-                                prop.text "+"
-                            ]
-                            Html.span [ prop.text "Increment" ]
-                        ]
-                    ]
+    Html.li [
+        Html.a [
+            prop.className (
+                "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors " +
+                if isActive then "bg-primary text-primary-content"
+                else "hover:bg-base-200"
+            )
+            prop.onClick (fun _ -> dispatch (NavigateTo page))
+            prop.children [
+                // Icon placeholder - using text for now
+                Html.span [
+                    prop.className "w-5 h-5 flex items-center justify-center text-sm"
+                    prop.text (
+                        match page with
+                        | HomePage -> "🏠"
+                        | LibraryPage -> "📚"
+                        | FriendsPage -> "👥"
+                        | TagsPage -> "🏷️"
+                        | CollectionsPage -> "📁"
+                        | StatsPage -> "📊"
+                        | TimelinePage -> "📅"
+                        | GraphPage -> "🕸️"
+                        | ImportPage -> "⬇️"
+                        | NotFoundPage -> "❌"
+                    )
+                ]
+                Html.span [
+                    prop.className "font-medium"
+                    prop.text (Page.toString page)
                 ]
             ]
         ]
     ]
 
-/// Animated counter number display
-let private counterDisplay (value: int) (isAnimating: bool) =
-    Html.div [
-        prop.className "relative"
+/// Sidebar navigation component
+let private sidebar (model: Model) (dispatch: Msg -> unit) =
+    Html.aside [
+        prop.className "fixed left-0 top-0 h-full w-64 bg-base-200 border-r border-base-300 hidden lg:flex lg:flex-col z-40"
+        prop.children [
+            // Logo section
+            Html.div [
+                prop.className "p-6 border-b border-base-300"
+                prop.children [
+                    Html.h1 [
+                        prop.className "text-2xl font-bold text-primary"
+                        prop.text "Cinemarco"
+                    ]
+                    Html.p [
+                        prop.className "text-sm text-base-content/60 mt-1"
+                        prop.text "Your Cinema Memories"
+                    ]
+                ]
+            ]
+
+            // Navigation items
+            Html.nav [
+                prop.className "flex-1 p-4 overflow-y-auto"
+                prop.children [
+                    Html.ul [
+                        prop.className "space-y-1"
+                        prop.children [
+                            navItem HomePage model.CurrentPage dispatch
+                            navItem LibraryPage model.CurrentPage dispatch
+                            navItem FriendsPage model.CurrentPage dispatch
+                            navItem TagsPage model.CurrentPage dispatch
+                            navItem CollectionsPage model.CurrentPage dispatch
+                            navItem StatsPage model.CurrentPage dispatch
+                            navItem TimelinePage model.CurrentPage dispatch
+                            navItem GraphPage model.CurrentPage dispatch
+                            navItem ImportPage model.CurrentPage dispatch
+                        ]
+                    ]
+                ]
+            ]
+
+            // Health status footer
+            Html.div [
+                prop.className "p-4 border-t border-base-300"
+                prop.children [
+                    match model.HealthCheck with
+                    | Success health ->
+                        Html.div [
+                            prop.className "flex items-center gap-2 text-sm"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-2 h-2 bg-success rounded-full"
+                                ]
+                                Html.span [
+                                    prop.className "text-base-content/60"
+                                    prop.text $"v{health.Version}"
+                                ]
+                            ]
+                        ]
+                    | Loading ->
+                        Html.div [
+                            prop.className "flex items-center gap-2 text-sm text-base-content/40"
+                            prop.children [
+                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                Html.span [ prop.text "Connecting..." ]
+                            ]
+                        ]
+                    | Failure _ ->
+                        Html.div [
+                            prop.className "flex items-center gap-2 text-sm text-error"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-2 h-2 bg-error rounded-full"
+                                ]
+                                Html.span [ prop.text "Offline" ]
+                            ]
+                        ]
+                    | NotAsked -> Html.none
+                ]
+            ]
+        ]
+    ]
+
+/// Mobile bottom navigation
+let private mobileNav (model: Model) (dispatch: Msg -> unit) =
+    Html.nav [
+        prop.className "fixed bottom-0 left-0 right-0 bg-base-200 border-t border-base-300 lg:hidden z-40"
         prop.children [
             Html.div [
-                prop.key (string value)
-                prop.className (
-                    "counter-number" +
-                    (if isAnimating then " animating" else "")
+                prop.className "flex justify-around items-center h-16"
+                prop.children [
+                    for page in [ HomePage; LibraryPage; StatsPage ] do
+                        Html.button [
+                            prop.className (
+                                "flex flex-col items-center gap-1 px-4 py-2 " +
+                                if model.CurrentPage = page then "text-primary" else "text-base-content/60"
+                            )
+                            prop.onClick (fun _ -> dispatch (NavigateTo page))
+                            prop.children [
+                                Html.span [
+                                    prop.className "text-lg"
+                                    prop.text (
+                                        match page with
+                                        | HomePage -> "🏠"
+                                        | LibraryPage -> "📚"
+                                        | StatsPage -> "📊"
+                                        | _ -> "•"
+                                    )
+                                ]
+                                Html.span [
+                                    prop.className "text-xs"
+                                    prop.text (Page.toString page)
+                                ]
+                            ]
+                        ]
+                ]
+            ]
+        ]
+    ]
+
+/// Page placeholder content
+let private pageContent (page: Page) =
+    Html.div [
+        prop.className "flex flex-col items-center justify-center min-h-[50vh] text-center"
+        prop.children [
+            Html.div [
+                prop.className "text-6xl mb-4"
+                prop.text (
+                    match page with
+                    | HomePage -> "🎬"
+                    | LibraryPage -> "📚"
+                    | FriendsPage -> "👥"
+                    | TagsPage -> "🏷️"
+                    | CollectionsPage -> "📁"
+                    | StatsPage -> "📊"
+                    | TimelinePage -> "📅"
+                    | GraphPage -> "🕸️"
+                    | ImportPage -> "⬇️"
+                    | NotFoundPage -> "🔍"
                 )
-                prop.text (string value)
+            ]
+            Html.h2 [
+                prop.className "text-2xl font-bold mb-2"
+                prop.text (Page.toString page)
+            ]
+            Html.p [
+                prop.className "text-base-content/60"
+                prop.text (
+                    match page with
+                    | HomePage -> "Welcome to Cinemarco. Your personal cinema memory tracker."
+                    | LibraryPage -> "Your movie and series collection will appear here."
+                    | FriendsPage -> "Manage friends you watch movies with."
+                    | TagsPage -> "Organize your library with custom tags."
+                    | CollectionsPage -> "Create and manage franchises and custom lists."
+                    | StatsPage -> "View your watching statistics and insights."
+                    | TimelinePage -> "See your watching history chronologically."
+                    | GraphPage -> "Explore relationships between your movies, friends, and tags."
+                    | ImportPage -> "Import your watching history from other services."
+                    | NotFoundPage -> "The page you're looking for doesn't exist."
+                )
             ]
         ]
     ]
 
-/// Loading spinner
-let private loadingSpinner =
-    Html.div [
-        prop.className "flex flex-col items-center gap-4"
+/// Main content area
+let private mainContent (model: Model) (dispatch: Msg -> unit) =
+    Html.main [
+        prop.className "lg:ml-64 min-h-screen pb-20 lg:pb-0"
         prop.children [
-            Html.div [ prop.className "fancy-spinner" ]
-            Html.span [
-                prop.className "text-white/80 text-lg"
-                prop.text "Loading..."
-            ]
-        ]
-    ]
-
-/// Counter display component
-let private counterView (model: Model) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.className "flex flex-col items-center gap-12"
-        prop.children [
-            // Glass card with counter
-            Html.div [
-                prop.key "counter-card"
-                prop.className "glass-card rounded-3xl p-12 min-w-[400px]"
+            // Header with search
+            Html.header [
+                prop.className "sticky top-0 z-30 bg-base-100/80 backdrop-blur-lg border-b border-base-300"
                 prop.children [
                     Html.div [
-                        prop.className "flex flex-col items-center gap-8"
+                        prop.className "container mx-auto px-4 lg:px-8 py-4"
                         prop.children [
-                            // Title
-                            Html.h2 [
-                                prop.className "text-3xl font-bold text-white/90 tracking-wide"
-                                prop.text "Counter"
-                            ]
-
-                            // Counter value or loading state
-                            match model.Counter with
-                            | NotAsked ->
-                                Html.div [
-                                    prop.className "text-white/60 text-xl"
-                                    prop.text "Initializing..."
-                                ]
-
-                            | Loading ->
-                                // Show previous value during loading if available
-                                match model.PreviousValue with
-                                | Some prev ->
+                            Html.div [
+                                prop.className "flex items-center gap-4"
+                                prop.children [
+                                    // Mobile logo
+                                    Html.h1 [
+                                        prop.className "text-xl font-bold text-primary lg:hidden"
+                                        prop.text "Cinemarco"
+                                    ]
+                                    // Search placeholder
                                     Html.div [
-                                        prop.className "flex flex-col items-center gap-4"
+                                        prop.className "flex-1 hidden sm:block"
                                         prop.children [
                                             Html.div [
-                                                prop.className "counter-number opacity-50"
-                                                prop.text (string prev)
+                                                prop.className "relative max-w-md"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
+                                                        prop.text "🔍"
+                                                    ]
+                                                    Html.input [
+                                                        prop.className "input input-bordered w-full pl-10"
+                                                        prop.placeholder "Search movies and series..."
+                                                        prop.disabled true
+                                                    ]
+                                                ]
                                             ]
                                         ]
                                     ]
-                                | None ->
-                                    loadingSpinner
-
-                            | Success counter ->
-                                counterDisplay counter.Value model.IsAnimating
-
-                            | Failure err ->
-                                Html.div [
-                                    prop.className "bg-red-500/20 border border-red-400/30 rounded-xl p-4"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "text-red-200"
-                                            prop.text $"Error: {err}"
-                                        ]
-                                    ]
                                 ]
-
-                            // Increment button (always visible except on error)
-                            match model.Counter with
-                            | Success _ | Loading ->
-                                incrementButton dispatch
-                            | _ -> Html.none
+                            ]
                         ]
                     ]
                 ]
             ]
 
-            // Subtitle info
+            // Page content
             Html.div [
-                prop.key "info-card"
-                prop.className "text-center"
+                prop.className "container mx-auto px-4 lg:px-8 py-8"
                 prop.children [
-                    Html.p [
-                        prop.key "info-1"
-                        prop.className "text-white/70 text-lg"
-                        prop.text "Click the button to increment"
-                    ]
-                    Html.p [
-                        prop.key "info-2"
-                        prop.className "text-white/50 text-sm mt-1"
-                        prop.text "Persisted on the backend"
-                    ]
-                    // Display data path
-                    match model.DataPath with
-                    | Success path ->
-                        Html.p [
-                            prop.key "data-path"
-                            prop.className "text-white/40 text-xs mt-3 font-mono break-all"
-                            prop.text $"Data file: {path}"
-                        ]
-                    | Loading ->
-                        Html.p [
-                            prop.key "data-path-loading"
-                            prop.className "text-white/40 text-xs mt-3"
-                            prop.text "Loading path..."
-                        ]
-                    | Failure err ->
-                        Html.p [
-                            prop.key "data-path-error"
-                            prop.className "text-red-400/60 text-xs mt-3"
-                            prop.text $"Path error: {err}"
-                        ]
-                    | NotAsked -> Html.none
+                    pageContent model.CurrentPage
                 ]
             ]
         ]
@@ -179,74 +279,10 @@ let private counterView (model: Model) (dispatch: Msg -> unit) =
 /// Main view
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "min-h-screen animated-background flex flex-col"
+        prop.className "min-h-screen bg-base-100"
         prop.children [
-            // Floating orbs for visual interest
-            floatingOrbs
-
-            // Glass header
-            Html.div [
-                prop.key "header"
-                prop.className "glass-header relative z-10"
-                prop.children [
-                    Html.div [
-                        prop.className "container mx-auto px-6 py-4"
-                        prop.children [
-                            Html.h1 [
-                                prop.className "text-2xl font-bold text-white tracking-wide"
-                                prop.children [
-                                    Html.span [
-                                        prop.className "opacity-80"
-                                        prop.text "F#"
-                                    ]
-                                    Html.span [
-                                        prop.className "mx-2 opacity-40"
-                                        prop.text "|"
-                                    ]
-                                    Html.span [
-                                        prop.text "Counter Demo"
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-
-            // Main content
-            Html.div [
-                prop.key "main-content"
-                prop.className "flex-1 container mx-auto p-8 flex items-center justify-center relative z-10"
-                prop.children [
-                    counterView model dispatch
-                ]
-            ]
-
-            // Support banner
-            Html.div [
-                prop.key "support-banner"
-                prop.className "bg-gradient-to-r from-pink-500/20 to-orange-500/20 border-t border-white/10 relative z-10"
-                prop.children [
-                    Html.div [
-                        prop.className "container mx-auto px-6 py-3 flex items-center justify-center gap-3"
-                        prop.children [
-                            Html.span [
-                                prop.className "text-white/80 text-sm"
-                                prop.text "Support the development of this free, open-source project!"
-                            ]
-                            Html.a [
-                                prop.href "https://ko-fi.com/heimeshoff"
-                                prop.target "_blank"
-                                prop.rel "noopener noreferrer"
-                                prop.className "inline-flex items-center gap-2 bg-[#FF5E5B] hover:bg-[#ff4742] text-white font-semibold px-4 py-1.5 rounded-full text-sm transition-colors"
-                                prop.children [
-                                    Html.span [ prop.text "☕" ]
-                                    Html.span [ prop.text "Buy me a coffee on Ko-fi" ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+            sidebar model dispatch
+            mobileNav model dispatch
+            mainContent model dispatch
         ]
     ]

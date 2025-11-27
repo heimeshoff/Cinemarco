@@ -1,35 +1,38 @@
-name: fsharp-counter
+name: cinemarco
 
 services:
-  counter-app:
+  cinemarco:
     build: .
-    image: fsharp-counter-app:latest
-    container_name: fsharp-counter-app
+    image: cinemarco:latest
+    container_name: cinemarco
     # ports removed - accessed via Tailscale only
     # - "5000:5000"
     volumes:
-      - ${HOME}/heimeshoff/fsharp_counter:/app/data
+      - ${HOME}/cinemarco/data:/app/data
     restart: unless-stopped
     environment:
       - ASPNETCORE_URLS=http://+:5000
       - ASPNETCORE_ENVIRONMENT=Production
       - DATA_DIR=/app/data
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      - TRAKT_CLIENT_ID=${TRAKT_CLIENT_ID:-}
+      - TRAKT_CLIENT_SECRET=${TRAKT_CLIENT_SECRET:-}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/ICinemarcoApi/healthCheck"]
       interval: 30s
       timeout: 3s
       start_period: 5s
       retries: 3
 
-  tailscale-counter:
+  tailscale:
     image: tailscale/tailscale:latest
-    container_name: tailscale_counter
-    network_mode: "service:counter-app"
+    container_name: cinemarco-tailscale
+    network_mode: "service:cinemarco"
     depends_on:
-      - counter-app
+      - cinemarco
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
-      - TS_EXTRA_ARGS=--hostname=fsharp-counter
+      - TS_EXTRA_ARGS=--hostname=cinemarco
       - TS_USERSPACE=true
     volumes:
       - tailscale_state:/var/lib/tailscale

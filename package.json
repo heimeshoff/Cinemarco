@@ -1,6 +1,7 @@
 {
-  "name": "fsharp-counter-app",
-  "version": "1.0.0",
+  "name": "cinemarco",
+  "version": "0.1.0",
+  "description": "Personal cinema memory tracker - track movies, series, and the people you watch with",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -8,11 +9,8 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@executeautomation/playwright-mcp-server": "^1.0.6",
-    "@playwright/mcp": "^0.0.47",
     "@tailwindcss/vite": "^4.0.0-beta.5",
     "daisyui": "^4.12.14",
-    "playwright": "^1.56.1",
     "tailwindcss": "^4.0.0-beta.5",
     "vite": "^7.0.0",
     "vite-plugin-fable": "^0.2.1"

@@ -1,15 +1,15 @@
 module Shared.Api
 
-open Domain
+/// Health check response
+type HealthCheckResponse = {
+    Status: string
+    Version: string
+    Timestamp: System.DateTime
+}
 
-/// API contract for counter operations
-type ICounterApi = {
-    /// Get the current counter value
-    getCounter: unit -> Async<Counter>
-
-    /// Increment the counter and return the new value
-    incrementCounter: unit -> Async<Counter>
-
-    /// Get the absolute path to the counter data file
-    getDataPath: unit -> Async<string>
+/// API contract for Cinemarco operations
+/// Sub-APIs will be added incrementally in later milestones
+type ICinemarcoApi = {
+    /// Health check endpoint
+    healthCheck: unit -> Async<HealthCheckResponse>
 }

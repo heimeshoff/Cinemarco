@@ -941,6 +941,103 @@ Html.button [
 
 ---
 
+## URL Routing & Deep Linking
+
+### Requirement
+
+Every page in the application must be directly accessible via a unique URL. Users must be able to:
+
+1. **Bookmark any page** - Navigate directly to any movie, series, person, tag, collection, or other entity page
+2. **Share URLs** - Copy and share a link to any specific page
+3. **Use browser navigation** - Back/forward buttons must work correctly
+4. **Refresh without losing state** - Refreshing the page must reload the same view
+
+### URL Patterns
+
+| Page | URL Pattern | Example |
+|------|-------------|---------|
+| Home | `/` | `/` |
+| Library | `/library` | `/library` |
+| Movie Detail | `/movie/:id` | `/movie/42` |
+| Series Detail | `/series/:id` | `/series/17` |
+| Friends List | `/friends` | `/friends` |
+| Friend Detail | `/friend/:id` | `/friend/5` |
+| Tags List | `/tags` | `/tags` |
+| Tag Detail | `/tag/:id` | `/tag/12` |
+| Collections List | `/collections` | `/collections` |
+| Collection Detail | `/collection/:id` | `/collection/3` |
+| Contributor (Person) | `/person/:id` | `/person/287` |
+| Timeline | `/timeline` | `/timeline` |
+| Statistics | `/stats` | `/stats` |
+| Year in Review | `/year/:year` | `/year/2024` |
+| Relationship Graph | `/graph` | `/graph` |
+| Import | `/import` | `/import` |
+
+### Router Implementation
+
+```fsharp
+/// Parse URL to Page
+let parseUrl (segments: string list) : Page =
+    match segments with
+    | [] -> HomePage
+    | [ "library" ] -> LibraryPage
+    | [ "movie"; id ] -> MovieDetailPage (EntryId (int id))
+    | [ "series"; id ] -> SeriesDetailPage (EntryId (int id))
+    | [ "friends" ] -> FriendsPage
+    | [ "friend"; id ] -> FriendDetailPage (FriendId (int id))
+    | [ "tags" ] -> TagsPage
+    | [ "tag"; id ] -> TagDetailPage (TagId (int id))
+    | [ "collections" ] -> CollectionsPage
+    | [ "collection"; id ] -> CollectionDetailPage (CollectionId (int id))
+    | [ "person"; id ] -> ContributorDetailPage (ContributorId (int id))
+    | [ "timeline" ] -> TimelinePage
+    | [ "stats" ] -> StatsPage
+    | [ "year"; year ] -> YearInReviewPage (int year)
+    | [ "graph" ] -> GraphPage
+    | [ "import" ] -> ImportPage
+    | _ -> NotFoundPage
+
+/// Generate URL from Page
+let toUrl (page: Page) : string =
+    match page with
+    | HomePage -> "/"
+    | LibraryPage -> "/library"
+    | MovieDetailPage (EntryId id) -> $"/movie/{id}"
+    | SeriesDetailPage (EntryId id) -> $"/series/{id}"
+    | FriendsPage -> "/friends"
+    | FriendDetailPage (FriendId id) -> $"/friend/{id}"
+    | TagsPage -> "/tags"
+    | TagDetailPage (TagId id) -> $"/tag/{id}"
+    | CollectionsPage -> "/collections"
+    | CollectionDetailPage (CollectionId id) -> $"/collection/{id}"
+    | ContributorDetailPage (ContributorId id) -> $"/person/{id}"
+    | TimelinePage -> "/timeline"
+    | StatsPage -> "/stats"
+    | YearInReviewPage year -> $"/year/{year}"
+    | GraphPage -> "/graph"
+    | ImportPage -> "/import"
+    | NotFoundPage -> "/404"
+```
+
+### Navigation Behavior
+
+1. **Internal links** - Use `NavigateTo` message, which updates both state and URL
+2. **URL changes** - Listen to browser history events, parse URL, update state
+3. **Initial load** - Parse URL on app start to determine initial page
+4. **Invalid URLs** - Redirect to `NotFoundPage` with option to go home
+
+### Query Parameters (Optional)
+
+Some pages may support query parameters for filtering/state:
+
+| Page | Query Parameters |
+|------|------------------|
+| Library | `?status=watched&tag=5&sort=date` |
+| Timeline | `?year=2024&month=3` |
+| Graph | `?center=movie:42&depth=2` |
+
+---
+
 ## File Organization
 
 ```
@@ -950,7 +1047,7 @@ src/Client/
 ├── Api.fs                # Fable.Remoting client
 ├── State.fs              # Model, Msg, update
 ├── View.fs               # Root view
-├── Router.fs             # URL routing
+├── Router.fs             # URL routing (parseUrl, toUrl, subscription)
 │
 ├── Components/           # Reusable components
 │   ├── PosterCard.fs
@@ -997,3 +1094,5 @@ src/Client/
 6. **Skeleton loading** - Show placeholders during load
 7. **Error boundaries** - Handle failures gracefully
 8. **Keyboard shortcuts** - Add for power users
+9. **Implement routing early** - Set up Router.fs before building pages to ensure all pages are URL-addressable from the start
+10. **Test deep links** - Verify each page can be accessed directly via URL and survives page refresh

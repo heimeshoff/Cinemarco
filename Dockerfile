@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for F# Counter App
+# Multi-stage Dockerfile for Cinemarco
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-build
 
@@ -69,7 +69,7 @@ EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/ || exit 1
+  CMD curl -f http://localhost:5000/api/ICinemarcoApi/healthCheck || exit 1
 
 # Run the application
 ENTRYPOINT ["dotnet", "Server.dll"]
