@@ -68,10 +68,142 @@ let cinemarcoApi : ICinemarcoApi = {
     }
 
     // =====================================
+    // Watch Status Operations
+    // =====================================
+
+    libraryMarkMovieWatched = fun (entryId, watchedDate) -> async {
+        try
+            do! Persistence.markMovieWatched entryId watchedDate
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to mark movie as watched: {ex.Message}"
+    }
+
+    libraryMarkMovieUnwatched = fun entryId -> async {
+        try
+            do! Persistence.markMovieUnwatched entryId
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to mark movie as unwatched: {ex.Message}"
+    }
+
+    libraryUpdateEpisodeProgress = fun (entryId, seasonNumber, episodeNumber, watched) -> async {
+        try
+            match! Persistence.getSeriesInfoForEntry entryId with
+            | None -> return Error "Entry is not a series"
+            | Some (seriesId, _) ->
+                do! Persistence.updateEpisodeProgress entryId seriesId seasonNumber episodeNumber watched
+                do! Persistence.updateSeriesWatchStatusFromProgress entryId
+                return Ok ()
+        with
+        | ex -> return Error $"Failed to update episode progress: {ex.Message}"
+    }
+
+    libraryMarkSeasonWatched = fun (entryId, seasonNumber) -> async {
+        try
+            match! Persistence.getSeriesInfoForEntry entryId with
+            | None -> return Error "Entry is not a series"
+            | Some (seriesId, _) ->
+                // Get season details from TMDB to find episode count
+                let! entry = Persistence.getLibraryEntryById entryId
+                match entry with
+                | None -> return Error "Entry not found"
+                | Some e ->
+                    match e.Media with
+                    | LibrarySeries series ->
+                        let! seasonResult = TmdbClient.getSeasonDetails series.TmdbId seasonNumber
+                        match seasonResult with
+                        | Error err -> return Error $"Failed to get season details: {err}"
+                        | Ok season ->
+                            let episodeCount = season.Episodes.Length
+                            do! Persistence.markSeasonWatched entryId seriesId seasonNumber episodeCount
+                            do! Persistence.updateSeriesWatchStatusFromProgress entryId
+                            return Ok ()
+                    | LibraryMovie _ -> return Error "Entry is not a series"
+        with
+        | ex -> return Error $"Failed to mark season as watched: {ex.Message}"
+    }
+
+    libraryMarkSeriesCompleted = fun entryId -> async {
+        try
+            do! Persistence.updateWatchStatus entryId Completed (Some DateTime.UtcNow)
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to mark series as completed: {ex.Message}"
+    }
+
+    libraryAbandonEntry = fun (entryId, request) -> async {
+        try
+            let abandonedAt =
+                match request.AbandonedAtSeason, request.AbandonedAtEpisode with
+                | Some s, Some e -> Some { CurrentSeason = Some s; CurrentEpisode = Some e; LastWatchedDate = None }
+                | Some s, None -> Some { CurrentSeason = Some s; CurrentEpisode = None; LastWatchedDate = None }
+                | None, Some e -> Some { CurrentSeason = None; CurrentEpisode = Some e; LastWatchedDate = None }
+                | None, None -> None
+
+            let abandonedInfo : AbandonedInfo = {
+                AbandonedAt = abandonedAt
+                Reason = request.Reason
+                AbandonedDate = Some DateTime.UtcNow
+            }
+            do! Persistence.updateWatchStatus entryId (Abandoned abandonedInfo) None
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to abandon entry: {ex.Message}"
+    }
+
+    libraryResumeEntry = fun entryId -> async {
+        try
+            // Get current entry to check previous progress
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | None -> return Error "Entry not found"
+            | Some e ->
+                match e.WatchStatus with
+                | Abandoned info ->
+                    // Resume to InProgress if there was progress, otherwise NotStarted
+                    let newStatus =
+                        match info.AbandonedAt with
+                        | Some progress -> InProgress progress
+                        | None -> NotStarted
+                    do! Persistence.updateWatchStatus entryId newStatus None
+                    let! updatedEntry = Persistence.getLibraryEntryById entryId
+                    match updatedEntry with
+                    | Some updated -> return Ok updated
+                    | None -> return Error "Entry not found after update"
+                | _ ->
+                    // Entry is not abandoned, just return it
+                    return Ok e
+        with
+        | ex -> return Error $"Failed to resume entry: {ex.Message}"
+    }
+
+    libraryGetEpisodeProgress = fun entryId -> Persistence.getEpisodeProgress entryId
+
+    // =====================================
     // Friends Operations
     // =====================================
 
     friendsGetAll = fun () -> Persistence.getAllFriends()
+
+    friendsGetById = fun id -> async {
+        let! friend = Persistence.getFriendById (FriendId id)
+        match friend with
+        | Some f -> return Ok f
+        | None -> return Error "Friend not found"
+    }
 
     friendsCreate = fun request -> async {
         try
@@ -81,11 +213,46 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to create friend: {ex.Message}"
     }
 
+    friendsUpdate = fun request -> async {
+        try
+            do! Persistence.updateFriend request
+            let! friend = Persistence.getFriendById request.Id
+            match friend with
+            | Some f -> return Ok f
+            | None -> return Error "Friend not found after update"
+        with
+        | ex -> return Error $"Failed to update friend: {ex.Message}"
+    }
+
+    friendsDelete = fun id -> async {
+        try
+            do! Persistence.deleteFriend (FriendId id)
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to delete friend: {ex.Message}"
+    }
+
+    friendsGetWatchedWith = fun friendId -> async {
+        let! entryIds = Persistence.getEntriesWatchedWithFriend (FriendId friendId)
+        let! entries =
+            entryIds
+            |> List.map (fun eid -> Persistence.getLibraryEntryById (EntryId eid))
+            |> Async.Sequential
+        return entries |> Array.choose id |> Array.toList
+    }
+
     // =====================================
     // Tags Operations
     // =====================================
 
     tagsGetAll = fun () -> Persistence.getAllTags()
+
+    tagsGetById = fun id -> async {
+        let! tag = Persistence.getTagById (TagId id)
+        match tag with
+        | Some t -> return Ok t
+        | None -> return Error "Tag not found"
+    }
 
     tagsCreate = fun request -> async {
         try
@@ -93,6 +260,34 @@ let cinemarcoApi : ICinemarcoApi = {
             return Ok tag
         with
         | ex -> return Error $"Failed to create tag: {ex.Message}"
+    }
+
+    tagsUpdate = fun request -> async {
+        try
+            do! Persistence.updateTag request
+            let! tag = Persistence.getTagById request.Id
+            match tag with
+            | Some t -> return Ok t
+            | None -> return Error "Tag not found after update"
+        with
+        | ex -> return Error $"Failed to update tag: {ex.Message}"
+    }
+
+    tagsDelete = fun id -> async {
+        try
+            do! Persistence.deleteTag (TagId id)
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to delete tag: {ex.Message}"
+    }
+
+    tagsGetTaggedEntries = fun tagId -> async {
+        let! entryIds = Persistence.getEntriesWithTag (TagId tagId)
+        let! entries =
+            entryIds
+            |> List.map (fun eid -> Persistence.getLibraryEntryById (EntryId eid))
+            |> Async.Sequential
+        return entries |> Array.choose id |> Array.toList
     }
 
     // =====================================

@@ -22,6 +22,12 @@ type Model = {
     LibraryFilters: LibraryFilters
     // Currently viewed detail entry
     DetailEntry: RemoteData<LibraryEntry>
+    // Episode progress for series detail view
+    EpisodeProgress: RemoteData<EpisodeProgress list>
+    // Friend detail page - entries watched with friend
+    FriendDetailEntries: RemoteData<LibraryEntry list>
+    // Tag detail page - entries with tag
+    TagDetailEntries: RemoteData<LibraryEntry list>
     // Notification message (for success/error toasts)
     Notification: (string * bool) option  // (message, isSuccess)
 }
@@ -49,6 +55,32 @@ type Msg =
     | FriendsLoaded of Result<Friend list, string>
     | LoadTags
     | TagsLoaded of Result<Tag list, string>
+    // Friends management
+    | OpenAddFriendModal
+    | OpenEditFriendModal of Friend
+    | FriendModalNameChanged of string
+    | FriendModalNicknameChanged of string
+    | FriendModalNotesChanged of string
+    | SubmitFriendModal
+    | FriendSaved of Result<Friend, string>
+    | OpenDeleteFriendModal of Friend
+    | ConfirmDeleteFriend of FriendId
+    | FriendDeleted of Result<unit, string>
+    | ViewFriendDetail of FriendId
+    | FriendWatchedWithLoaded of Result<LibraryEntry list, string>
+    // Tags management
+    | OpenAddTagModal
+    | OpenEditTagModal of Tag
+    | TagModalNameChanged of string
+    | TagModalColorChanged of string
+    | TagModalDescriptionChanged of string
+    | SubmitTagModal
+    | TagSaved of Result<Tag, string>
+    | OpenDeleteTagModal of Tag
+    | ConfirmDeleteTag of TagId
+    | TagDeleted of Result<unit, string>
+    | ViewTagDetail of TagId
+    | TagEntriesLoaded of Result<LibraryEntry list, string>
     // Library
     | LoadLibrary
     | LibraryLoaded of Result<LibraryEntry list, string>
@@ -66,6 +98,29 @@ type Msg =
     | DetailEntryLoaded of Result<LibraryEntry, string>
     | DeleteEntry of EntryId
     | EntryDeleted of Result<unit, string>
+    // Watch status
+    | MarkMovieWatched of EntryId
+    | MarkMovieUnwatched of EntryId
+    | WatchStatusUpdated of Result<LibraryEntry, string>
+    | ToggleEpisodeWatched of EntryId * int * int * bool  // entryId, season, episode, newWatchedState
+    | EpisodeProgressUpdated of Result<unit, string>
+    | MarkSeasonWatched of EntryId * int  // entryId, seasonNumber
+    | SeasonWatchedResult of Result<unit, string>
+    | MarkSeriesCompleted of EntryId
+    | LoadEpisodeProgress of EntryId
+    | EpisodeProgressLoaded of Result<EpisodeProgress list, string>
+    // Abandon modal
+    | OpenAbandonModal of EntryId
+    | AbandonModalReasonChanged of string
+    | AbandonModalSeasonChanged of int option
+    | AbandonModalEpisodeChanged of int option
+    | SubmitAbandonModal
+    | AbandonResult of Result<LibraryEntry, string>
+    | ResumeEntry of EntryId
+    | ResumeResult of Result<LibraryEntry, string>
+    // Delete entry confirmation
+    | OpenDeleteEntryModal of EntryId
+    | ConfirmDeleteEntry of EntryId
     // Notifications
     | ShowNotification of string * bool
     | ClearNotification
@@ -82,6 +137,9 @@ let init () : Model * Cmd<Msg> =
         Library = NotAsked
         LibraryFilters = LibraryFilters.empty
         DetailEntry = NotAsked
+        EpisodeProgress = NotAsked
+        FriendDetailEntries = NotAsked
+        TagDetailEntries = NotAsked
         Notification = None
     }
     // Load health check, friends, tags on startup
@@ -306,6 +364,244 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         { model with Tags = Success [] }, Cmd.none  // Fallback to empty list
 
     // =====================================
+    // Friends Management
+    // =====================================
+
+    | OpenAddFriendModal ->
+        { model with Modal = FriendModal FriendModalState.empty }, Cmd.none
+
+    | OpenEditFriendModal friend ->
+        { model with Modal = FriendModal (FriendModalState.fromFriend friend) }, Cmd.none
+
+    | FriendModalNameChanged name ->
+        match model.Modal with
+        | FriendModal state ->
+            { model with Modal = FriendModal { state with Name = name } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | FriendModalNicknameChanged nickname ->
+        match model.Modal with
+        | FriendModal state ->
+            { model with Modal = FriendModal { state with Nickname = nickname } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | FriendModalNotesChanged notes ->
+        match model.Modal with
+        | FriendModal state ->
+            { model with Modal = FriendModal { state with Notes = notes } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | SubmitFriendModal ->
+        match model.Modal with
+        | FriendModal state when state.Name.Trim().Length > 0 ->
+            let cmd =
+                match state.EditingFriend with
+                | None ->
+                    // Create new friend
+                    let request : CreateFriendRequest = {
+                        Name = state.Name.Trim()
+                        Nickname = if state.Nickname.Trim().Length > 0 then Some (state.Nickname.Trim()) else None
+                        Notes = if state.Notes.Trim().Length > 0 then Some (state.Notes.Trim()) else None
+                    }
+                    Cmd.OfAsync.either
+                        Api.api.friendsCreate
+                        request
+                        FriendSaved
+                        (fun ex -> Error ex.Message |> FriendSaved)
+                | Some existing ->
+                    // Update existing friend
+                    let request : UpdateFriendRequest = {
+                        Id = existing.Id
+                        Name = Some (state.Name.Trim())
+                        Nickname = if state.Nickname.Trim().Length > 0 then Some (state.Nickname.Trim()) else None
+                        Notes = if state.Notes.Trim().Length > 0 then Some (state.Notes.Trim()) else None
+                    }
+                    Cmd.OfAsync.either
+                        Api.api.friendsUpdate
+                        request
+                        FriendSaved
+                        (fun ex -> Error ex.Message |> FriendSaved)
+            { model with Modal = FriendModal { state with IsSubmitting = true; Error = None } }, cmd
+        | FriendModal state ->
+            { model with Modal = FriendModal { state with Error = Some "Name is required" } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | FriendSaved (Ok friend) ->
+        { model with Modal = NoModal },
+        Cmd.batch [
+            Cmd.ofMsg LoadFriends
+            Cmd.ofMsg (ShowNotification ($"Friend \"{friend.Name}\" saved!", true))
+        ]
+
+    | FriendSaved (Error err) ->
+        match model.Modal with
+        | FriendModal state ->
+            { model with Modal = FriendModal { state with IsSubmitting = false; Error = Some err } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | OpenDeleteFriendModal friend ->
+        { model with Modal = ConfirmDeleteFriendModal friend }, Cmd.none
+
+    | ConfirmDeleteFriend (FriendId friendId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.friendsDelete
+                friendId
+                FriendDeleted
+                (fun ex -> Error ex.Message |> FriendDeleted)
+        model, cmd
+
+    | FriendDeleted (Ok ()) ->
+        { model with
+            Modal = NoModal
+            CurrentPage = FriendsPage
+        }, Cmd.batch [
+            Cmd.ofMsg LoadFriends
+            Cmd.ofMsg (ShowNotification ("Friend deleted", true))
+        ]
+
+    | FriendDeleted (Error err) ->
+        { model with Modal = NoModal },
+        Cmd.ofMsg (ShowNotification ($"Failed to delete friend: {err}", false))
+
+    | ViewFriendDetail (FriendId friendId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.friendsGetWatchedWith
+                friendId
+                (Ok >> FriendWatchedWithLoaded)
+                (fun ex -> Error ex.Message |> FriendWatchedWithLoaded)
+        { model with
+            CurrentPage = FriendDetailPage (FriendId friendId)
+            FriendDetailEntries = Loading
+        }, cmd
+
+    | FriendWatchedWithLoaded (Ok entries) ->
+        { model with FriendDetailEntries = Success entries }, Cmd.none
+
+    | FriendWatchedWithLoaded (Error err) ->
+        { model with FriendDetailEntries = Failure err }, Cmd.none
+
+    // =====================================
+    // Tags Management
+    // =====================================
+
+    | OpenAddTagModal ->
+        { model with Modal = TagModal TagModalState.empty }, Cmd.none
+
+    | OpenEditTagModal tag ->
+        { model with Modal = TagModal (TagModalState.fromTag tag) }, Cmd.none
+
+    | TagModalNameChanged name ->
+        match model.Modal with
+        | TagModal state ->
+            { model with Modal = TagModal { state with Name = name } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | TagModalColorChanged color ->
+        match model.Modal with
+        | TagModal state ->
+            { model with Modal = TagModal { state with Color = color } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | TagModalDescriptionChanged description ->
+        match model.Modal with
+        | TagModal state ->
+            { model with Modal = TagModal { state with Description = description } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | SubmitTagModal ->
+        match model.Modal with
+        | TagModal state when state.Name.Trim().Length > 0 ->
+            let cmd =
+                match state.EditingTag with
+                | None ->
+                    // Create new tag
+                    let request : CreateTagRequest = {
+                        Name = state.Name.Trim()
+                        Color = if state.Color.Trim().Length > 0 then Some (state.Color.Trim()) else None
+                        Description = if state.Description.Trim().Length > 0 then Some (state.Description.Trim()) else None
+                    }
+                    Cmd.OfAsync.either
+                        Api.api.tagsCreate
+                        request
+                        TagSaved
+                        (fun ex -> Error ex.Message |> TagSaved)
+                | Some existing ->
+                    // Update existing tag
+                    let request : UpdateTagRequest = {
+                        Id = existing.Id
+                        Name = Some (state.Name.Trim())
+                        Color = if state.Color.Trim().Length > 0 then Some (state.Color.Trim()) else None
+                        Description = if state.Description.Trim().Length > 0 then Some (state.Description.Trim()) else None
+                    }
+                    Cmd.OfAsync.either
+                        Api.api.tagsUpdate
+                        request
+                        TagSaved
+                        (fun ex -> Error ex.Message |> TagSaved)
+            { model with Modal = TagModal { state with IsSubmitting = true; Error = None } }, cmd
+        | TagModal state ->
+            { model with Modal = TagModal { state with Error = Some "Name is required" } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | TagSaved (Ok tag) ->
+        { model with Modal = NoModal },
+        Cmd.batch [
+            Cmd.ofMsg LoadTags
+            Cmd.ofMsg (ShowNotification ($"Tag \"{tag.Name}\" saved!", true))
+        ]
+
+    | TagSaved (Error err) ->
+        match model.Modal with
+        | TagModal state ->
+            { model with Modal = TagModal { state with IsSubmitting = false; Error = Some err } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | OpenDeleteTagModal tag ->
+        { model with Modal = ConfirmDeleteTagModal tag }, Cmd.none
+
+    | ConfirmDeleteTag (TagId tagId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.tagsDelete
+                tagId
+                TagDeleted
+                (fun ex -> Error ex.Message |> TagDeleted)
+        model, cmd
+
+    | TagDeleted (Ok ()) ->
+        { model with
+            Modal = NoModal
+            CurrentPage = TagsPage
+        }, Cmd.batch [
+            Cmd.ofMsg LoadTags
+            Cmd.ofMsg (ShowNotification ("Tag deleted", true))
+        ]
+
+    | TagDeleted (Error err) ->
+        { model with Modal = NoModal },
+        Cmd.ofMsg (ShowNotification ($"Failed to delete tag: {err}", false))
+
+    | ViewTagDetail (TagId tagId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.tagsGetTaggedEntries
+                tagId
+                (Ok >> TagEntriesLoaded)
+                (fun ex -> Error ex.Message |> TagEntriesLoaded)
+        { model with
+            CurrentPage = TagDetailPage (TagId tagId)
+            TagDetailEntries = Loading
+        }, cmd
+
+    | TagEntriesLoaded (Ok entries) ->
+        { model with TagDetailEntries = Success entries }, Cmd.none
+
+    | TagEntriesLoaded (Error err) ->
+        { model with TagDetailEntries = Failure err }, Cmd.none
+
+    // =====================================
     // Library
     // =====================================
 
@@ -375,16 +671,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         }, cmd
 
     | ViewSeriesDetail entryId ->
-        let cmd =
+        let detailCmd =
             Cmd.OfAsync.either
                 Api.api.libraryGetById
                 entryId
                 DetailEntryLoaded
                 (fun ex -> Error ex.Message |> DetailEntryLoaded)
+        let progressCmd =
+            Cmd.OfAsync.either
+                Api.api.libraryGetEpisodeProgress
+                entryId
+                (Ok >> EpisodeProgressLoaded)
+                (fun ex -> Error ex.Message |> EpisodeProgressLoaded)
         { model with
             CurrentPage = SeriesDetailPage entryId
             DetailEntry = Loading
-        }, cmd
+            EpisodeProgress = Loading
+        }, Cmd.batch [ detailCmd; progressCmd ]
 
     | DetailEntryLoaded (Ok entry) ->
         { model with DetailEntry = Success entry }, Cmd.none
@@ -412,6 +715,196 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | EntryDeleted (Error err) ->
         model, Cmd.ofMsg (ShowNotification ($"Failed to delete: {err}", false))
+
+    // =====================================
+    // Watch Status
+    // =====================================
+
+    | MarkMovieWatched entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryMarkMovieWatched
+                (entryId, None)
+                WatchStatusUpdated
+                (fun ex -> Error ex.Message |> WatchStatusUpdated)
+        model, cmd
+
+    | MarkMovieUnwatched entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryMarkMovieUnwatched
+                entryId
+                WatchStatusUpdated
+                (fun ex -> Error ex.Message |> WatchStatusUpdated)
+        model, cmd
+
+    | WatchStatusUpdated (Ok entry) ->
+        // Update the detail entry and reload library
+        { model with DetailEntry = Success entry },
+        Cmd.batch [
+            Cmd.ofMsg LoadLibrary
+            Cmd.ofMsg (ShowNotification ("Watch status updated", true))
+        ]
+
+    | WatchStatusUpdated (Error err) ->
+        model, Cmd.ofMsg (ShowNotification ($"Failed to update watch status: {err}", false))
+
+    | ToggleEpisodeWatched (entryId, season, episode, watched) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryUpdateEpisodeProgress
+                (entryId, season, episode, watched)
+                EpisodeProgressUpdated
+                (fun ex -> Error ex.Message |> EpisodeProgressUpdated)
+        model, cmd
+
+    | EpisodeProgressUpdated (Ok ()) ->
+        // Reload the entry and episode progress to get updated state
+        match model.DetailEntry with
+        | Success entry ->
+            model, Cmd.batch [
+                Cmd.ofMsg (ViewSeriesDetail entry.Id)
+                Cmd.ofMsg (LoadEpisodeProgress entry.Id)
+                Cmd.ofMsg LoadLibrary
+            ]
+        | _ -> model, Cmd.none
+
+    | EpisodeProgressUpdated (Error err) ->
+        model, Cmd.ofMsg (ShowNotification ($"Failed to update episode: {err}", false))
+
+    | MarkSeasonWatched (entryId, seasonNumber) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryMarkSeasonWatched
+                (entryId, seasonNumber)
+                SeasonWatchedResult
+                (fun ex -> Error ex.Message |> SeasonWatchedResult)
+        model, cmd
+
+    | SeasonWatchedResult (Ok ()) ->
+        match model.DetailEntry with
+        | Success entry ->
+            { model with EpisodeProgress = Loading },
+            Cmd.batch [
+                Cmd.ofMsg (ViewSeriesDetail entry.Id)
+                Cmd.ofMsg (LoadEpisodeProgress entry.Id)
+                Cmd.ofMsg LoadLibrary
+                Cmd.ofMsg (ShowNotification ("Season marked as watched", true))
+            ]
+        | _ -> model, Cmd.ofMsg (ShowNotification ("Season marked as watched", true))
+
+    | SeasonWatchedResult (Error err) ->
+        model, Cmd.ofMsg (ShowNotification ($"Failed to mark season: {err}", false))
+
+    | MarkSeriesCompleted entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryMarkSeriesCompleted
+                entryId
+                WatchStatusUpdated
+                (fun ex -> Error ex.Message |> WatchStatusUpdated)
+        model, cmd
+
+    | LoadEpisodeProgress entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryGetEpisodeProgress
+                entryId
+                (Ok >> EpisodeProgressLoaded)
+                (fun ex -> Error ex.Message |> EpisodeProgressLoaded)
+        { model with EpisodeProgress = Loading }, cmd
+
+    | EpisodeProgressLoaded (Ok progress) ->
+        { model with EpisodeProgress = Success progress }, Cmd.none
+
+    | EpisodeProgressLoaded (Error err) ->
+        { model with EpisodeProgress = Failure err }, Cmd.none
+
+    // =====================================
+    // Abandon Modal
+    // =====================================
+
+    | OpenAbandonModal entryId ->
+        { model with Modal = AbandonModal (AbandonModalState.create entryId) }, Cmd.none
+
+    | AbandonModalReasonChanged reason ->
+        match model.Modal with
+        | AbandonModal state ->
+            { model with Modal = AbandonModal { state with Reason = reason } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | AbandonModalSeasonChanged season ->
+        match model.Modal with
+        | AbandonModal state ->
+            { model with Modal = AbandonModal { state with AbandonedAtSeason = season } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | AbandonModalEpisodeChanged episode ->
+        match model.Modal with
+        | AbandonModal state ->
+            { model with Modal = AbandonModal { state with AbandonedAtEpisode = episode } }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | SubmitAbandonModal ->
+        match model.Modal with
+        | AbandonModal state ->
+            let request : AbandonRequest = {
+                Reason = if String.length state.Reason > 0 then Some state.Reason else None
+                AbandonedAtSeason = state.AbandonedAtSeason
+                AbandonedAtEpisode = state.AbandonedAtEpisode
+            }
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.api.libraryAbandonEntry
+                    (state.EntryId, request)
+                    AbandonResult
+                    (fun ex -> Error ex.Message |> AbandonResult)
+            { model with Modal = AbandonModal { state with IsSubmitting = true } }, cmd
+        | _ -> model, Cmd.none
+
+    | AbandonResult (Ok entry) ->
+        { model with
+            Modal = NoModal
+            DetailEntry = Success entry
+        }, Cmd.batch [
+            Cmd.ofMsg LoadLibrary
+            Cmd.ofMsg (ShowNotification ("Entry marked as abandoned", true))
+        ]
+
+    | AbandonResult (Error err) ->
+        match model.Modal with
+        | AbandonModal state ->
+            { model with Modal = AbandonModal { state with IsSubmitting = false; Error = Some err } }, Cmd.none
+        | _ -> model, Cmd.ofMsg (ShowNotification ($"Failed to abandon: {err}", false))
+
+    | ResumeEntry entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryResumeEntry
+                entryId
+                ResumeResult
+                (fun ex -> Error ex.Message |> ResumeResult)
+        model, cmd
+
+    | ResumeResult (Ok entry) ->
+        { model with DetailEntry = Success entry },
+        Cmd.batch [
+            Cmd.ofMsg LoadLibrary
+            Cmd.ofMsg (ShowNotification ("Entry resumed", true))
+        ]
+
+    | ResumeResult (Error err) ->
+        model, Cmd.ofMsg (ShowNotification ($"Failed to resume: {err}", false))
+
+    // =====================================
+    // Delete Entry Modal
+    // =====================================
+
+    | OpenDeleteEntryModal entryId ->
+        { model with Modal = ConfirmDeleteEntryModal entryId }, Cmd.none
+
+    | ConfirmDeleteEntry entryId ->
+        { model with Modal = NoModal }, Cmd.ofMsg (DeleteEntry entryId)
 
     // =====================================
     // Notifications

@@ -16,7 +16,9 @@ type Page =
     | MovieDetailPage of EntryId
     | SeriesDetailPage of EntryId
     | FriendsPage
+    | FriendDetailPage of FriendId
     | TagsPage
+    | TagDetailPage of TagId
     | CollectionsPage
     | StatsPage
     | TimelinePage
@@ -31,7 +33,9 @@ module Page =
         | MovieDetailPage (EntryId id) -> $"/movie/{id}"
         | SeriesDetailPage (EntryId id) -> $"/series/{id}"
         | FriendsPage -> "/friends"
+        | FriendDetailPage (FriendId id) -> $"/friend/{id}"
         | TagsPage -> "/tags"
+        | TagDetailPage (TagId id) -> $"/tag/{id}"
         | CollectionsPage -> "/collections"
         | StatsPage -> "/stats"
         | TimelinePage -> "/timeline"
@@ -45,7 +49,9 @@ module Page =
         | MovieDetailPage _ -> "Movie"
         | SeriesDetailPage _ -> "Series"
         | FriendsPage -> "Friends"
+        | FriendDetailPage _ -> "Friend"
         | TagsPage -> "Tags"
+        | TagDetailPage _ -> "Tag"
         | CollectionsPage -> "Collections"
         | StatsPage -> "Stats"
         | TimelinePage -> "Timeline"
@@ -116,10 +122,94 @@ type QuickAddModalState = {
     Error: string option
 }
 
+/// State for the friend add/edit modal
+type FriendModalState = {
+    EditingFriend: Friend option  // None = creating new, Some = editing existing
+    Name: string
+    Nickname: string
+    Notes: string
+    IsSubmitting: bool
+    Error: string option
+}
+
+module FriendModalState =
+    let empty = {
+        EditingFriend = None
+        Name = ""
+        Nickname = ""
+        Notes = ""
+        IsSubmitting = false
+        Error = None
+    }
+
+    let fromFriend (friend: Friend) = {
+        EditingFriend = Some friend
+        Name = friend.Name
+        Nickname = friend.Nickname |> Option.defaultValue ""
+        Notes = friend.Notes |> Option.defaultValue ""
+        IsSubmitting = false
+        Error = None
+    }
+
+/// State for the tag add/edit modal
+type TagModalState = {
+    EditingTag: Tag option  // None = creating new, Some = editing existing
+    Name: string
+    Color: string
+    Description: string
+    IsSubmitting: bool
+    Error: string option
+}
+
+module TagModalState =
+    let empty = {
+        EditingTag = None
+        Name = ""
+        Color = ""
+        Description = ""
+        IsSubmitting = false
+        Error = None
+    }
+
+    let fromTag (tag: Tag) = {
+        EditingTag = Some tag
+        Name = tag.Name
+        Color = tag.Color |> Option.defaultValue ""
+        Description = tag.Description |> Option.defaultValue ""
+        IsSubmitting = false
+        Error = None
+    }
+
+/// State for the abandon modal
+type AbandonModalState = {
+    EntryId: EntryId
+    Reason: string
+    AbandonedAtSeason: int option
+    AbandonedAtEpisode: int option
+    IsSubmitting: bool
+    Error: string option
+}
+
+module AbandonModalState =
+    let create entryId = {
+        EntryId = entryId
+        Reason = ""
+        AbandonedAtSeason = None
+        AbandonedAtEpisode = None
+        IsSubmitting = false
+        Error = None
+    }
+
 /// Modal display states
 type ModalState =
     | NoModal
     | QuickAddModal of QuickAddModalState
+    | FriendModal of FriendModalState
+    | TagModal of TagModalState
+    | ConfirmDeleteFriendModal of Friend
+    | ConfirmDeleteTagModal of Tag
+    | AbandonModal of AbandonModalState
+    | ConfirmDeleteEntryModal of EntryId
 
 /// Helper functions for RemoteData
 module RemoteData =

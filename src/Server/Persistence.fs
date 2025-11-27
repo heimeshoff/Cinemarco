@@ -853,6 +853,17 @@ let removeTagFromEntry (EntryId entryId) (TagId tagId) : Async<unit> = async {
     return ()
 }
 
+/// Get all library entries with a specific tag
+let getEntriesWithTag (TagId tagId) : Async<int list> = async {
+    use conn = getConnection()
+    let! entryIds =
+        conn.QueryAsync<int>(
+            "SELECT entry_id FROM entry_tags WHERE tag_id = @TagId",
+            {| TagId = tagId |}
+        ) |> Async.AwaitTask
+    return entryIds |> Seq.toList
+}
+
 // =====================================
 // Entry Friends Junction
 // =====================================
@@ -879,6 +890,17 @@ let removeFriendFromEntry (EntryId entryId) (FriendId friendId) : Async<unit> = 
     let param = {| EntryId = entryId; FriendId = friendId |}
     let! _ = conn.ExecuteAsync("DELETE FROM entry_friends WHERE entry_id = @EntryId AND friend_id = @FriendId", param) |> Async.AwaitTask
     return ()
+}
+
+/// Get all library entries watched with a specific friend
+let getEntriesWatchedWithFriend (FriendId friendId) : Async<int list> = async {
+    use conn = getConnection()
+    let! entryIds =
+        conn.QueryAsync<int>(
+            "SELECT entry_id FROM entry_friends WHERE friend_id = @FriendId",
+            {| FriendId = friendId |}
+        ) |> Async.AwaitTask
+    return entryIds |> Seq.toList
 }
 
 // =====================================
@@ -1404,6 +1426,205 @@ let deleteLibraryEntry (EntryId id) : Async<unit> = async {
     use conn = getConnection()
     do! conn.ExecuteAsync("DELETE FROM library_entries WHERE id = @Id", {| Id = id |})
         |> Async.AwaitTask |> Async.Ignore
+}
+
+// =====================================
+// Watch Status Operations
+// =====================================
+
+/// Update watch status for a library entry
+let updateWatchStatus (EntryId id) (status: WatchStatus) (watchedDate: DateTime option) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    let (statusStr, progressSeason, progressEpisode, progressDate, abSeason, abEpisode, abReason, abDate) =
+        match status with
+        | NotStarted ->
+            ("NotStarted", Nullable(), Nullable(), null, Nullable(), Nullable(), null, null)
+        | InProgress progress ->
+            ("InProgress",
+             progress.CurrentSeason |> optionToNullable,
+             progress.CurrentEpisode |> optionToNullable,
+             formatDateTime progress.LastWatchedDate,
+             Nullable(), Nullable(), null, null)
+        | Completed ->
+            ("Completed", Nullable(), Nullable(), null, Nullable(), Nullable(), null, null)
+        | Abandoned info ->
+            let (abS, abE, abD) =
+                match info.AbandonedAt with
+                | Some at -> (at.CurrentSeason |> optionToNullable,
+                              at.CurrentEpisode |> optionToNullable,
+                              formatDateTime at.LastWatchedDate)
+                | None -> (Nullable(), Nullable(), null)
+            ("Abandoned", Nullable(), Nullable(), null, abS, abE,
+             info.Reason |> Option.toObj, formatDateTime info.AbandonedDate)
+
+    let dateFirstWatched =
+        match status with
+        | Completed | InProgress _ -> formatDateTime watchedDate
+        | _ -> null
+
+    let dateLastWatched =
+        match status with
+        | Completed | InProgress _ -> formatDateTime (Some DateTime.UtcNow)
+        | _ -> null
+
+    let param = {|
+        Id = id
+        WatchStatus = statusStr
+        ProgressCurrentSeason = progressSeason
+        ProgressCurrentEpisode = progressEpisode
+        ProgressLastWatchedDate = progressDate
+        AbandonedSeason = abSeason
+        AbandonedEpisode = abEpisode
+        AbandonedReason = abReason
+        AbandonedDate = abDate
+        DateFirstWatched = dateFirstWatched
+        DateLastWatched = dateLastWatched
+        UpdatedAt = now
+    |}
+
+    do! conn.ExecuteAsync("""
+        UPDATE library_entries SET
+            watch_status = @WatchStatus,
+            progress_current_season = @ProgressCurrentSeason,
+            progress_current_episode = @ProgressCurrentEpisode,
+            progress_last_watched_date = @ProgressLastWatchedDate,
+            abandoned_season = @AbandonedSeason,
+            abandoned_episode = @AbandonedEpisode,
+            abandoned_reason = @AbandonedReason,
+            abandoned_date = @AbandonedDate,
+            date_first_watched = COALESCE(date_first_watched, @DateFirstWatched),
+            date_last_watched = COALESCE(@DateLastWatched, date_last_watched),
+            updated_at = @UpdatedAt
+        WHERE id = @Id
+    """, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Mark a movie as watched
+let markMovieWatched (entryId: EntryId) (watchedDate: DateTime option) : Async<unit> = async {
+    let date = watchedDate |> Option.defaultValue DateTime.UtcNow
+    do! updateWatchStatus entryId Completed (Some date)
+}
+
+/// Mark a movie as unwatched
+let markMovieUnwatched (entryId: EntryId) : Async<unit> = async {
+    do! updateWatchStatus entryId NotStarted None
+}
+
+// =====================================
+// Episode Progress Operations
+// =====================================
+
+/// Get episode progress for an entry
+let getEpisodeProgress (EntryId entryId) : Async<EpisodeProgress list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<EpisodeProgressRecord>(
+            """SELECT * FROM episode_progress WHERE entry_id = @EntryId
+               ORDER BY season_number, episode_number""",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+
+    return records |> Seq.map (fun r -> {
+        EntryId = EntryId r.entry_id
+        SessionId = if r.session_id.HasValue then Some (SessionId r.session_id.Value) else None
+        SeriesId = SeriesId r.series_id
+        SeasonNumber = r.season_number
+        EpisodeNumber = r.episode_number
+        IsWatched = r.is_watched = 1
+        WatchedDate = parseDateTime r.watched_date
+    }) |> Seq.toList
+}
+
+/// Update episode progress (insert or update)
+let updateEpisodeProgress (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeNumber: int) (watched: bool) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    let param = {|
+        EntryId = EntryId.value entryId
+        SeriesId = SeriesId.value seriesId
+        SeasonNumber = seasonNumber
+        EpisodeNumber = episodeNumber
+        IsWatched = if watched then 1 else 0
+        WatchedDate = if watched then now else null
+    |}
+
+    do! conn.ExecuteAsync("""
+        INSERT INTO episode_progress (entry_id, series_id, season_number, episode_number, is_watched, watched_date)
+        VALUES (@EntryId, @SeriesId, @SeasonNumber, @EpisodeNumber, @IsWatched, @WatchedDate)
+        ON CONFLICT(entry_id, season_number, episode_number) DO UPDATE SET
+            is_watched = @IsWatched,
+            watched_date = @WatchedDate
+    """, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Mark all episodes in a season as watched
+let markSeasonWatched (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeCount: int) : Async<unit> = async {
+    for ep in 1 .. episodeCount do
+        do! updateEpisodeProgress entryId seriesId seasonNumber ep true
+}
+
+/// Count watched episodes for an entry
+let countWatchedEpisodes (EntryId entryId) : Async<int> = async {
+    use conn = getConnection()
+    let! count =
+        conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM episode_progress WHERE entry_id = @EntryId AND is_watched = 1",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+    return count
+}
+
+/// Get series info for a library entry (returns SeriesId and total episodes)
+let getSeriesInfoForEntry (EntryId entryId) : Async<(SeriesId * int) option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<{| series_id: Nullable<int>; number_of_episodes: int |}>(
+            """SELECT le.series_id, s.number_of_episodes
+               FROM library_entries le
+               JOIN series s ON le.series_id = s.id
+               WHERE le.id = @Id AND le.media_type = 'Series'""",
+            {| Id = entryId |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) || not record.series_id.HasValue then
+        return None
+    else
+        return Some (SeriesId record.series_id.Value, record.number_of_episodes)
+}
+
+/// Update the watch status based on episode progress
+let updateSeriesWatchStatusFromProgress (entryId: EntryId) : Async<unit> = async {
+    match! getSeriesInfoForEntry entryId with
+    | None -> ()
+    | Some (_, totalEpisodes) ->
+        let! watchedCount = countWatchedEpisodes entryId
+        let! progress = getEpisodeProgress entryId
+
+        if watchedCount = 0 then
+            do! updateWatchStatus entryId NotStarted None
+        elif watchedCount >= totalEpisodes then
+            do! updateWatchStatus entryId Completed (Some DateTime.UtcNow)
+        else
+            // Find the latest watched episode
+            let lastWatched =
+                progress
+                |> List.filter (fun p -> p.IsWatched)
+                |> List.sortByDescending (fun p -> (p.SeasonNumber, p.EpisodeNumber))
+                |> List.tryHead
+
+            match lastWatched with
+            | Some ep ->
+                let progressInfo : WatchProgress = {
+                    CurrentSeason = Some ep.SeasonNumber
+                    CurrentEpisode = Some ep.EpisodeNumber
+                    LastWatchedDate = ep.WatchedDate
+                }
+                do! updateWatchStatus entryId (InProgress progressInfo) ep.WatchedDate
+            | None ->
+                do! updateWatchStatus entryId NotStarted None
 }
 
 // =====================================

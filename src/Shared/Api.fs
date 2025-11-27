@@ -46,14 +46,54 @@ type ICinemarcoApi = {
     libraryDeleteEntry: EntryId -> Async<Result<unit, string>>
 
     // =====================================
+    // Watch Status Operations
+    // =====================================
+
+    /// Mark a movie as watched
+    libraryMarkMovieWatched: EntryId * System.DateTime option -> Async<Result<LibraryEntry, string>>
+
+    /// Mark a movie as unwatched
+    libraryMarkMovieUnwatched: EntryId -> Async<Result<LibraryEntry, string>>
+
+    /// Update episode progress for a series (toggle watched state)
+    libraryUpdateEpisodeProgress: EntryId * int * int * bool -> Async<Result<unit, string>>
+
+    /// Mark an entire season as watched
+    libraryMarkSeasonWatched: EntryId * int -> Async<Result<unit, string>>
+
+    /// Mark an entire series as completed
+    libraryMarkSeriesCompleted: EntryId -> Async<Result<LibraryEntry, string>>
+
+    /// Abandon an entry with optional reason
+    libraryAbandonEntry: EntryId * AbandonRequest -> Async<Result<LibraryEntry, string>>
+
+    /// Resume a previously abandoned entry
+    libraryResumeEntry: EntryId -> Async<Result<LibraryEntry, string>>
+
+    /// Get episode progress for a series entry
+    libraryGetEpisodeProgress: EntryId -> Async<EpisodeProgress list>
+
+    // =====================================
     // Friends Operations
     // =====================================
 
     /// Get all friends
     friendsGetAll: unit -> Async<Friend list>
 
+    /// Get friend by ID
+    friendsGetById: int -> Async<Result<Friend, string>>
+
     /// Create a new friend
     friendsCreate: CreateFriendRequest -> Async<Result<Friend, string>>
+
+    /// Update an existing friend
+    friendsUpdate: UpdateFriendRequest -> Async<Result<Friend, string>>
+
+    /// Delete a friend
+    friendsDelete: int -> Async<Result<unit, string>>
+
+    /// Get library entries watched with a friend
+    friendsGetWatchedWith: int -> Async<LibraryEntry list>
 
     // =====================================
     // Tags Operations
@@ -62,8 +102,20 @@ type ICinemarcoApi = {
     /// Get all tags
     tagsGetAll: unit -> Async<Tag list>
 
+    /// Get tag by ID
+    tagsGetById: int -> Async<Result<Tag, string>>
+
     /// Create a new tag
     tagsCreate: CreateTagRequest -> Async<Result<Tag, string>>
+
+    /// Update an existing tag
+    tagsUpdate: UpdateTagRequest -> Async<Result<Tag, string>>
+
+    /// Delete a tag
+    tagsDelete: int -> Async<Result<unit, string>>
+
+    /// Get library entries with a tag
+    tagsGetTaggedEntries: int -> Async<LibraryEntry list>
 
     // =====================================
     // TMDB Operations

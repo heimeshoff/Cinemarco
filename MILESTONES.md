@@ -20,131 +20,131 @@ This document outlines the implementation strategy for Cinemarco, a personal cin
 
 ---
 
-## Milestone 0: Foundation Reset (Estimated: Day 1)
+## Milestone 0: Foundation Reset (COMPLETED)
 
 **Goal**: Replace the demo counter app with Cinemarco's foundation.
 
 ### Tasks
 
-- [ ] **M0.1** Clear demo code from Domain.fs, Api.fs, State.fs, View.fs
-- [ ] **M0.2** Set up dark theme in index.html (`data-theme="dark"`)
-- [ ] **M0.3** Configure TailwindCSS for dark mode preference
-- [ ] **M0.4** Create basic app shell with navigation skeleton
-- [ ] **M0.5** Add health check endpoint to server
-- [ ] **M0.6** Verify build and tests pass
+- [x] **M0.1** Clear demo code from Domain.fs, Api.fs, State.fs, View.fs
+- [x] **M0.2** Set up dark theme in index.html (`data-theme="dark"`)
+- [x] **M0.3** Configure TailwindCSS for dark mode preference
+- [x] **M0.4** Create basic app shell with navigation skeleton
+- [x] **M0.5** Add health check endpoint to server
+- [x] **M0.6** Verify build and tests pass
 
 ### Definition of Done
-- App loads with dark theme
-- Empty navigation shell renders
-- Backend health endpoint works
+- [x] App loads with dark theme
+- [x] Empty navigation shell renders
+- [x] Backend health endpoint works
 
 ---
 
-## Milestone 1: Core Domain Model (Estimated: Day 2-3)
+## Milestone 1: Core Domain Model (COMPLETED)
 
 **Goal**: Define all domain types in `src/Shared/Domain.fs`.
 
 ### Tasks
 
-- [ ] **M1.1** Define core media types:
+- [x] **M1.1** Define core media types:
   - `MediaType` (Movie | Series)
   - `Movie` record with TMDB fields
   - `Series` record with season/episode structure
   - `Episode` record
   - `Season` record
 
-- [ ] **M1.2** Define watch tracking types:
+- [x] **M1.2** Define watch tracking types:
   - `WatchStatus` (NotStarted | InProgress | Completed | Abandoned of episodeInfo)
   - `WatchProgress` record
   - `WatchSession` record (for named rewatches)
   - `EpisodeProgress` record
 
-- [ ] **M1.3** Define people types:
+- [x] **M1.3** Define people types:
   - `Friend` record (real people you know)
   - `Contributor` record (actors, directors, etc.)
   - `ContributorRole` (Director | Actor | Writer | Cinematographer | Composer | etc.)
 
-- [ ] **M1.4** Define organization types:
+- [x] **M1.4** Define organization types:
   - `Tag` record
   - `Collection` record (franchises, custom lists)
   - `CollectionItem` record (ordered items in collection)
 
-- [ ] **M1.5** Define rating type:
-  - `PersonalRating` DU (Brilliant | ReallyGood | Decent | Meh | Nope)
+- [x] **M1.5** Define rating type:
+  - `PersonalRating` DU (Outstanding | Entertaining | Decent | Meh | Waste)
 
-- [ ] **M1.6** Define library entry type:
+- [x] **M1.6** Define library entry type:
   - `LibraryEntry` record (wraps movie/series with personal metadata)
   - `WhyAdded` record (recommendation source, context)
 
-- [ ] **M1.7** Define statistics types:
+- [x] **M1.7** Define statistics types:
   - `WatchTimeStats` record
   - `YearInReview` record
   - `FilmographyProgress` record
 
-### Files to Create/Modify
+### Files Modified
 - `src/Shared/Domain.fs` - All domain types
 
 ### Definition of Done
-- All types compile
-- Types follow F# idioms (records, DUs)
-- Types are serializable by Fable.Remoting
+- [x] All types compile
+- [x] Types follow F# idioms (records, DUs)
+- [x] Types are serializable by Fable.Remoting
 
 ---
 
-## Milestone 2: Database Schema (Estimated: Day 3-4)
+## Milestone 2: Database Schema (COMPLETED)
 
 **Goal**: Create SQLite schema and persistence layer.
 
 ### Tasks
 
-- [ ] **M2.1** Create migration system in Persistence.fs
-- [ ] **M2.2** Create movies table
-- [ ] **M2.3** Create series table
-- [ ] **M2.4** Create seasons table
-- [ ] **M2.5** Create episodes table
-- [ ] **M2.6** Create library_entries table (personal wrapper)
-- [ ] **M2.7** Create watch_sessions table
-- [ ] **M2.8** Create episode_progress table
-- [ ] **M2.9** Create friends table
-- [ ] **M2.10** Create contributors table
-- [ ] **M2.11** Create tags table
-- [ ] **M2.12** Create collections table
-- [ ] **M2.13** Create collection_items table
-- [ ] **M2.14** Create junction tables:
+- [x] **M2.1** Create migration system in Migrations.fs
+- [x] **M2.2** Create movies table
+- [x] **M2.3** Create series table
+- [x] **M2.4** Create seasons table
+- [x] **M2.5** Create episodes table
+- [x] **M2.6** Create library_entries table (personal wrapper)
+- [x] **M2.7** Create watch_sessions table
+- [x] **M2.8** Create episode_progress table
+- [x] **M2.9** Create friends table
+- [x] **M2.10** Create contributors table
+- [x] **M2.11** Create tags table
+- [x] **M2.12** Create collections table
+- [x] **M2.13** Create collection_items table
+- [x] **M2.14** Create junction tables:
   - entry_tags
   - entry_friends
-  - entry_contributors
+  - media_contributors
   - session_tags
   - session_friends
 
-- [ ] **M2.15** Create basic CRUD functions for each entity
-- [ ] **M2.16** Create indexes for common queries
+- [x] **M2.15** Create basic CRUD functions for each entity
+- [x] **M2.16** Create indexes for common queries
 
-### Files to Create/Modify
+### Files Modified
 - `src/Server/Persistence.fs` - Database initialization and queries
-- `src/Server/Migrations.fs` - Database migrations (new file)
+- `src/Server/Migrations.fs` - Database migrations with 5 migration versions
 
 ### Definition of Done
-- Database initializes with all tables
-- Basic CRUD operations work
-- Indexes exist for performance
+- [x] Database initializes with all tables
+- [x] Basic CRUD operations work
+- [x] Indexes exist for performance
 
 ---
 
-## Milestone 3: TMDB Integration (Estimated: Day 4-5)
+## Milestone 3: TMDB Integration (COMPLETED)
 
 **Goal**: Search and import movie/series data from TMDB.
 
 ### Tasks
 
-- [ ] **M3.1** Create `src/Server/TmdbClient.fs`
-- [ ] **M3.2** Implement movie search endpoint
-- [ ] **M3.3** Implement movie details fetch (with poster, credits)
-- [ ] **M3.4** Implement series search endpoint
-- [ ] **M3.5** Implement series details fetch (seasons, episodes)
-- [ ] **M3.6** Implement contributor/cast extraction
-- [ ] **M3.7** Cache TMDB responses locally (reduce API calls)
-- [ ] **M3.8** Handle rate limiting gracefully
+- [x] **M3.1** Create `src/Server/TmdbClient.fs`
+- [x] **M3.2** Implement movie search endpoint
+- [x] **M3.3** Implement movie details fetch (with poster, credits)
+- [x] **M3.4** Implement series search endpoint
+- [x] **M3.5** Implement series details fetch (seasons, episodes)
+- [x] **M3.6** Implement contributor/cast extraction
+- [x] **M3.7** Cache TMDB responses locally (reduce API calls)
+- [x] **M3.8** Handle rate limiting gracefully
 
 ### API Contract Additions
 ```fsharp
@@ -157,50 +157,51 @@ type ITmdbApi = {
 }
 ```
 
-### Files to Create/Modify
-- `src/Server/TmdbClient.fs` (new)
-- `src/Shared/Api.fs` - Add ITmdbApi
-- `src/Shared/Domain.fs` - Add TMDB-specific types
+### Files Modified
+- `src/Server/TmdbClient.fs` - TMDB API client with caching and rate limiting
+- `src/Shared/Api.fs` - Added TMDB search and detail endpoints
+- `src/Shared/Domain.fs` - Added TmdbSearchResult, TmdbMovieDetails, TmdbSeriesDetails, etc.
+- `src/Server/Persistence.fs` - Added tmdb_cache table for caching
 
 ### Definition of Done
-- Can search TMDB and display results
-- Can fetch full movie/series details
-- Credits (cast/crew) are extracted
+- [x] Can search TMDB and display results
+- [x] Can fetch full movie/series details
+- [x] Credits (cast/crew) are extracted
 
 ---
 
-## Milestone 4: Quick Capture (Estimated: Day 5-6)
+## Milestone 4: Quick Capture (COMPLETED)
 
 **Goal**: Implement the core "add to library" flow.
 
 ### Tasks
 
-- [ ] **M4.1** Create search input component with debouncing
-- [ ] **M4.2** Create search results dropdown with posters
-- [ ] **M4.3** Implement one-click add to library
-- [ ] **M4.4** Create "Why I Added" modal for optional note
-- [ ] **M4.5** Implement poster hover shine effect (CSS)
-- [ ] **M4.6** Add friend/tag selection during capture
-- [ ] **M4.7** Save to database on confirm
+- [x] **M4.1** Create search input component with debouncing
+- [x] **M4.2** Create search results dropdown with posters
+- [x] **M4.3** Implement one-click add to library
+- [x] **M4.4** Create "Why I Added" modal for optional note
+- [x] **M4.5** Implement poster hover shine effect (CSS)
+- [x] **M4.6** Add friend/tag selection during capture
+- [x] **M4.7** Save to database on confirm
 
 ### Frontend Components
-- `SearchBar` - Main search input
-- `SearchResults` - Dropdown with poster grid
-- `QuickAddModal` - Optional metadata capture
-- `PosterCard` - Reusable poster with hover effect
+- `searchBar` - Main search input with debouncing
+- `searchResultItem` - Dropdown with poster grid
+- `quickAddModal` - Optional metadata capture with friends/tags
+- `posterCard` - Reusable poster with hover shine effect
 
-### Files to Create/Modify
-- `src/Client/Components/SearchBar.fs` (new)
-- `src/Client/Components/PosterCard.fs` (new)
-- `src/Client/Pages/QuickCapture.fs` (new)
-- `src/Client/State.fs` - Add search state
-- `src/Client/View.fs` - Integrate components
+### Files Modified
+- `src/Client/View.fs` - SearchBar, PosterCard, QuickAddModal components
+- `src/Client/State.fs` - Search state, debouncing, AddItemToLibrary
+- `src/Client/styles.css` - Poster shine effect CSS
+- `src/Server/Api.fs` - libraryAddMovie, libraryAddSeries endpoints
+- `src/Server/Persistence.fs` - insertLibraryEntryForMovie, insertLibraryEntryForSeries
 
 ### Definition of Done
-- Type to search, see TMDB results instantly
-- One click adds to library
-- Can optionally add "why I added" note
-- Posters have hover shine effect
+- [x] Type to search, see TMDB results instantly
+- [x] One click adds to library
+- [x] Can optionally add "why I added" note
+- [x] Posters have hover shine effect
 
 ---
 
@@ -238,20 +239,20 @@ type ITmdbApi = {
 
 ---
 
-## Milestone 6: Friends & Tags Management (Estimated: Day 7-8)
+## Milestone 6: Friends & Tags Management (COMPLETED)
 
 **Goal**: CRUD for friends and tags.
 
 ### Tasks
 
-- [ ] **M6.1** Create Friends list page
-- [ ] **M6.2** Create Friend detail page (shows watched together)
-- [ ] **M6.3** Create Friend add/edit modal
-- [ ] **M6.4** Create Tags list page
-- [ ] **M6.5** Create Tag detail page (shows tagged items)
-- [ ] **M6.6** Create Tag add/edit modal
-- [ ] **M6.7** Implement bulk tagging
-- [ ] **M6.8** Implement tag colors/icons (optional)
+- [x] **M6.1** Create Friends list page
+- [x] **M6.2** Create Friend detail page (shows watched together)
+- [x] **M6.3** Create Friend add/edit modal
+- [x] **M6.4** Create Tags list page
+- [x] **M6.5** Create Tag detail page (shows tagged items)
+- [x] **M6.6** Create Tag add/edit modal
+- [ ] **M6.7** Implement bulk tagging (deferred)
+- [x] **M6.8** Implement tag colors/icons
 
 ### API Contract Additions
 ```fsharp
@@ -281,45 +282,55 @@ type ITagApi = {
 - `src/Client/Pages/TagDetail.fs` (new)
 - `src/Server/Api.fs` - Add friend and tag APIs
 
+### Files Modified
+- `src/Shared/Api.fs` - Added friend and tag CRUD API endpoints
+- `src/Server/Persistence.fs` - Added getEntriesWatchedWithFriend and getEntriesWithTag
+- `src/Server/Api.fs` - Implemented all friend and tag API operations
+- `src/Client/Types.fs` - Added FriendDetailPage, TagDetailPage, FriendModalState, TagModalState
+- `src/Client/State.fs` - Added all messages and update handlers for friends and tags management
+- `src/Client/View.fs` - Added FriendsPage, FriendDetailPage, TagsPage, TagDetailPage, and modals
+
 ### Definition of Done
-- Can create/edit/delete friends
-- Can create/edit/delete tags
-- Can see what you've watched with each friend
-- Can see all items with a given tag
+- [x] Can create/edit/delete friends
+- [x] Can create/edit/delete tags
+- [x] Can see what you've watched with each friend
+- [x] Can see all items with a given tag
 
 ---
 
-## Milestone 7: Watch Status & Progress (Estimated: Day 8-9)
+## Milestone 7: Watch Status & Progress (COMPLETED)
 
 **Goal**: Track watch progress for movies and series.
 
 ### Tasks
 
-- [ ] **M7.1** Add watch status toggle to movie detail
-- [ ] **M7.2** Add "Mark as Watched" button
-- [ ] **M7.3** Implement series episode checkbox grid
-- [ ] **M7.4** Implement "Abandoned at S2E3" tracking
-- [ ] **M7.5** Add watch date recording
-- [ ] **M7.6** Create progress bar component
-- [ ] **M7.7** Show completion percentage on posters
+- [x] **M7.1** Add watch status toggle to movie detail
+- [x] **M7.2** Add "Mark as Watched" button
+- [x] **M7.3** Implement series episode checkbox grid
+- [x] **M7.4** Implement "Abandoned at S2E3" tracking
+- [x] **M7.5** Add watch date recording
+- [x] **M7.6** Create progress bar component
+- [x] **M7.7** Show completion percentage on posters
 
 ### Frontend Components
-- `WatchStatusBadge` - Visual status indicator
-- `EpisodeGrid` - Season/episode checkbox grid
-- `ProgressBar` - Visual progress indicator
+- `watchStatusBadge` - Visual status indicator (in View.fs)
+- `seasonEpisodeGrid` - Season/episode checkbox grid (in View.fs)
+- `progressBar` - Visual progress indicator (in View.fs)
 
-### Files to Create/Modify
-- `src/Client/Components/WatchStatusBadge.fs` (new)
-- `src/Client/Components/EpisodeGrid.fs` (new)
-- `src/Client/Components/ProgressBar.fs` (new)
-- `src/Client/Pages/MovieDetail.fs` - Add watch controls
-- `src/Client/Pages/SeriesDetail.fs` - Add episode tracking
+### Files Modified
+- `src/Shared/Api.fs` - Added watch status API endpoints
+- `src/Shared/Domain.fs` - Added AbandonRequest type
+- `src/Server/Persistence.fs` - Added watch status and episode progress functions
+- `src/Server/Api.fs` - Implemented watch status API handlers
+- `src/Client/Types.fs` - Added AbandonModalState and modal types
+- `src/Client/State.fs` - Added watch status messages and update handlers
+- `src/Client/View.fs` - Added watch status components and updated detail pages
 
 ### Definition of Done
-- Can mark movies watched/unwatched
-- Can track episode-by-episode progress
-- Can mark series abandoned with location
-- Progress bars display correctly
+- [x] Can mark movies watched/unwatched
+- [x] Can track episode-by-episode progress
+- [x] Can mark series abandoned with location
+- [x] Progress bars display correctly
 
 ---
 

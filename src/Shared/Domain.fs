@@ -679,6 +679,13 @@ type CreateSessionRequest = {
     Tags: TagId list
 }
 
+/// Request to abandon an entry
+type AbandonRequest = {
+    Reason: string option
+    AbandonedAtSeason: int option
+    AbandonedAtEpisode: int option
+}
+
 /// Request to update a watch session
 type UpdateSessionRequest = {
     Id: SessionId
