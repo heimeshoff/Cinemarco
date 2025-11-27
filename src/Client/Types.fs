@@ -13,6 +13,8 @@ type RemoteData<'T> =
 type Page =
     | HomePage
     | LibraryPage
+    | MovieDetailPage of EntryId
+    | SeriesDetailPage of EntryId
     | FriendsPage
     | TagsPage
     | CollectionsPage
@@ -26,6 +28,8 @@ module Page =
     let toUrl = function
         | HomePage -> "/"
         | LibraryPage -> "/library"
+        | MovieDetailPage (EntryId id) -> $"/movie/{id}"
+        | SeriesDetailPage (EntryId id) -> $"/series/{id}"
         | FriendsPage -> "/friends"
         | TagsPage -> "/tags"
         | CollectionsPage -> "/collections"
@@ -38,6 +42,8 @@ module Page =
     let toString = function
         | HomePage -> "Home"
         | LibraryPage -> "Library"
+        | MovieDetailPage _ -> "Movie"
+        | SeriesDetailPage _ -> "Series"
         | FriendsPage -> "Friends"
         | TagsPage -> "Tags"
         | CollectionsPage -> "Collections"
@@ -46,6 +52,45 @@ module Page =
         | GraphPage -> "Graph"
         | ImportPage -> "Import"
         | NotFoundPage -> "Not Found"
+
+/// Filter options for watch status
+type WatchStatusFilter =
+    | AllStatuses
+    | FilterNotStarted
+    | FilterInProgress
+    | FilterCompleted
+    | FilterAbandoned
+
+/// Sort options for library
+type LibrarySortBy =
+    | SortByDateAdded
+    | SortByTitle
+    | SortByYear
+    | SortByRating
+
+type SortDirection =
+    | Ascending
+    | Descending
+
+/// Library filter and sort state
+type LibraryFilters = {
+    SearchQuery: string
+    WatchStatus: WatchStatusFilter
+    SelectedTags: TagId list
+    MinRating: int option
+    SortBy: LibrarySortBy
+    SortDirection: SortDirection
+}
+
+module LibraryFilters =
+    let empty = {
+        SearchQuery = ""
+        WatchStatus = AllStatuses
+        SelectedTags = []
+        MinRating = None
+        SortBy = SortByDateAdded
+        SortDirection = Descending
+    }
 
 /// State for the search component
 type SearchState = {

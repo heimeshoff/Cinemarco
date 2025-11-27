@@ -18,6 +18,10 @@ type Model = {
     Tags: RemoteData<Tag list>
     // Library entries
     Library: RemoteData<LibraryEntry list>
+    // Library filters
+    LibraryFilters: LibraryFilters
+    // Currently viewed detail entry
+    DetailEntry: RemoteData<LibraryEntry>
     // Notification message (for success/error toasts)
     Notification: (string * bool) option  // (message, isSuccess)
 }
@@ -48,6 +52,20 @@ type Msg =
     // Library
     | LoadLibrary
     | LibraryLoaded of Result<LibraryEntry list, string>
+    // Library filters
+    | SetLibrarySearchQuery of string
+    | SetWatchStatusFilter of WatchStatusFilter
+    | ToggleTagFilter of TagId
+    | SetMinRatingFilter of int option
+    | SetSortBy of LibrarySortBy
+    | ToggleSortDirection
+    | ClearFilters
+    // Detail view
+    | ViewMovieDetail of EntryId
+    | ViewSeriesDetail of EntryId
+    | DetailEntryLoaded of Result<LibraryEntry, string>
+    | DeleteEntry of EntryId
+    | EntryDeleted of Result<unit, string>
     // Notifications
     | ShowNotification of string * bool
     | ClearNotification
@@ -62,6 +80,8 @@ let init () : Model * Cmd<Msg> =
         Friends = NotAsked
         Tags = NotAsked
         Library = NotAsked
+        LibraryFilters = LibraryFilters.empty
+        DetailEntry = NotAsked
         Notification = None
     }
     // Load health check, friends, tags on startup
@@ -303,6 +323,95 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | LibraryLoaded (Error err) ->
         { model with Library = Failure err }, Cmd.none
+
+    // =====================================
+    // Library Filters
+    // =====================================
+
+    | SetLibrarySearchQuery query ->
+        { model with LibraryFilters = { model.LibraryFilters with SearchQuery = query } }, Cmd.none
+
+    | SetWatchStatusFilter status ->
+        { model with LibraryFilters = { model.LibraryFilters with WatchStatus = status } }, Cmd.none
+
+    | ToggleTagFilter tagId ->
+        let newTags =
+            if List.contains tagId model.LibraryFilters.SelectedTags then
+                List.filter (fun t -> t <> tagId) model.LibraryFilters.SelectedTags
+            else
+                tagId :: model.LibraryFilters.SelectedTags
+        { model with LibraryFilters = { model.LibraryFilters with SelectedTags = newTags } }, Cmd.none
+
+    | SetMinRatingFilter rating ->
+        { model with LibraryFilters = { model.LibraryFilters with MinRating = rating } }, Cmd.none
+
+    | SetSortBy sortBy ->
+        { model with LibraryFilters = { model.LibraryFilters with SortBy = sortBy } }, Cmd.none
+
+    | ToggleSortDirection ->
+        let newDir =
+            match model.LibraryFilters.SortDirection with
+            | Ascending -> Descending
+            | Descending -> Ascending
+        { model with LibraryFilters = { model.LibraryFilters with SortDirection = newDir } }, Cmd.none
+
+    | ClearFilters ->
+        { model with LibraryFilters = LibraryFilters.empty }, Cmd.none
+
+    // =====================================
+    // Detail View
+    // =====================================
+
+    | ViewMovieDetail entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryGetById
+                entryId
+                DetailEntryLoaded
+                (fun ex -> Error ex.Message |> DetailEntryLoaded)
+        { model with
+            CurrentPage = MovieDetailPage entryId
+            DetailEntry = Loading
+        }, cmd
+
+    | ViewSeriesDetail entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryGetById
+                entryId
+                DetailEntryLoaded
+                (fun ex -> Error ex.Message |> DetailEntryLoaded)
+        { model with
+            CurrentPage = SeriesDetailPage entryId
+            DetailEntry = Loading
+        }, cmd
+
+    | DetailEntryLoaded (Ok entry) ->
+        { model with DetailEntry = Success entry }, Cmd.none
+
+    | DetailEntryLoaded (Error err) ->
+        { model with DetailEntry = Failure err }, Cmd.none
+
+    | DeleteEntry entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryDeleteEntry
+                entryId
+                (fun result -> EntryDeleted result)
+                (fun ex -> Error ex.Message |> EntryDeleted)
+        model, cmd
+
+    | EntryDeleted (Ok ()) ->
+        { model with
+            CurrentPage = LibraryPage
+            DetailEntry = NotAsked
+        }, Cmd.batch [
+            Cmd.ofMsg LoadLibrary
+            Cmd.ofMsg (ShowNotification ("Entry deleted successfully", true))
+        ]
+
+    | EntryDeleted (Error err) ->
+        model, Cmd.ofMsg (ShowNotification ($"Failed to delete: {err}", false))
 
     // =====================================
     // Notifications

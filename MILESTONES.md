@@ -204,38 +204,37 @@ type ITmdbApi = {
 
 ---
 
-## Milestone 5: Library View (Estimated: Day 6-7)
+## Milestone 5: Library View (COMPLETED)
 
 **Goal**: Display and browse the personal library.
 
 ### Tasks
 
-- [ ] **M5.1** Create library grid view component
-- [ ] **M5.2** Implement filter by tag
-- [ ] **M5.3** Implement filter by watch status
-- [ ] **M5.4** Implement filter by rating
-- [ ] **M5.5** Implement sort options (date added, rating, title, year)
-- [ ] **M5.6** Create movie detail view
-- [ ] **M5.7** Create series detail view
-- [ ] **M5.8** Implement pagination/infinite scroll
+- [x] **M5.1** Create library grid view component
+- [x] **M5.2** Implement filter by tag
+- [x] **M5.3** Implement filter by watch status
+- [x] **M5.4** Implement filter by rating
+- [x] **M5.5** Implement sort options (date added, rating, title, year)
+- [x] **M5.6** Create movie detail view
+- [x] **M5.7** Create series detail view
+- [ ] **M5.8** Implement pagination/infinite scroll (deferred - current client-side filtering handles reasonable library sizes)
 
 ### Frontend Components
-- `LibraryGrid` - Main library display
-- `FilterBar` - Filter and sort controls
-- `MovieDetail` - Full movie page
-- `SeriesDetail` - Full series page with episode list
+- `LibraryGrid` - Main library display (in View.fs)
+- `FilterBar` - Filter and sort controls (in View.fs)
+- `MovieDetail` - Full movie page (in View.fs)
+- `SeriesDetail` - Full series page with episode list (in View.fs)
 
-### Files to Create/Modify
-- `src/Client/Pages/Library.fs` (new)
-- `src/Client/Pages/MovieDetail.fs` (new)
-- `src/Client/Pages/SeriesDetail.fs` (new)
-- `src/Client/Components/FilterBar.fs` (new)
+### Files Modified
+- `src/Client/Types.fs` - Added detail page routes and filter state types
+- `src/Client/State.fs` - Added filter/sort state, detail view state, and messages
+- `src/Client/View.fs` - Added FilterBar, MovieDetail, SeriesDetail components, and updated library grid
 
 ### Definition of Done
-- Can browse full library
-- Can filter by tag, status, rating
-- Can sort by various fields
-- Can view movie/series details
+- [x] Can browse full library
+- [x] Can filter by tag, status, rating
+- [x] Can sort by various fields
+- [x] Can view movie/series details
 
 ---
 
