@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="Migrations.fs" />
     <Compile Include="Persistence.fs" />
+    <Compile Include="TmdbClient.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -22,6 +23,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>

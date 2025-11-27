@@ -5,10 +5,33 @@ open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.FileProviders
 open Giraffe
+open System
 open System.IO
+
+/// Load environment variables from .env file
+let private loadEnvFile () =
+    // Try to find .env file - check current directory and parent directories
+    let rec findEnvFile (dir: string) =
+        let envPath = Path.Combine(dir, ".env")
+        if File.Exists(envPath) then
+            Some envPath
+        else
+            let parent = Directory.GetParent(dir)
+            if isNull parent then None
+            else findEnvFile parent.FullName
+
+    match findEnvFile (Directory.GetCurrentDirectory()) with
+    | Some envPath ->
+        DotNetEnv.Env.Load(envPath) |> ignore
+        printfn $"Loaded environment from: {envPath}"
+    | None ->
+        printfn "No .env file found (using system environment variables)"
 
 [<EntryPoint>]
 let main args =
+    // Load .env file first (before any other initialization)
+    loadEnvFile()
+
     let builder = WebApplication.CreateBuilder(args)
 
     // Add Giraffe
