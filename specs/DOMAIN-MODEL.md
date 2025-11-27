@@ -288,34 +288,34 @@ The 5-tier rating system:
 ```fsharp
 /// Personal rating scale
 type PersonalRating =
-    | Brilliant     // 5 - Absolutely brilliant, stays with you
-    | ReallyGood    // 4 - Strong craft, enjoyable, recommendable
-    | Decent        // 3 - Worth watching, even if not life-changing
+    | Outstanding   // 5 - Absolutely brilliant, stays with you
+    | Entertaining  // 4 - Strong craft, enjoyable, recommendable
+    | Decent        // 3 - Watchable, even if not life-changing
     | Meh           // 2 - Didn't click, uninspiring
-    | Nope          // 1 - Would not watch again
+    | Waste         // 1 - Waste of time
 
 module PersonalRating =
     let toInt = function
-        | Brilliant -> 5
-        | ReallyGood -> 4
+        | Outstanding -> 5
+        | Entertaining -> 4
         | Decent -> 3
         | Meh -> 2
-        | Nope -> 1
+        | Waste -> 1
 
     let fromInt = function
-        | 5 -> Some Brilliant
-        | 4 -> Some ReallyGood
+        | 5 -> Some Outstanding
+        | 4 -> Some Entertaining
         | 3 -> Some Decent
         | 2 -> Some Meh
-        | 1 -> Some Nope
+        | 1 -> Some Waste
         | _ -> None
 
     let description = function
-        | Brilliant -> "Absolutely brilliant - This film stays with you."
-        | ReallyGood -> "Really good - Strong craft, enjoyable, recommendable."
-        | Decent -> "Decent - Worth watching, even if it won't change your life."
-        | Meh -> "Meh - Didn't click; not terrible but uninspiring."
-        | Nope -> "Nope - Would not watch again; time is precious."
+        | Outstanding -> "Outstanding - Absolutely brilliant, stays with you."
+        | Entertaining -> "Entertaining - Strong craft, enjoyable, recommendable."
+        | Decent -> "Decent - Watchable, even if not life-changing."
+        | Meh -> "Meh - Didn't click, uninspiring."
+        | Waste -> "Waste - Waste of time."
 ```
 
 ---
@@ -807,7 +807,7 @@ type SeriesId = SeriesId of int
 // =====================================
 type MediaType = Movie | Series
 type SeriesStatus = Returning | Ended | Canceled | InProduction | Planned | Unknown
-type PersonalRating = Brilliant | ReallyGood | Decent | Meh | Nope
+type PersonalRating = Outstanding | Entertaining | Decent | Meh | Waste
 type SessionStatus = Active | Paused | SessionCompleted
 type ContributorRole = Director | Actor of string option | Writer | ...
 type WatchStatus = NotStarted | InProgress of WatchProgress | Completed | Abandoned of AbandonedInfo

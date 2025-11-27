@@ -333,11 +333,11 @@ let watchStatusBadge status =
 ┌─────────────────────────────────────────────────────────────┐
 │  Your Rating                                                │
 │                                                             │
-│  ○ Brilliant - Absolutely brilliant, stays with you        │
-│  ○ Really Good - Strong craft, enjoyable, recommendable    │
-│  ○ Decent - Worth watching, even if not life-changing      │
+│  ○ Outstanding - Absolutely brilliant, stays with you      │
+│  ○ Entertaining - Strong craft, enjoyable, recommendable   │
+│  ○ Decent - Watchable, even if not life-changing           │
 │  ○ Meh - Didn't click, uninspiring                         │
-│  ○ Nope - Would not watch again                            │
+│  ○ Waste - Waste of time                                   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -345,11 +345,11 @@ let watchStatusBadge status =
 ```fsharp
 let ratingSelector (currentRating: PersonalRating option) (onRate: PersonalRating option -> unit) =
     let ratings = [
-        Brilliant, "⭐", "Brilliant", "Absolutely brilliant - stays with you"
-        ReallyGood, "👍", "Really Good", "Strong craft, enjoyable"
-        Decent, "👌", "Decent", "Worth watching"
+        Outstanding, "⭐", "Outstanding", "Absolutely brilliant, stays with you"
+        Entertaining, "👍", "Entertaining", "Strong craft, enjoyable"
+        Decent, "👌", "Decent", "Watchable"
         Meh, "😐", "Meh", "Didn't click"
-        Nope, "👎", "Nope", "Would not watch again"
+        Waste, "👎", "Waste", "Waste of time"
     ]
 
     Html.div [
@@ -778,11 +778,11 @@ let toastContainer (toasts: Toast list) dispatch =
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 │  Rating Distribution                                            │
-│  Brilliant   ████████████████░░░░ 12                           │
-│  Really Good ████████████████████ 24                           │
+│  Outstanding ████████████████░░░░ 12                           │
+│  Entertaining████████████████████ 24                           │
 │  Decent      ██████████░░░░░░░░░░ 10                           │
 │  Meh         ████░░░░░░░░░░░░░░░░ 4                            │
-│  Nope        ██░░░░░░░░░░░░░░░░░░ 2                            │
+│  Waste       ██░░░░░░░░░░░░░░░░░░ 2                            │
 │                                                                 │
 │  Top Tags                                                       │
 │  #sci-fi (18) #drama (15) #thriller (12)                       │
