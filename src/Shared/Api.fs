@@ -21,6 +21,51 @@ type ICinemarcoApi = {
     healthCheck: unit -> Async<HealthCheckResponse>
 
     // =====================================
+    // Library Operations
+    // =====================================
+
+    /// Add a movie to the library
+    libraryAddMovie: AddMovieRequest -> Async<Result<LibraryEntry, string>>
+
+    /// Add a series to the library
+    libraryAddSeries: AddSeriesRequest -> Async<Result<LibraryEntry, string>>
+
+    /// Get all library entries
+    libraryGetAll: unit -> Async<LibraryEntry list>
+
+    /// Get a library entry by ID
+    libraryGetById: EntryId -> Async<Result<LibraryEntry, string>>
+
+    /// Check if a TMDB movie is already in library (returns entry ID if exists)
+    libraryIsMovieInLibrary: TmdbMovieId -> Async<EntryId option>
+
+    /// Check if a TMDB series is already in library (returns entry ID if exists)
+    libraryIsSeriesInLibrary: TmdbSeriesId -> Async<EntryId option>
+
+    /// Delete a library entry
+    libraryDeleteEntry: EntryId -> Async<Result<unit, string>>
+
+    // =====================================
+    // Friends Operations
+    // =====================================
+
+    /// Get all friends
+    friendsGetAll: unit -> Async<Friend list>
+
+    /// Create a new friend
+    friendsCreate: CreateFriendRequest -> Async<Result<Friend, string>>
+
+    // =====================================
+    // Tags Operations
+    // =====================================
+
+    /// Get all tags
+    tagsGetAll: unit -> Async<Tag list>
+
+    /// Create a new tag
+    tagsCreate: CreateTagRequest -> Async<Result<Tag, string>>
+
+    // =====================================
     // TMDB Operations
     // =====================================
 

@@ -1025,6 +1025,388 @@ let clearExpiredCache () : Async<int> = async {
 }
 
 // =====================================
+// Library Entries CRUD
+// =====================================
+
+let private parseWatchStatus (record: LibraryEntryRecord) : WatchStatus =
+    match record.watch_status with
+    | "NotStarted" -> NotStarted
+    | "InProgress" ->
+        InProgress {
+            CurrentSeason = nullableToOption record.progress_current_season
+            CurrentEpisode = nullableToOption record.progress_current_episode
+            LastWatchedDate = parseDateTime record.progress_last_watched_date
+        }
+    | "Completed" -> Completed
+    | "Abandoned" ->
+        Abandoned {
+            AbandonedAt =
+                if record.abandoned_season.HasValue || record.abandoned_episode.HasValue then
+                    Some {
+                        CurrentSeason = nullableToOption record.abandoned_season
+                        CurrentEpisode = nullableToOption record.abandoned_episode
+                        LastWatchedDate = parseDateTime record.abandoned_date
+                    }
+                else None
+            Reason = if String.IsNullOrEmpty(record.abandoned_reason) then None else Some record.abandoned_reason
+            AbandonedDate = parseDateTime record.abandoned_date
+        }
+    | _ -> NotStarted
+
+let private formatWatchStatus (status: WatchStatus) : string =
+    match status with
+    | NotStarted -> "NotStarted"
+    | InProgress _ -> "InProgress"
+    | Completed -> "Completed"
+    | Abandoned _ -> "Abandoned"
+
+/// Get a library entry by ID with full media data
+let getLibraryEntryById (EntryId id) : Async<LibraryEntry option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<LibraryEntryRecord>(
+            "SELECT * FROM library_entries WHERE id = @Id",
+            {| Id = id |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then
+        return None
+    else
+        // Get the media (movie or series)
+        let! media = async {
+            match record.media_type with
+            | "Movie" ->
+                let! movie = getMovieById (MovieId record.movie_id.Value)
+                return movie |> Option.map LibraryMovie
+            | "Series" ->
+                let! series = getSeriesById (SeriesId record.series_id.Value)
+                return series |> Option.map LibrarySeries
+            | _ -> return None
+        }
+
+        match media with
+        | None -> return None
+        | Some m ->
+            // Get tags and friends for this entry
+            let! tagIds = getTagsForEntry (EntryId record.id)
+            let! friendIds = getFriendsForEntry (EntryId record.id)
+
+            let whyAdded =
+                if record.why_recommended_by_friend_id.HasValue ||
+                   not (String.IsNullOrEmpty(record.why_recommended_by_name)) ||
+                   not (String.IsNullOrEmpty(record.why_source)) ||
+                   not (String.IsNullOrEmpty(record.why_context)) then
+                    Some {
+                        RecommendedBy =
+                            if record.why_recommended_by_friend_id.HasValue
+                            then Some (FriendId record.why_recommended_by_friend_id.Value)
+                            else None
+                        RecommendedByName =
+                            if String.IsNullOrEmpty(record.why_recommended_by_name)
+                            then None
+                            else Some record.why_recommended_by_name
+                        Source =
+                            if String.IsNullOrEmpty(record.why_source)
+                            then None
+                            else Some record.why_source
+                        Context =
+                            if String.IsNullOrEmpty(record.why_context)
+                            then None
+                            else Some record.why_context
+                        DateRecommended = parseDateTime record.why_date_recommended
+                    }
+                else None
+
+            return Some {
+                Id = EntryId record.id
+                Media = m
+                WhyAdded = whyAdded
+                WatchStatus = parseWatchStatus record
+                PersonalRating = nullableToOption record.personal_rating |> Option.bind PersonalRating.fromInt
+                DateAdded = DateTime.Parse(record.date_added)
+                DateFirstWatched = parseDateTime record.date_first_watched
+                DateLastWatched = parseDateTime record.date_last_watched
+                Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
+                IsFavorite = record.is_favorite = 1
+                Tags = tagIds
+                Friends = friendIds
+            }
+}
+
+/// Get all library entries
+let getAllLibraryEntries () : Async<LibraryEntry list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<LibraryEntryRecord>("SELECT * FROM library_entries ORDER BY date_added DESC")
+        |> Async.AwaitTask
+
+    let! entries =
+        records
+        |> Seq.map (fun r -> getLibraryEntryById (EntryId r.id))
+        |> Async.Sequential
+
+    return entries |> Array.choose id |> Array.toList
+}
+
+/// Check if a movie is already in the library
+let isMovieInLibrary (TmdbMovieId tmdbId) : Async<EntryId option> = async {
+    use conn = getConnection()
+    // First find the movie
+    let! movie = getMovieByTmdbId (TmdbMovieId tmdbId)
+    match movie with
+    | None -> return None
+    | Some m ->
+        let! entryId =
+            conn.QueryFirstOrDefaultAsync<Nullable<int>>(
+                "SELECT id FROM library_entries WHERE movie_id = @MovieId",
+                {| MovieId = MovieId.value m.Id |}
+            ) |> Async.AwaitTask
+        return if entryId.HasValue then Some (EntryId entryId.Value) else None
+}
+
+/// Check if a series is already in the library
+let isSeriesInLibrary (TmdbSeriesId tmdbId) : Async<EntryId option> = async {
+    use conn = getConnection()
+    // First find the series
+    let! series = getSeriesByTmdbId (TmdbSeriesId tmdbId)
+    match series with
+    | None -> return None
+    | Some s ->
+        let! entryId =
+            conn.QueryFirstOrDefaultAsync<Nullable<int>>(
+                "SELECT id FROM library_entries WHERE series_id = @SeriesId",
+                {| SeriesId = SeriesId.value s.Id |}
+            ) |> Async.AwaitTask
+        return if entryId.HasValue then Some (EntryId entryId.Value) else None
+}
+
+/// Insert a movie into the library (creates the movie and library entry)
+let insertLibraryEntryForMovie (movieDetails: TmdbMovieDetails) (request: AddMovieRequest) : Async<Result<LibraryEntry, string>> = async {
+    try
+        use conn = getConnection()
+
+        // Check if movie already exists in our database
+        let! existingMovie = getMovieByTmdbId movieDetails.TmdbId
+        let! movieId = async {
+            match existingMovie with
+            | Some m -> return MovieId.value m.Id
+            | None ->
+                // Insert the movie
+                let movie : Movie = {
+                    Id = MovieId 0  // Will be set by DB
+                    TmdbId = movieDetails.TmdbId
+                    Title = movieDetails.Title
+                    OriginalTitle = movieDetails.OriginalTitle
+                    Overview = movieDetails.Overview
+                    ReleaseDate = movieDetails.ReleaseDate
+                    RuntimeMinutes = movieDetails.RuntimeMinutes
+                    PosterPath = movieDetails.PosterPath
+                    BackdropPath = movieDetails.BackdropPath
+                    Genres = movieDetails.Genres
+                    OriginalLanguage = movieDetails.OriginalLanguage
+                    VoteAverage = movieDetails.VoteAverage
+                    VoteCount = movieDetails.VoteCount
+                    Tagline = movieDetails.Tagline
+                    ImdbId = movieDetails.ImdbId
+                    CreatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow
+                }
+                return! insertMovie movie
+        }
+
+        // Check if library entry already exists for this movie
+        let! existingEntry =
+            conn.QueryFirstOrDefaultAsync<Nullable<int>>(
+                "SELECT id FROM library_entries WHERE movie_id = @MovieId",
+                {| MovieId = movieId |}
+            ) |> Async.AwaitTask
+
+        if existingEntry.HasValue then
+            return Error "Movie is already in your library"
+        else
+            // Insert the library entry
+            let now = DateTime.UtcNow.ToString("o")
+            let! entryId =
+                conn.ExecuteScalarAsync<int64>("""
+                    INSERT INTO library_entries (
+                        media_type, movie_id, why_recommended_by_friend_id, why_recommended_by_name,
+                        why_source, why_context, why_date_recommended, watch_status, personal_rating,
+                        notes, is_favorite, date_added, created_at, updated_at
+                    ) VALUES (
+                        'Movie', @MovieId, @RecommendedByFriendId, @RecommendedByName,
+                        @Source, @Context, @DateRecommended, 'NotStarted', NULL,
+                        NULL, 0, @DateAdded, @CreatedAt, @UpdatedAt
+                    );
+                    SELECT last_insert_rowid();
+                """, {|
+                    MovieId = movieId
+                    RecommendedByFriendId =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.RecommendedBy)
+                        |> Option.map FriendId.value
+                        |> Option.toNullable
+                    RecommendedByName =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.RecommendedByName)
+                        |> Option.toObj
+                    Source =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.Source)
+                        |> Option.toObj
+                    Context =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.Context)
+                        |> Option.toObj
+                    DateRecommended =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.DateRecommended)
+                        |> formatDateTime
+                    DateAdded = now
+                    CreatedAt = now
+                    UpdatedAt = now
+                |}) |> Async.AwaitTask
+
+            let entryIdInt = int entryId
+
+            // Add tags
+            for tagId in request.InitialTags do
+                do! addTagToEntry (EntryId entryIdInt) tagId
+
+            // Add friends
+            for friendId in request.InitialFriends do
+                do! addFriendToEntry (EntryId entryIdInt) friendId
+
+            // Fetch and return the complete entry
+            let! entry = getLibraryEntryById (EntryId entryIdInt)
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Failed to retrieve created entry"
+    with
+    | ex -> return Error $"Failed to add movie: {ex.Message}"
+}
+
+/// Insert a series into the library (creates the series and library entry)
+let insertLibraryEntryForSeries (seriesDetails: TmdbSeriesDetails) (request: AddSeriesRequest) : Async<Result<LibraryEntry, string>> = async {
+    try
+        use conn = getConnection()
+
+        // Check if series already exists in our database
+        let! existingSeries = getSeriesByTmdbId seriesDetails.TmdbId
+        let! seriesId = async {
+            match existingSeries with
+            | Some s -> return SeriesId.value s.Id
+            | None ->
+                // Insert the series
+                let series : Series = {
+                    Id = SeriesId 0  // Will be set by DB
+                    TmdbId = seriesDetails.TmdbId
+                    Name = seriesDetails.Name
+                    OriginalName = seriesDetails.OriginalName
+                    Overview = seriesDetails.Overview
+                    FirstAirDate = seriesDetails.FirstAirDate
+                    LastAirDate = seriesDetails.LastAirDate
+                    PosterPath = seriesDetails.PosterPath
+                    BackdropPath = seriesDetails.BackdropPath
+                    Genres = seriesDetails.Genres
+                    OriginalLanguage = seriesDetails.OriginalLanguage
+                    VoteAverage = seriesDetails.VoteAverage
+                    VoteCount = seriesDetails.VoteCount
+                    Status =
+                        match seriesDetails.Status.ToLowerInvariant() with
+                        | "returning series" -> Returning
+                        | "ended" -> Ended
+                        | "canceled" -> Canceled
+                        | "in production" -> InProduction
+                        | "planned" -> Planned
+                        | _ -> Unknown
+                    NumberOfSeasons = seriesDetails.NumberOfSeasons
+                    NumberOfEpisodes = seriesDetails.NumberOfEpisodes
+                    EpisodeRunTimeMinutes = seriesDetails.EpisodeRunTimeMinutes
+                    CreatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow
+                }
+                return! insertSeries series
+        }
+
+        // Check if library entry already exists for this series
+        let! existingEntry =
+            conn.QueryFirstOrDefaultAsync<Nullable<int>>(
+                "SELECT id FROM library_entries WHERE series_id = @SeriesId",
+                {| SeriesId = seriesId |}
+            ) |> Async.AwaitTask
+
+        if existingEntry.HasValue then
+            return Error "Series is already in your library"
+        else
+            // Insert the library entry
+            let now = DateTime.UtcNow.ToString("o")
+            let! entryId =
+                conn.ExecuteScalarAsync<int64>("""
+                    INSERT INTO library_entries (
+                        media_type, series_id, why_recommended_by_friend_id, why_recommended_by_name,
+                        why_source, why_context, why_date_recommended, watch_status, personal_rating,
+                        notes, is_favorite, date_added, created_at, updated_at
+                    ) VALUES (
+                        'Series', @SeriesId, @RecommendedByFriendId, @RecommendedByName,
+                        @Source, @Context, @DateRecommended, 'NotStarted', NULL,
+                        NULL, 0, @DateAdded, @CreatedAt, @UpdatedAt
+                    );
+                    SELECT last_insert_rowid();
+                """, {|
+                    SeriesId = seriesId
+                    RecommendedByFriendId =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.RecommendedBy)
+                        |> Option.map FriendId.value
+                        |> Option.toNullable
+                    RecommendedByName =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.RecommendedByName)
+                        |> Option.toObj
+                    Source =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.Source)
+                        |> Option.toObj
+                    Context =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.Context)
+                        |> Option.toObj
+                    DateRecommended =
+                        request.WhyAdded
+                        |> Option.bind (fun w -> w.DateRecommended)
+                        |> formatDateTime
+                    DateAdded = now
+                    CreatedAt = now
+                    UpdatedAt = now
+                |}) |> Async.AwaitTask
+
+            let entryIdInt = int entryId
+
+            // Add tags
+            for tagId in request.InitialTags do
+                do! addTagToEntry (EntryId entryIdInt) tagId
+
+            // Add friends
+            for friendId in request.InitialFriends do
+                do! addFriendToEntry (EntryId entryIdInt) friendId
+
+            // Fetch and return the complete entry
+            let! entry = getLibraryEntryById (EntryId entryIdInt)
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Failed to retrieve created entry"
+    with
+    | ex -> return Error $"Failed to add series: {ex.Message}"
+}
+
+/// Delete a library entry
+let deleteLibraryEntry (EntryId id) : Async<unit> = async {
+    use conn = getConnection()
+    do! conn.ExecuteAsync("DELETE FROM library_entries WHERE id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
+}
+
+// =====================================
 // Database Statistics
 // =====================================
 

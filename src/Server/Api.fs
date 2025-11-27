@@ -20,6 +20,74 @@ let cinemarcoApi : ICinemarcoApi = {
     }
 
     // =====================================
+    // Library Operations
+    // =====================================
+
+    libraryAddMovie = fun request -> async {
+        // Fetch movie details from TMDB
+        let! movieDetailsResult = TmdbClient.getMovieDetails request.TmdbId
+        match movieDetailsResult with
+        | Error err -> return Error $"Failed to fetch movie details: {err}"
+        | Ok details ->
+            return! Persistence.insertLibraryEntryForMovie details request
+    }
+
+    libraryAddSeries = fun request -> async {
+        // Fetch series details from TMDB
+        let! seriesDetailsResult = TmdbClient.getSeriesDetails request.TmdbId
+        match seriesDetailsResult with
+        | Error err -> return Error $"Failed to fetch series details: {err}"
+        | Ok details ->
+            return! Persistence.insertLibraryEntryForSeries details request
+    }
+
+    libraryGetAll = fun () -> Persistence.getAllLibraryEntries()
+
+    libraryGetById = fun entryId -> async {
+        let! entry = Persistence.getLibraryEntryById entryId
+        match entry with
+        | Some e -> return Ok e
+        | None -> return Error "Entry not found"
+    }
+
+    libraryIsMovieInLibrary = fun tmdbId -> Persistence.isMovieInLibrary tmdbId
+
+    libraryIsSeriesInLibrary = fun tmdbId -> Persistence.isSeriesInLibrary tmdbId
+
+    libraryDeleteEntry = fun entryId -> async {
+        do! Persistence.deleteLibraryEntry entryId
+        return Ok ()
+    }
+
+    // =====================================
+    // Friends Operations
+    // =====================================
+
+    friendsGetAll = fun () -> Persistence.getAllFriends()
+
+    friendsCreate = fun request -> async {
+        try
+            let! friend = Persistence.insertFriend request
+            return Ok friend
+        with
+        | ex -> return Error $"Failed to create friend: {ex.Message}"
+    }
+
+    // =====================================
+    // Tags Operations
+    // =====================================
+
+    tagsGetAll = fun () -> Persistence.getAllTags()
+
+    tagsCreate = fun request -> async {
+        try
+            let! tag = Persistence.insertTag request
+            return Ok tag
+        with
+        | ex -> return Error $"Failed to create tag: {ex.Message}"
+    }
+
+    // =====================================
     // TMDB Operations
     // =====================================
 
