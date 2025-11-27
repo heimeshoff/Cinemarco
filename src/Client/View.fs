@@ -125,40 +125,41 @@ let private applyFiltersAndSort (filters: LibraryFilters) (entries: LibraryEntry
     |> filterEntries filters
     |> sortEntries filters.SortBy filters.SortDirection
 
+/// Get icon for a page
+let private getPageIcon (page: Page) =
+    match page with
+    | HomePage -> Icons.home
+    | LibraryPage -> Icons.library
+    | MovieDetailPage _ -> Icons.film
+    | SeriesDetailPage _ -> Icons.tv
+    | FriendsPage -> Icons.friends
+    | FriendDetailPage _ -> Icons.friends
+    | TagsPage -> Icons.tags
+    | TagDetailPage _ -> Icons.tags
+    | CollectionsPage -> Icons.collections
+    | StatsPage -> Icons.stats
+    | TimelinePage -> Icons.timeline
+    | GraphPage -> Icons.graph
+    | ImportPage -> Icons.import
+    | NotFoundPage -> Icons.warning
+
 /// Navigation item component
 let private navItem (page: Page) (currentPage: Page) (dispatch: Msg -> unit) =
     let isActive = page = currentPage
     Html.li [
         Html.a [
             prop.className (
-                "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors " +
-                if isActive then "bg-primary text-primary-content"
-                else "hover:bg-base-200"
+                "nav-item cursor-pointer " +
+                if isActive then "nav-item-active" else ""
             )
             prop.onClick (fun _ -> dispatch (NavigateTo page))
             prop.children [
                 Html.span [
-                    prop.className "w-5 h-5 flex items-center justify-center text-sm"
-                    prop.text (
-                        match page with
-                        | HomePage -> "H"
-                        | LibraryPage -> "L"
-                        | MovieDetailPage _ -> "M"
-                        | SeriesDetailPage _ -> "S"
-                        | FriendsPage -> "F"
-                        | FriendDetailPage _ -> "F"
-                        | TagsPage -> "T"
-                        | TagDetailPage _ -> "T"
-                        | CollectionsPage -> "C"
-                        | StatsPage -> "S"
-                        | TimelinePage -> "Ti"
-                        | GraphPage -> "G"
-                        | ImportPage -> "I"
-                        | NotFoundPage -> "?"
-                    )
+                    prop.className "nav-icon"
+                    prop.children [ getPageIcon page ]
                 ]
                 Html.span [
-                    prop.className "font-medium"
+                    prop.className "font-medium text-sm"
                     prop.text (Page.toString page)
                 ]
             ]
@@ -168,21 +169,37 @@ let private navItem (page: Page) (currentPage: Page) (dispatch: Msg -> unit) =
 /// Sidebar navigation component
 let private sidebar (model: Model) (dispatch: Msg -> unit) =
     Html.aside [
-        prop.className "fixed left-0 top-0 h-full w-64 bg-base-200 border-r border-base-300 hidden lg:flex lg:flex-col z-40"
+        prop.className "sidebar fixed left-0 top-0 h-full w-64 hidden lg:flex lg:flex-col z-40"
         prop.children [
+            // Logo section
             Html.div [
-                prop.className "p-6 border-b border-base-300"
+                prop.className "p-6 border-b border-white/5"
                 prop.children [
-                    Html.h1 [
-                        prop.className "text-2xl font-bold text-primary"
-                        prop.text "Cinemarco"
-                    ]
-                    Html.p [
-                        prop.className "text-sm text-base-content/60 mt-1"
-                        prop.text "Your Cinema Memories"
+                    Html.div [
+                        prop.className "flex items-center gap-3"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-primary"
+                                prop.children [ Icons.clapperboard ]
+                            ]
+                            Html.div [
+                                prop.children [
+                                    Html.h1 [
+                                        prop.className "text-xl font-bold text-gradient"
+                                        prop.text "Cinemarco"
+                                    ]
+                                    Html.p [
+                                        prop.className "text-xs text-base-content/50"
+                                        prop.text "Your Cinema Memories"
+                                    ]
+                                ]
+                            ]
+                        ]
                     ]
                 ]
             ]
+
+            // Navigation items
             Html.nav [
                 prop.className "flex-1 p-4 overflow-y-auto"
                 prop.children [
@@ -194,32 +211,48 @@ let private sidebar (model: Model) (dispatch: Msg -> unit) =
                             navItem FriendsPage model.CurrentPage dispatch
                             navItem TagsPage model.CurrentPage dispatch
                             navItem CollectionsPage model.CurrentPage dispatch
+
+                            // Divider
+                            Html.li [
+                                prop.className "my-4 border-t border-white/5"
+                            ]
+
                             navItem StatsPage model.CurrentPage dispatch
                             navItem TimelinePage model.CurrentPage dispatch
                             navItem GraphPage model.CurrentPage dispatch
+
+                            // Divider
+                            Html.li [
+                                prop.className "my-4 border-t border-white/5"
+                            ]
+
                             navItem ImportPage model.CurrentPage dispatch
                         ]
                     ]
                 ]
             ]
+
+            // Status footer
             Html.div [
-                prop.className "p-4 border-t border-base-300"
+                prop.className "p-4 border-t border-white/5"
                 prop.children [
                     match model.HealthCheck with
                     | Success health ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-sm"
+                            prop.className "flex items-center gap-2 text-xs"
                             prop.children [
-                                Html.span [ prop.className "w-2 h-2 bg-success rounded-full" ]
                                 Html.span [
-                                    prop.className "text-base-content/60"
-                                    prop.text $"v{health.Version}"
+                                    prop.className "w-2 h-2 bg-success rounded-full animate-pulse-subtle"
+                                ]
+                                Html.span [
+                                    prop.className "text-base-content/50"
+                                    prop.text $"Connected  v{health.Version}"
                                 ]
                             ]
                         ]
                     | Loading ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-sm text-base-content/40"
+                            prop.className "flex items-center gap-2 text-xs text-base-content/40"
                             prop.children [
                                 Html.span [ prop.className "loading loading-spinner loading-xs" ]
                                 Html.span [ prop.text "Connecting..." ]
@@ -227,7 +260,7 @@ let private sidebar (model: Model) (dispatch: Msg -> unit) =
                         ]
                     | Failure _ ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-sm text-error"
+                            prop.className "flex items-center gap-2 text-xs text-error/80"
                             prop.children [
                                 Html.span [ prop.className "w-2 h-2 bg-error rounded-full" ]
                                 Html.span [ prop.text "Offline" ]
@@ -242,31 +275,26 @@ let private sidebar (model: Model) (dispatch: Msg -> unit) =
 /// Mobile bottom navigation
 let private mobileNav (model: Model) (dispatch: Msg -> unit) =
     Html.nav [
-        prop.className "fixed bottom-0 left-0 right-0 bg-base-200 border-t border-base-300 lg:hidden z-40"
+        prop.className "fixed bottom-0 left-0 right-0 glass-strong lg:hidden z-40 safe-area-bottom"
         prop.children [
             Html.div [
                 prop.className "flex justify-around items-center h-16"
                 prop.children [
-                    for page in [ HomePage; LibraryPage; StatsPage ] do
+                    for page in [ HomePage; LibraryPage; FriendsPage; StatsPage ] do
+                        let isActive = model.CurrentPage = page
                         Html.button [
                             prop.className (
-                                "flex flex-col items-center gap-1 px-4 py-2 " +
-                                if model.CurrentPage = page then "text-primary" else "text-base-content/60"
+                                "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
+                                if isActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
                             )
                             prop.onClick (fun _ -> dispatch (NavigateTo page))
                             prop.children [
                                 Html.span [
-                                    prop.className "text-lg"
-                                    prop.text (
-                                        match page with
-                                        | HomePage -> "H"
-                                        | LibraryPage -> "L"
-                                        | StatsPage -> "S"
-                                        | _ -> "?"
-                                    )
+                                    prop.className (if isActive then "scale-110 transition-transform" else "transition-transform")
+                                    prop.children [ getPageIcon page ]
                                 ]
                                 Html.span [
-                                    prop.className "text-xs"
+                                    prop.className "text-xs font-medium"
                                     prop.text (Page.toString page)
                                 ]
                             ]
@@ -276,7 +304,7 @@ let private mobileNav (model: Model) (dispatch: Msg -> unit) =
         ]
     ]
 
-/// Poster card component with shine effect
+/// Poster card component with shine effect (for search results)
 let private posterCard (item: TmdbSearchResult) (dispatch: Msg -> unit) =
     let year =
         item.ReleaseDate
@@ -286,14 +314,15 @@ let private posterCard (item: TmdbSearchResult) (dispatch: Msg -> unit) =
     let mediaTypeLabel =
         match item.MediaType with
         | Movie -> "Movie"
-        | Series -> "TV"
+        | Series -> "Series"
 
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
         prop.onClick (fun _ -> dispatch (OpenQuickAddModal item))
         prop.children [
+            // Poster container
             Html.div [
-                prop.className "relative aspect-[2/3] rounded-lg overflow-hidden bg-base-300 shadow-md hover:shadow-xl transition-shadow"
+                prop.className "poster-image-container poster-shadow"
                 prop.children [
                     // Poster image (from TMDB CDN for search results)
                     match item.PosterPath with
@@ -301,40 +330,57 @@ let private posterCard (item: TmdbSearchResult) (dispatch: Msg -> unit) =
                         Html.img [
                             prop.src (getTmdbPosterUrl "w342" item.PosterPath)
                             prop.alt item.Title
-                            prop.className "w-full h-full object-cover"
+                            prop.className "poster-image"
+                            prop.custom ("loading", "lazy")
                         ]
                     | None ->
                         Html.div [
-                            prop.className "w-full h-full flex items-center justify-center bg-base-300"
+                            prop.className "w-full h-full flex items-center justify-center"
                             prop.children [
                                 Html.span [
-                                    prop.className "text-4xl text-base-content/30"
-                                    prop.text "?"
+                                    prop.className "text-4xl text-base-content/20"
+                                    prop.children [ Icons.film ]
                                 ]
                             ]
                         ]
 
                     // Shine effect overlay
                     Html.div [
-                        prop.className "poster-shine absolute inset-0 pointer-events-none"
+                        prop.className "poster-shine"
                     ]
 
-                    // Media type badge
+                    // Media type badge (top right)
                     Html.div [
-                        prop.className "absolute top-2 right-2 px-2 py-0.5 bg-base-100/90 rounded text-xs font-medium"
-                        prop.text mediaTypeLabel
-                    ]
-
-                    // Hover overlay with + icon
-                    Html.div [
-                        prop.className "absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        prop.className "absolute top-2 right-2 px-2 py-1 glass rounded-md text-xs font-medium"
                         prop.children [
-                            Html.div [
-                                prop.className "w-12 h-12 rounded-full bg-primary flex items-center justify-center"
+                            Html.span [
+                                prop.className "flex items-center gap-1"
                                 prop.children [
                                     Html.span [
-                                        prop.className "text-2xl text-primary-content font-bold"
-                                        prop.text "+"
+                                        prop.className "w-3 h-3"
+                                        prop.children [
+                                            match item.MediaType with
+                                            | Movie -> Icons.film
+                                            | Series -> Icons.tv
+                                        ]
+                                    ]
+                                    Html.span [ prop.text mediaTypeLabel ]
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Hover overlay
+                    Html.div [
+                        prop.className "poster-overlay flex items-center justify-center"
+                        prop.children [
+                            // Add button
+                            Html.div [
+                                prop.className "w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
+                                prop.children [
+                                    Html.span [
+                                        prop.className "w-6 h-6 text-white"
+                                        prop.children [ Icons.plus ]
                                     ]
                                 ]
                             ]
@@ -342,18 +388,19 @@ let private posterCard (item: TmdbSearchResult) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
+
             // Title and year below poster
             Html.div [
-                prop.className "mt-2"
+                prop.className "mt-3 space-y-1"
                 prop.children [
                     Html.p [
-                        prop.className "font-medium text-sm truncate"
+                        prop.className "font-medium text-sm truncate text-base-content/90 group-hover:text-white transition-colors"
                         prop.title item.Title
                         prop.text item.Title
                     ]
                     if year <> "" then
                         Html.p [
-                            prop.className "text-xs text-base-content/60"
+                            prop.className "text-xs text-base-content/50"
                             prop.text year
                         ]
                 ]
@@ -366,25 +413,43 @@ let private searchResultsDropdown (model: Model) (dispatch: Msg -> unit) =
     if not model.Search.IsDropdownOpen then Html.none
     else
         Html.div [
-            prop.className "absolute top-full left-0 right-0 mt-2 bg-base-100 rounded-lg shadow-xl border border-base-300 max-h-[70vh] overflow-y-auto z-50"
+            prop.className "search-dropdown max-h-[70vh] overflow-y-auto"
             prop.children [
                 match model.Search.Results with
                 | Loading ->
                     Html.div [
-                        prop.className "p-8 flex items-center justify-center"
+                        prop.className "p-12 flex flex-col items-center justify-center gap-3"
                         prop.children [
-                            Html.span [ prop.className "loading loading-spinner loading-md" ]
+                            Html.span [ prop.className "loading loading-spinner loading-lg text-primary" ]
+                            Html.span [ prop.className "text-sm text-base-content/50"; prop.text "Searching..." ]
                         ]
                     ]
                 | Success results when List.isEmpty results ->
                     Html.div [
-                        prop.className "p-8 text-center text-base-content/60"
-                        prop.text "No results found"
+                        prop.className "p-12 text-center"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-4xl opacity-30 mb-3 block"
+                                prop.children [ Icons.film ]
+                            ]
+                            Html.p [
+                                prop.className "text-base-content/60"
+                                prop.text "No results found"
+                            ]
+                            Html.p [
+                                prop.className "text-sm text-base-content/40 mt-1"
+                                prop.text "Try a different search term"
+                            ]
+                        ]
                     ]
                 | Success results ->
                     Html.div [
                         prop.className "p-4"
                         prop.children [
+                            Html.p [
+                                prop.className "text-xs text-base-content/50 mb-3 px-1"
+                                prop.text $"Found {List.length results} results"
+                            ]
                             Html.div [
                                 prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4"
                                 prop.children [
@@ -396,8 +461,17 @@ let private searchResultsDropdown (model: Model) (dispatch: Msg -> unit) =
                     ]
                 | Failure err ->
                     Html.div [
-                        prop.className "p-8 text-center text-error"
-                        prop.text $"Error: {err}"
+                        prop.className "p-8 text-center"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-3xl mb-2 block"
+                                prop.children [ Icons.error ]
+                            ]
+                            Html.p [
+                                prop.className "text-error"
+                                prop.text $"Error: {err}"
+                            ]
+                        ]
                     ]
                 | NotAsked ->
                     Html.none
@@ -407,17 +481,13 @@ let private searchResultsDropdown (model: Model) (dispatch: Msg -> unit) =
 /// Search bar component
 let private searchBar (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "relative flex-1 max-w-2xl"
+        prop.className "search-container flex-1 max-w-2xl"
         prop.children [
             Html.div [
                 prop.className "relative"
                 prop.children [
-                    Html.span [
-                        prop.className "absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
-                        prop.text "?"
-                    ]
                     Html.input [
-                        prop.className "input input-bordered w-full pl-10 pr-4"
+                        prop.className "search-input focus-ring"
                         prop.placeholder "Search movies and series..."
                         prop.value model.Search.Query
                         prop.onChange (fun (e: string) -> dispatch (SearchQueryChanged e))
@@ -426,11 +496,15 @@ let private searchBar (model: Model) (dispatch: Msg -> unit) =
                             Fable.Core.JS.setTimeout (fun () -> dispatch CloseSearchDropdown) 200 |> ignore
                         )
                     ]
+                    Html.span [
+                        prop.className "search-icon"
+                        prop.children [ Icons.search ]
+                    ]
                     if RemoteData.isLoading model.Search.Results then
                         Html.span [
                             prop.className "absolute right-3 top-1/2 -translate-y-1/2"
                             prop.children [
-                                Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
                             ]
                         ]
                 ]
@@ -449,61 +523,101 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
     let mediaTypeLabel =
         match state.SelectedItem.MediaType with
         | Movie -> "Movie"
-        | Series -> "TV Series"
-
-    let yearSuffix = if year <> "" then sprintf "(%s)" year else ""
-    let subtitle = sprintf "%s %s" mediaTypeLabel yearSuffix
+        | Series -> "Series"
 
     Html.div [
         prop.className "fixed inset-0 z-50 flex items-center justify-center p-4"
         prop.children [
             // Backdrop
             Html.div [
-                prop.className "absolute inset-0 bg-black/60"
+                prop.className "modal-backdrop"
                 prop.onClick (fun _ -> if not state.IsSubmitting then dispatch CloseModal)
             ]
             // Modal content
             Html.div [
-                prop.className "relative bg-base-100 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                prop.className "modal-content relative w-full max-w-lg max-h-[90vh] overflow-y-auto"
                 prop.children [
-                    // Header with poster
+                    // Header with poster background
                     Html.div [
-                        prop.className "relative h-48 bg-base-300 overflow-hidden rounded-t-xl"
+                        prop.className "relative h-52 overflow-hidden"
                         prop.children [
+                            // Background poster
                             match state.SelectedItem.PosterPath with
                             | Some _ ->
                                 Html.img [
                                     prop.src (getTmdbPosterUrl "w500" state.SelectedItem.PosterPath)
                                     prop.alt state.SelectedItem.Title
-                                    prop.className "w-full h-full object-cover opacity-30"
+                                    prop.className "w-full h-full object-cover opacity-40 blur-sm scale-110"
                                 ]
-                            | None -> Html.none
+                            | None ->
+                                Html.div [
+                                    prop.className "w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20"
+                                ]
 
+                            // Gradient overlay
                             Html.div [
-                                prop.className "absolute inset-0 bg-gradient-to-t from-base-100 to-transparent"
+                                prop.className "absolute inset-0 bg-gradient-to-t from-base-100 via-base-100/80 to-transparent"
                             ]
 
                             // Close button
                             Html.button [
-                                prop.className "absolute top-4 right-4 btn btn-circle btn-sm btn-ghost"
+                                prop.className "absolute top-4 right-4 w-8 h-8 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-colors"
                                 prop.onClick (fun _ -> dispatch CloseModal)
                                 prop.disabled state.IsSubmitting
                                 prop.children [
-                                    Html.span [ prop.text "X" ]
+                                    Html.span [
+                                        prop.className "w-4 h-4 text-base-content/70"
+                                        prop.children [ Icons.close ]
+                                    ]
                                 ]
                             ]
 
-                            // Title
+                            // Title and info
                             Html.div [
-                                prop.className "absolute bottom-4 left-4 right-4"
+                                prop.className "absolute bottom-4 left-4 right-4 flex gap-4"
                                 prop.children [
-                                    Html.h2 [
-                                        prop.className "text-2xl font-bold"
-                                        prop.text state.SelectedItem.Title
-                                    ]
-                                    Html.p [
-                                        prop.className "text-sm text-base-content/70"
-                                        prop.text subtitle
+                                    // Small poster thumbnail
+                                    match state.SelectedItem.PosterPath with
+                                    | Some _ ->
+                                        Html.img [
+                                            prop.src (getTmdbPosterUrl "w185" state.SelectedItem.PosterPath)
+                                            prop.alt state.SelectedItem.Title
+                                            prop.className "w-16 h-24 rounded-lg object-cover shadow-lg"
+                                        ]
+                                    | None -> Html.none
+
+                                    Html.div [
+                                        prop.className "flex-1"
+                                        prop.children [
+                                            Html.h2 [
+                                                prop.className "text-xl font-bold"
+                                                prop.text state.SelectedItem.Title
+                                            ]
+                                            Html.div [
+                                                prop.className "flex items-center gap-2 mt-1 text-sm text-base-content/60"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "flex items-center gap-1"
+                                                        prop.children [
+                                                            Html.span [
+                                                                prop.className "w-4 h-4"
+                                                                prop.children [
+                                                                    match state.SelectedItem.MediaType with
+                                                                    | Movie -> Icons.film
+                                                                    | Series -> Icons.tv
+                                                                ]
+                                                            ]
+                                                            Html.span [ prop.text mediaTypeLabel ]
+                                                        ]
+                                                    ]
+                                                    if year <> "" then
+                                                        Html.span [
+                                                            prop.className "w-1 h-1 rounded-full bg-base-content/30"
+                                                        ]
+                                                        Html.span [ prop.text year ]
+                                                ]
+                                            ]
+                                        ]
                                     ]
                                 ]
                             ]
@@ -518,26 +632,31 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                             match state.Error with
                             | Some err ->
                                 Html.div [
-                                    prop.className "alert alert-error"
-                                    prop.text err
+                                    prop.className "flex items-center gap-3 p-4 rounded-lg bg-error/10 border border-error/30"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-5 h-5 text-error"
+                                            prop.children [ Icons.error ]
+                                        ]
+                                        Html.span [
+                                            prop.className "text-sm text-error"
+                                            prop.text err
+                                        ]
+                                    ]
                                 ]
                             | None -> Html.none
 
                             // Why I added note
                             Html.div [
-                                prop.className "form-control"
+                                prop.className "space-y-2"
                                 prop.children [
                                     Html.label [
-                                        prop.className "label"
-                                        prop.children [
-                                            Html.span [
-                                                prop.className "label-text"
-                                                prop.text "Why are you adding this? (optional)"
-                                            ]
-                                        ]
+                                        prop.className "text-sm font-medium text-base-content/70"
+                                        prop.text "Why are you adding this?"
                                     ]
                                     Html.textarea [
-                                        prop.className "textarea textarea-bordered h-20"
+                                        prop.className "w-full px-4 py-3 bg-base-200/50 border border-white/5 rounded-lg text-sm placeholder:text-base-content/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all resize-none"
+                                        prop.rows 3
                                         prop.placeholder "e.g., Recommended by Sarah, saw the trailer..."
                                         prop.value state.WhyAddedNote
                                         prop.onChange (fun (e: string) -> dispatch (QuickAddNoteChanged e))
@@ -549,15 +668,16 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                             // Tags selection
                             if not (List.isEmpty tags) then
                                 Html.div [
-                                    prop.className "form-control"
+                                    prop.className "space-y-3"
                                     prop.children [
                                         Html.label [
-                                            prop.className "label"
+                                            prop.className "flex items-center gap-2 text-sm font-medium text-base-content/70"
                                             prop.children [
                                                 Html.span [
-                                                    prop.className "label-text"
-                                                    prop.text "Tags"
+                                                    prop.className "w-4 h-4"
+                                                    prop.children [ Icons.tags ]
                                                 ]
+                                                Html.span [ prop.text "Tags" ]
                                             ]
                                         ]
                                         Html.div [
@@ -568,8 +688,9 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                                                     Html.button [
                                                         prop.type' "button"
                                                         prop.className (
-                                                            "badge badge-lg cursor-pointer transition-colors " +
-                                                            if isSelected then "badge-primary" else "badge-outline"
+                                                            "px-3 py-1.5 rounded-full text-sm font-medium transition-all " +
+                                                            if isSelected then "bg-primary text-primary-content shadow-glow-primary"
+                                                            else "bg-base-200/50 text-base-content/60 hover:bg-base-200 hover:text-base-content"
                                                         )
                                                         prop.onClick (fun _ -> dispatch (ToggleQuickAddTag tag.Id))
                                                         prop.disabled state.IsSubmitting
@@ -583,15 +704,16 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                             // Friends selection
                             if not (List.isEmpty friends) then
                                 Html.div [
-                                    prop.className "form-control"
+                                    prop.className "space-y-3"
                                     prop.children [
                                         Html.label [
-                                            prop.className "label"
+                                            prop.className "flex items-center gap-2 text-sm font-medium text-base-content/70"
                                             prop.children [
                                                 Html.span [
-                                                    prop.className "label-text"
-                                                    prop.text "Watched with"
+                                                    prop.className "w-4 h-4"
+                                                    prop.children [ Icons.friends ]
                                                 ]
+                                                Html.span [ prop.text "Watch with" ]
                                             ]
                                         ]
                                         Html.div [
@@ -602,8 +724,9 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                                                     Html.button [
                                                         prop.type' "button"
                                                         prop.className (
-                                                            "badge badge-lg cursor-pointer transition-colors " +
-                                                            if isSelected then "badge-secondary" else "badge-outline"
+                                                            "px-3 py-1.5 rounded-full text-sm font-medium transition-all " +
+                                                            if isSelected then "bg-secondary text-secondary-content shadow-glow-secondary"
+                                                            else "bg-base-200/50 text-base-content/60 hover:bg-base-200 hover:text-base-content"
                                                         )
                                                         prop.onClick (fun _ -> dispatch (ToggleQuickAddFriend friend.Id))
                                                         prop.disabled state.IsSubmitting
@@ -614,16 +737,34 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
                                     ]
                                 ]
 
+                            // Divider
+                            Html.div [ prop.className "border-t border-white/5" ]
+
                             // Submit button
                             Html.button [
-                                prop.className "btn btn-primary w-full"
+                                prop.className "btn-gradient w-full py-3 rounded-lg font-semibold transition-all disabled:opacity-50"
                                 prop.onClick (fun _ -> dispatch SubmitQuickAdd)
                                 prop.disabled state.IsSubmitting
                                 prop.children [
                                     if state.IsSubmitting then
-                                        Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                        Html.span [
+                                            prop.className "flex items-center justify-center gap-2"
+                                            prop.children [
+                                                Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                                Html.span [ prop.text "Adding..." ]
+                                            ]
+                                        ]
                                     else
-                                        Html.span [ prop.text "Add to Library" ]
+                                        Html.span [
+                                            prop.className "flex items-center justify-center gap-2"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "w-5 h-5"
+                                                    prop.children [ Icons.plus ]
+                                                ]
+                                                Html.span [ prop.text "Add to Library" ]
+                                            ]
+                                        ]
                                 ]
                             ]
                         ]
@@ -639,32 +780,46 @@ let private quickAddModal (state: QuickAddModalState) (friends: Friend list) (ta
 
 /// Filter bar for library view
 let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg -> unit) =
+    let hasActiveFilters =
+        filters.SearchQuery <> "" ||
+        filters.WatchStatus <> AllStatuses ||
+        not (List.isEmpty filters.SelectedTags) ||
+        filters.MinRating.IsSome
+
     Html.div [
-        prop.className "space-y-4 mb-6 p-4 bg-base-200 rounded-lg"
+        prop.className "glass rounded-xl p-4 mb-6 space-y-4"
         prop.children [
-            // Search and sort row
+            // Top row: Search, Sort, Clear
             Html.div [
-                prop.className "flex flex-wrap gap-4 items-center"
+                prop.className "flex flex-wrap gap-3 items-center"
                 prop.children [
-                    // Search input
+                    // Search input with icon
                     Html.div [
-                        prop.className "flex-1 min-w-[200px]"
+                        prop.className "relative flex-1 min-w-[200px]"
                         prop.children [
                             Html.input [
-                                prop.className "input input-bordered w-full input-sm"
+                                prop.className "w-full pl-10 pr-4 py-2.5 bg-base-100/50 border border-white/5 rounded-lg text-sm placeholder:text-base-content/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
                                 prop.placeholder "Filter by title..."
                                 prop.value filters.SearchQuery
                                 prop.onChange (fun (e: string) -> dispatch (SetLibrarySearchQuery e))
                             ]
+                            Html.span [
+                                prop.className "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40"
+                                prop.children [ Icons.filter ]
+                            ]
                         ]
                     ]
 
-                    // Sort dropdown
+                    // Sort controls
                     Html.div [
                         prop.className "flex items-center gap-2"
                         prop.children [
+                            Html.span [
+                                prop.className "w-4 h-4 text-base-content/40"
+                                prop.children [ Icons.sort ]
+                            ]
                             Html.select [
-                                prop.className "select select-bordered select-sm"
+                                prop.className "bg-base-100/50 border border-white/5 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
                                 prop.value (
                                     match filters.SortBy with
                                     | SortByDateAdded -> "dateAdded"
@@ -689,111 +844,126 @@ let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg 
                                 ]
                             ]
                             Html.button [
-                                prop.className "btn btn-ghost btn-sm"
+                                prop.className "w-9 h-9 rounded-lg bg-base-100/50 border border-white/5 flex items-center justify-center hover:bg-base-100 transition-colors"
                                 prop.onClick (fun _ -> dispatch ToggleSortDirection)
                                 prop.title (if filters.SortDirection = Ascending then "Ascending" else "Descending")
-                                prop.text (if filters.SortDirection = Ascending then "↑" else "↓")
+                                prop.children [
+                                    Html.span [
+                                        prop.className (
+                                            "w-4 h-4 text-base-content/60 transition-transform " +
+                                            if filters.SortDirection = Ascending then "" else "rotate-180"
+                                        )
+                                        prop.children [ Icons.chevronUp ]
+                                    ]
+                                ]
                             ]
                         ]
                     ]
-                ]
-            ]
 
-            // Watch status filter
-            Html.div [
-                prop.className "flex flex-wrap gap-2"
-                prop.children [
-                    Html.span [
-                        prop.className "text-sm text-base-content/70 mr-2 self-center"
-                        prop.text "Status:"
-                    ]
-                    for (status, label) in [
-                        (AllStatuses, "All")
-                        (FilterNotStarted, "Not Started")
-                        (FilterInProgress, "In Progress")
-                        (FilterCompleted, "Completed")
-                        (FilterAbandoned, "Abandoned")
-                    ] do
-                        let isActive = filters.WatchStatus = status
+                    // Clear filters (if active)
+                    if hasActiveFilters then
                         Html.button [
-                            prop.type' "button"
-                            prop.className (
-                                "badge cursor-pointer transition-colors " +
-                                if isActive then "badge-primary" else "badge-outline"
-                            )
-                            prop.onClick (fun _ -> dispatch (SetWatchStatusFilter status))
-                            prop.text label
-                        ]
-                ]
-            ]
-
-            // Tag filters (if tags exist)
-            if not (List.isEmpty tags) then
-                Html.div [
-                    prop.className "flex flex-wrap gap-2"
-                    prop.children [
-                        Html.span [
-                            prop.className "text-sm text-base-content/70 mr-2 self-center"
-                            prop.text "Tags:"
-                        ]
-                        for tag in tags do
-                            let isSelected = List.contains tag.Id filters.SelectedTags
-                            Html.button [
-                                prop.type' "button"
-                                prop.className (
-                                    "badge cursor-pointer transition-colors " +
-                                    if isSelected then "badge-secondary" else "badge-outline"
-                                )
-                                prop.onClick (fun _ -> dispatch (ToggleTagFilter tag.Id))
-                                prop.text tag.Name
-                            ]
-                    ]
-                ]
-
-            // Rating filter
-            Html.div [
-                prop.className "flex flex-wrap gap-2 items-center"
-                prop.children [
-                    Html.span [
-                        prop.className "text-sm text-base-content/70 mr-2"
-                        prop.text "Min Rating:"
-                    ]
-                    for rating in [ None; Some 1; Some 2; Some 3; Some 4; Some 5 ] do
-                        let label =
-                            match rating with
-                            | None -> "Any"
-                            | Some r -> String.replicate r "*"
-                        let isSelected = filters.MinRating = rating
-                        Html.button [
-                            prop.type' "button"
-                            prop.className (
-                                "badge cursor-pointer transition-colors " +
-                                if isSelected then "badge-accent" else "badge-outline"
-                            )
-                            prop.onClick (fun _ -> dispatch (SetMinRatingFilter rating))
-                            prop.text label
-                        ]
-                ]
-            ]
-
-            // Clear filters button (if any filter is active)
-            let hasActiveFilters =
-                filters.SearchQuery <> "" ||
-                filters.WatchStatus <> AllStatuses ||
-                not (List.isEmpty filters.SelectedTags) ||
-                filters.MinRating.IsSome
-
-            if hasActiveFilters then
-                Html.div [
-                    prop.className "flex justify-end"
-                    prop.children [
-                        Html.button [
-                            prop.className "btn btn-ghost btn-sm"
+                            prop.className "flex items-center gap-1.5 px-3 py-2 text-sm text-base-content/60 hover:text-error transition-colors"
                             prop.onClick (fun _ -> dispatch ClearFilters)
-                            prop.text "Clear Filters"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-4 h-4"
+                                    prop.children [ Icons.close ]
+                                ]
+                                Html.span [ prop.text "Clear" ]
+                            ]
+                        ]
+                ]
+            ]
+
+            // Divider
+            Html.div [ prop.className "border-t border-white/5" ]
+
+            // Filter chips section
+            Html.div [
+                prop.className "flex flex-wrap gap-4"
+                prop.children [
+                    // Watch status filter
+                    Html.div [
+                        prop.className "flex flex-wrap items-center gap-2"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-xs uppercase tracking-wider text-base-content/40 font-medium"
+                                prop.text "Status"
+                            ]
+                            for (status, label) in [
+                                (AllStatuses, "All")
+                                (FilterNotStarted, "Unwatched")
+                                (FilterInProgress, "Watching")
+                                (FilterCompleted, "Watched")
+                                (FilterAbandoned, "Dropped")
+                            ] do
+                                let isActive = filters.WatchStatus = status
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className (
+                                        "px-3 py-1 rounded-full text-xs font-medium transition-all " +
+                                        if isActive then "bg-primary/20 text-primary border border-primary/30"
+                                        else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
+                                    )
+                                    prop.onClick (fun _ -> dispatch (SetWatchStatusFilter status))
+                                    prop.text label
+                                ]
+                        ]
+                    ]
+
+                    // Tag filters (if tags exist)
+                    if not (List.isEmpty tags) then
+                        Html.div [
+                            prop.className "flex flex-wrap items-center gap-2"
+                            prop.children [
+                                Html.span [
+                                    prop.className "text-xs uppercase tracking-wider text-base-content/40 font-medium"
+                                    prop.text "Tags"
+                                ]
+                                for tag in tags do
+                                    let isSelected = List.contains tag.Id filters.SelectedTags
+                                    Html.button [
+                                        prop.type' "button"
+                                        prop.className (
+                                            "px-3 py-1 rounded-full text-xs font-medium transition-all " +
+                                            if isSelected then "bg-secondary/20 text-secondary border border-secondary/30"
+                                            else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
+                                        )
+                                        prop.onClick (fun _ -> dispatch (ToggleTagFilter tag.Id))
+                                        prop.text tag.Name
+                                    ]
+                            ]
+                        ]
+
+                    // Rating filter
+                    Html.div [
+                        prop.className "flex flex-wrap items-center gap-2"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-xs uppercase tracking-wider text-base-content/40 font-medium"
+                                prop.text "Rating"
+                            ]
+                            for rating in [ None; Some 1; Some 2; Some 3; Some 4; Some 5 ] do
+                                let label =
+                                    match rating with
+                                    | None -> "Any"
+                                    | Some r -> String.replicate r "\u2605"
+                                let isSelected = filters.MinRating = rating
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className (
+                                        "px-3 py-1 rounded-full text-xs font-medium transition-all " +
+                                        if isSelected then "bg-accent/20 text-accent border border-accent/30"
+                                        else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
+                                    )
+                                    prop.onClick (fun _ -> dispatch (SetMinRatingFilter rating))
+                                    prop.text label
+                                ]
                         ]
                     ]
                 ]
+            ]
         ]
     ]
 
@@ -1736,19 +1906,36 @@ let private seriesDetailPage (entry: LibraryEntry) (series: Series) (tags: Tag l
 /// Notification toast
 let private notificationToast (message: string) (isSuccess: bool) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "toast toast-top toast-end z-50"
+        prop.className "toast-container"
         prop.children [
             Html.div [
                 prop.className (
-                    "alert " +
-                    if isSuccess then "alert-success" else "alert-error"
+                    "toast " +
+                    if isSuccess then "toast-success" else "toast-error"
                 )
                 prop.children [
-                    Html.span [ prop.text message ]
+                    Html.span [
+                        prop.className (
+                            "w-5 h-5 " +
+                            if isSuccess then "text-success" else "text-error"
+                        )
+                        prop.children [
+                            if isSuccess then Icons.success else Icons.error
+                        ]
+                    ]
+                    Html.span [
+                        prop.className "flex-1 text-sm"
+                        prop.text message
+                    ]
                     Html.button [
-                        prop.className "btn btn-ghost btn-xs"
+                        prop.className "w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
                         prop.onClick (fun _ -> dispatch ClearNotification)
-                        prop.text "X"
+                        prop.children [
+                            Html.span [
+                                prop.className "w-4 h-4 text-base-content/50"
+                                prop.children [ Icons.close ]
+                            ]
+                        ]
                     ]
                 ]
             ]
@@ -2846,16 +3033,16 @@ let private libraryEntryCard (entry: LibraryEntry) (dispatch: Msg -> unit) =
             let y = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
             (s.Name, s.PosterPath, y, false)
 
-    let watchStatusBadge =
+    let watchStatusInfo =
         match entry.WatchStatus with
         | NotStarted -> None
-        | InProgress _ -> Some ("In Progress", "badge-info")
-        | Completed -> Some ("Completed", "badge-success")
-        | Abandoned _ -> Some ("Abandoned", "badge-warning")
+        | InProgress _ -> Some ("Watching", "from-info/80 to-info/40", "text-info")
+        | Completed -> Some ("Watched", "from-success/80 to-success/40", "text-success")
+        | Abandoned _ -> Some ("Dropped", "from-warning/80 to-warning/40", "text-warning")
 
-    let ratingDisplay =
+    let ratingStars =
         entry.PersonalRating
-        |> Option.map (fun r -> String.replicate (PersonalRating.toInt r) "*")
+        |> Option.map (fun r -> PersonalRating.toInt r)
 
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
@@ -2864,70 +3051,107 @@ let private libraryEntryCard (entry: LibraryEntry) (dispatch: Msg -> unit) =
             else dispatch (ViewSeriesDetail entry.Id)
         )
         prop.children [
+            // Poster container
             Html.div [
-                prop.className "relative aspect-[2/3] rounded-lg overflow-hidden bg-base-300 shadow-md hover:shadow-xl transition-shadow"
+                prop.className "poster-image-container poster-shadow"
                 prop.children [
                     match posterPath with
                     | Some _ ->
                         Html.img [
                             prop.src (getLocalPosterUrl posterPath)
                             prop.alt title
-                            prop.className "w-full h-full object-cover"
+                            prop.className "poster-image"
+                            prop.custom ("loading", "lazy")
                         ]
                     | None ->
                         Html.div [
-                            prop.className "w-full h-full flex items-center justify-center bg-base-300"
+                            prop.className "w-full h-full flex items-center justify-center"
                             prop.children [
                                 Html.span [
-                                    prop.className "text-4xl text-base-content/30"
-                                    prop.text "?"
+                                    prop.className "text-4xl text-base-content/20"
+                                    prop.children [ if isMovie then Icons.film else Icons.tv ]
                                 ]
                             ]
                         ]
 
-                    // Watch status badge
-                    match watchStatusBadge with
-                    | Some (label, badgeClass) ->
+                    // Watch status badge (top left)
+                    match watchStatusInfo with
+                    | Some (label, gradient, _) ->
                         Html.div [
-                            prop.className $"absolute top-2 left-2 badge {badgeClass} badge-sm"
+                            prop.className $"absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-medium bg-gradient-to-r {gradient} backdrop-blur-sm"
                             prop.text label
                         ]
                     | None -> Html.none
 
-                    // Favorite indicator
+                    // Favorite indicator (top right)
                     if entry.IsFavorite then
                         Html.div [
-                            prop.className "absolute top-2 right-2 text-yellow-400"
-                            prop.text "*"
+                            prop.className "absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-4 h-4 text-yellow-400"
+                                    prop.children [ Icons.heartSolid ]
+                                ]
+                            ]
                         ]
 
-                    // Shine effect overlay
+                    // Shine effect
                     Html.div [
-                        prop.className "poster-shine absolute inset-0 pointer-events-none"
+                        prop.className "poster-shine"
+                    ]
+
+                    // Hover overlay with view button
+                    Html.div [
+                        prop.className "poster-overlay flex flex-col justify-end p-3"
+                        prop.children [
+                            Html.div [
+                                prop.className "flex items-center justify-center gap-2 text-sm font-medium"
+                                prop.children [
+                                    Html.span [
+                                        prop.className "w-4 h-4"
+                                        prop.children [ Icons.eye ]
+                                    ]
+                                    Html.span [ prop.text "View Details" ]
+                                ]
+                            ]
+                        ]
                     ]
                 ]
             ]
+
+            // Title and meta info
             Html.div [
-                prop.className "mt-2"
+                prop.className "mt-3 space-y-1"
                 prop.children [
                     Html.p [
-                        prop.className "font-medium text-sm truncate"
+                        prop.className "font-medium text-sm truncate text-base-content/90 group-hover:text-white transition-colors"
                         prop.title title
                         prop.text title
                     ]
                     Html.div [
                         prop.className "flex justify-between items-center"
                         prop.children [
-                            if year <> "" then
-                                Html.span [
-                                    prop.className "text-xs text-base-content/60"
-                                    prop.text year
-                                ]
-                            match ratingDisplay with
+                            // Year
+                            Html.span [
+                                prop.className "text-xs text-base-content/50"
+                                prop.text (if year <> "" then year else "-")
+                            ]
+
+                            // Rating stars
+                            match ratingStars with
                             | Some stars ->
-                                Html.span [
-                                    prop.className "text-xs text-yellow-400"
-                                    prop.text stars
+                                Html.div [
+                                    prop.className "flex gap-0.5"
+                                    prop.children [
+                                        for i in 1..5 do
+                                            Html.span [
+                                                prop.className (
+                                                    "w-3 h-3 " +
+                                                    if i <= stars then "text-yellow-400" else "text-base-content/20"
+                                                )
+                                                prop.children [ Icons.starSolid ]
+                                            ]
+                                    ]
                                 ]
                             | None -> Html.none
                         ]
@@ -2940,19 +3164,57 @@ let private libraryEntryCard (entry: LibraryEntry) (dispatch: Msg -> unit) =
 /// Home page content
 let private homePageContent (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "space-y-8"
+        prop.className "space-y-10"
         prop.children [
             // Hero section
             Html.div [
-                prop.className "text-center py-12"
+                prop.className "text-center py-16 space-y-6"
                 prop.children [
-                    Html.h2 [
-                        prop.className "text-3xl font-bold mb-4"
-                        prop.text "Your Cinema Memory Tracker"
+                    // Logo icon
+                    Html.div [
+                        prop.className "mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-6 shadow-glow-primary"
+                        prop.children [
+                            Html.span [
+                                prop.className "w-10 h-10 text-primary"
+                                prop.children [ Icons.clapperboard ]
+                            ]
+                        ]
                     ]
+
+                    Html.h2 [
+                        prop.className "text-4xl font-bold"
+                        prop.children [
+                            Html.span [ prop.text "Your " ]
+                            Html.span [ prop.className "text-gradient"; prop.text "Cinema" ]
+                            Html.span [ prop.text " Memory Tracker" ]
+                        ]
+                    ]
+
                     Html.p [
-                        prop.className "text-base-content/70 max-w-xl mx-auto"
-                        prop.text "Search for movies and series above to add them to your personal library. Track what you've watched, who you watched with, and your personal ratings."
+                        prop.className "text-base-content/60 max-w-xl mx-auto text-lg leading-relaxed"
+                        prop.text "Search for movies and series to add them to your personal library. Track what you've watched, who you watched with, and capture your thoughts."
+                    ]
+
+                    // Quick tips
+                    Html.div [
+                        prop.className "flex flex-wrap justify-center gap-4 mt-8"
+                        prop.children [
+                            for (icon, tip) in [
+                                (Icons.search, "Search above to find titles")
+                                (Icons.plus, "Click any result to add")
+                                (Icons.friends, "Track who you watch with")
+                            ] do
+                                Html.div [
+                                    prop.className "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-base-content/60"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-4 h-4"
+                                            prop.children [ icon ]
+                                        ]
+                                        Html.span [ prop.text tip ]
+                                    ]
+                                ]
+                        ]
                     ]
                 ]
             ]
@@ -2961,15 +3223,32 @@ let private homePageContent (model: Model) (dispatch: Msg -> unit) =
             match model.Library with
             | Success entries when not (List.isEmpty entries) ->
                 Html.div [
+                    prop.className "space-y-4"
                     prop.children [
-                        Html.h3 [
-                            prop.className "text-xl font-bold mb-4"
-                            prop.text "Recently Added"
+                        Html.div [
+                            prop.className "flex justify-between items-center"
+                            prop.children [
+                                Html.h3 [
+                                    prop.className "text-xl font-bold"
+                                    prop.text "Recently Added"
+                                ]
+                                Html.button [
+                                    prop.className "flex items-center gap-2 text-sm text-primary hover:underline"
+                                    prop.onClick (fun _ -> dispatch (NavigateTo LibraryPage))
+                                    prop.children [
+                                        Html.span [ prop.text "View All" ]
+                                        Html.span [
+                                            prop.className "w-4 h-4"
+                                            prop.children [ Icons.arrowRight ]
+                                        ]
+                                    ]
+                                ]
+                            ]
                         ]
                         Html.div [
-                            prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4"
+                            prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                             prop.children [
-                                for entry in entries |> List.truncate 6 do
+                                for entry in entries |> List.sortByDescending (fun e -> e.DateAdded) |> List.truncate 12 do
                                     libraryEntryCard entry dispatch
                             ]
                         ]
@@ -2977,22 +3256,55 @@ let private homePageContent (model: Model) (dispatch: Msg -> unit) =
                 ]
             | Success _ ->
                 Html.div [
-                    prop.className "text-center py-12 text-base-content/60"
+                    prop.className "text-center py-16"
                     prop.children [
-                        Html.p [ prop.text "Your library is empty. Search for movies and series to get started!" ]
+                        Html.div [
+                            prop.className "w-20 h-20 mx-auto mb-6 rounded-full bg-base-200 flex items-center justify-center"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-10 h-10 text-base-content/30"
+                                    prop.children [ Icons.library ]
+                                ]
+                            ]
+                        ]
+                        Html.h3 [
+                            prop.className "text-xl font-semibold mb-2 text-base-content/70"
+                            prop.text "Your library is empty"
+                        ]
+                        Html.p [
+                            prop.className "text-base-content/50"
+                            prop.text "Search for a movie or series above to get started"
+                        ]
                     ]
                 ]
             | Loading ->
                 Html.div [
-                    prop.className "flex justify-center py-12"
+                    prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                     prop.children [
-                        Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                        for _ in 1..6 do
+                            Html.div [
+                                prop.className "space-y-3"
+                                prop.children [
+                                    Html.div [ prop.className "skeleton aspect-[2/3] rounded-lg" ]
+                                    Html.div [ prop.className "skeleton h-4 w-3/4 rounded" ]
+                                    Html.div [ prop.className "skeleton h-3 w-1/2 rounded" ]
+                                ]
+                            ]
                     ]
                 ]
             | Failure err ->
                 Html.div [
-                    prop.className "alert alert-error"
-                    prop.text $"Error loading library: {err}"
+                    prop.className "text-center py-12"
+                    prop.children [
+                        Html.span [
+                            prop.className "w-12 h-12 mx-auto mb-4 text-error/50 block"
+                            prop.children [ Icons.error ]
+                        ]
+                        Html.p [
+                            prop.className "text-error"
+                            prop.text $"Error loading library: {err}"
+                        ]
+                    ]
                 ]
             | NotAsked -> Html.none
         ]
@@ -3003,9 +3315,28 @@ let private libraryPageContent (model: Model) (tags: Tag list) (dispatch: Msg ->
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            Html.h2 [
-                prop.className "text-2xl font-bold"
-                prop.text "My Library"
+            // Header with title and stats
+            Html.div [
+                prop.className "flex items-center justify-between"
+                prop.children [
+                    Html.h2 [
+                        prop.className "text-2xl font-bold flex items-center gap-3"
+                        prop.children [
+                            Html.span [
+                                prop.className "w-8 h-8 text-primary"
+                                prop.children [ Icons.library ]
+                            ]
+                            Html.span [ prop.text "My Library" ]
+                        ]
+                    ]
+                    match model.Library with
+                    | Success entries ->
+                        Html.div [
+                            prop.className "text-sm text-base-content/50"
+                            prop.text $"{List.length entries} titles"
+                        ]
+                    | _ -> Html.none
+                ]
             ]
 
             // Filter bar
@@ -3021,35 +3352,60 @@ let private libraryPageContent (model: Model) (tags: Tag list) (dispatch: Msg ->
                     prop.className "space-y-4"
                     prop.children [
                         // Results count
-                        Html.div [
-                            prop.className "text-sm text-base-content/60"
-                            prop.text (
-                                if filteredCount = totalCount then
-                                    $"Showing all {totalCount} items"
-                                else
-                                    $"Showing {filteredCount} of {totalCount} items"
-                            )
-                        ]
+                        if filteredCount <> totalCount then
+                            Html.div [
+                                prop.className "text-sm text-base-content/50"
+                                prop.text $"Showing {filteredCount} of {totalCount} items"
+                            ]
 
                         if List.isEmpty filteredEntries then
                             Html.div [
-                                prop.className "text-center py-12 text-base-content/60"
+                                prop.className "text-center py-20"
                                 prop.children [
                                     if totalCount = 0 then
                                         Html.div [
+                                            prop.className "space-y-4"
                                             prop.children [
-                                                Html.p [ prop.className "text-lg mb-2"; prop.text "Your library is empty" ]
-                                                Html.p [ prop.text "Use the search bar above to find movies and series to add." ]
+                                                Html.div [
+                                                    prop.className "w-20 h-20 mx-auto rounded-full bg-base-200 flex items-center justify-center"
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-10 h-10 text-base-content/30"
+                                                            prop.children [ Icons.library ]
+                                                        ]
+                                                    ]
+                                                ]
+                                                Html.h3 [
+                                                    prop.className "text-xl font-semibold text-base-content/70"
+                                                    prop.text "Your library is empty"
+                                                ]
+                                                Html.p [
+                                                    prop.className "text-base-content/50 max-w-md mx-auto"
+                                                    prop.text "Use the search bar above to find movies and series to add to your collection."
+                                                ]
                                             ]
                                         ]
                                     else
                                         Html.div [
+                                            prop.className "space-y-4"
                                             prop.children [
-                                                Html.p [ prop.className "text-lg mb-2"; prop.text "No items match your filters" ]
+                                                Html.div [
+                                                    prop.className "w-20 h-20 mx-auto rounded-full bg-base-200 flex items-center justify-center"
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-10 h-10 text-base-content/30"
+                                                            prop.children [ Icons.filter ]
+                                                        ]
+                                                    ]
+                                                ]
+                                                Html.h3 [
+                                                    prop.className "text-xl font-semibold text-base-content/70"
+                                                    prop.text "No items match your filters"
+                                                ]
                                                 Html.button [
-                                                    prop.className "btn btn-ghost btn-sm"
+                                                    prop.className "px-4 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                                                     prop.onClick (fun _ -> dispatch ClearFilters)
-                                                    prop.text "Clear Filters"
+                                                    prop.text "Clear All Filters"
                                                 ]
                                             ]
                                         ]
@@ -3057,7 +3413,7 @@ let private libraryPageContent (model: Model) (tags: Tag list) (dispatch: Msg ->
                             ]
                         else
                             Html.div [
-                                prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4"
+                                prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-fade-in"
                                 prop.children [
                                     for entry in filteredEntries do
                                         libraryEntryCard entry dispatch
@@ -3067,15 +3423,32 @@ let private libraryPageContent (model: Model) (tags: Tag list) (dispatch: Msg ->
                 ]
             | Loading ->
                 Html.div [
-                    prop.className "flex justify-center py-12"
+                    prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                     prop.children [
-                        Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                        for _ in 1..12 do
+                            Html.div [
+                                prop.className "space-y-3"
+                                prop.children [
+                                    Html.div [ prop.className "skeleton aspect-[2/3] rounded-lg" ]
+                                    Html.div [ prop.className "skeleton h-4 w-3/4 rounded" ]
+                                    Html.div [ prop.className "skeleton h-3 w-1/2 rounded" ]
+                                ]
+                            ]
                     ]
                 ]
             | Failure err ->
                 Html.div [
-                    prop.className "alert alert-error"
-                    prop.text $"Error loading library: {err}"
+                    prop.className "flex items-center gap-3 p-4 rounded-lg bg-error/10 border border-error/30"
+                    prop.children [
+                        Html.span [
+                            prop.className "w-5 h-5 text-error"
+                            prop.children [ Icons.error ]
+                        ]
+                        Html.span [
+                            prop.className "text-sm text-error"
+                            prop.text $"Error loading library: {err}"
+                        ]
+                    ]
                 ]
             | NotAsked -> Html.none
         ]
