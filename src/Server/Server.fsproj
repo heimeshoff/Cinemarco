@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Migrations.fs" />
     <Compile Include="Persistence.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />
@@ -19,6 +20,8 @@
     <PackageReference Include="Giraffe" Version="6.4.0" />
     <PackageReference Include="Fable.Remoting.Giraffe" Version="5.24.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
   </ItemGroup>
 
   <ItemGroup>

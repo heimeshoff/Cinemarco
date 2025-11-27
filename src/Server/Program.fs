@@ -30,6 +30,10 @@ let main args =
     // Initialize data directory
     Persistence.ensureDataDir()
 
+    // Run database migrations
+    printfn $"Database path: {Persistence.getDatabasePath()}"
+    Migrations.runMigrations Persistence.connectionString
+
     if app.Environment.IsDevelopment() then
         app.UseDeveloperExceptionPage() |> ignore
 
