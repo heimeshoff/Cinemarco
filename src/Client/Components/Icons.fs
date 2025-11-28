@@ -1,4 +1,4 @@
-module Icons
+module Components.Icons
 
 open Feliz
 open Fable.Core.JsInterop

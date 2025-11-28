@@ -1,0 +1,170 @@
+module App.View
+
+open Feliz
+open Common.Types
+open Common.Routing
+open Shared.Domain
+open Types
+
+/// Render the current page content
+let private pageContent (model: Model) (dispatch: Msg -> unit) =
+    let tags = RemoteData.defaultValue [] model.Tags
+    let friends = RemoteData.defaultValue [] model.Friends
+
+    match model.CurrentPage with
+    | HomePage ->
+        match model.HomePage with
+        | Some pageModel ->
+            Pages.Home.View.view pageModel (HomeMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | LibraryPage ->
+        match model.LibraryPage with
+        | Some pageModel ->
+            Pages.Library.View.view pageModel tags (LibraryMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | MovieDetailPage _ ->
+        match model.MovieDetailPage with
+        | Some pageModel ->
+            Pages.MovieDetail.View.view pageModel tags friends (MovieDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | SeriesDetailPage _ ->
+        match model.SeriesDetailPage with
+        | Some pageModel ->
+            Pages.SeriesDetail.View.view pageModel tags friends (SeriesDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | FriendsPage ->
+        match model.FriendsPage with
+        | Some pageModel ->
+            Pages.Friends.View.view pageModel (FriendsMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | FriendDetailPage friendId ->
+        match model.FriendDetailPage with
+        | Some pageModel ->
+            let friend = friends |> List.tryFind (fun f -> f.Id = friendId)
+            Pages.FriendDetail.View.view pageModel friend (FriendDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | TagsPage ->
+        match model.TagsPage with
+        | Some pageModel ->
+            Pages.Tags.View.view pageModel (TagsMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | TagDetailPage tagId ->
+        match model.TagDetailPage with
+        | Some pageModel ->
+            let tag = tags |> List.tryFind (fun t -> t.Id = tagId)
+            Pages.TagDetail.View.view pageModel tag (TagDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | CollectionsPage
+    | StatsPage
+    | TimelinePage
+    | GraphPage
+    | ImportPage ->
+        Html.div [
+            prop.className "text-center py-16"
+            prop.children [
+                Html.h2 [
+                    prop.className "text-2xl font-bold mb-4"
+                    prop.text (Page.toString model.CurrentPage)
+                ]
+                Html.p [
+                    prop.className "text-base-content/60"
+                    prop.text "Coming soon..."
+                ]
+            ]
+        ]
+
+    | NotFoundPage ->
+        Pages.NotFound.View.view ()
+
+/// Render the active modal
+let private modalContent (model: Model) (dispatch: Msg -> unit) =
+    let friends = RemoteData.defaultValue [] model.Friends
+    let tags = RemoteData.defaultValue [] model.Tags
+
+    match model.Modal with
+    | NoModal -> Html.none
+
+    | SearchModal modalModel ->
+        Components.SearchModal.View.view modalModel (SearchModalMsg >> dispatch)
+
+    | QuickAddModal modalModel ->
+        Components.QuickAddModal.View.view modalModel friends tags (QuickAddModalMsg >> dispatch)
+
+    | FriendModal modalModel ->
+        Components.FriendModal.View.view modalModel (FriendModalMsg >> dispatch)
+
+    | TagModal modalModel ->
+        Components.TagModal.View.view modalModel (TagModalMsg >> dispatch)
+
+    | AbandonModal modalModel ->
+        Components.AbandonModal.View.view modalModel (AbandonModalMsg >> dispatch)
+
+    | ConfirmDeleteModal modalModel ->
+        Components.ConfirmModal.View.view modalModel (ConfirmModalMsg >> dispatch)
+
+/// Main view
+let view (model: Model) (dispatch: Msg -> unit) =
+    let onNavigate = fun page -> dispatch (NavigateTo page)
+    let onSearch = fun () -> dispatch OpenSearchModal
+
+    Html.div [
+        prop.className "min-h-screen bg-base-100"
+        prop.children [
+            // Sidebar (desktop)
+            Components.Layout.View.sidebar
+                model.Layout
+                model.CurrentPage
+                onNavigate
+                onSearch
+
+            // Mobile nav
+            Components.Layout.View.mobileNav
+                model.Layout
+                model.CurrentPage
+                onNavigate
+                onSearch
+                (LayoutMsg >> dispatch)
+
+            // Mobile menu drawer
+            Components.Layout.View.mobileMenuDrawer
+                model.Layout
+                model.CurrentPage
+                onNavigate
+                (LayoutMsg >> dispatch)
+
+            // Main content
+            Html.main [
+                prop.className "lg:pl-64 min-h-screen"
+                prop.children [
+                    Html.div [
+                        prop.className "p-4 lg:p-8 pb-24 lg:pb-8"
+                        prop.children [
+                            pageContent model dispatch
+                        ]
+                    ]
+                ]
+            ]
+
+            // Modal
+            modalContent model dispatch
+
+            // Notification
+            Components.Notification.View.view model.Notification (NotificationMsg >> dispatch)
+        ]
+    ]
