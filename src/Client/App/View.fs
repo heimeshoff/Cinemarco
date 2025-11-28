@@ -149,14 +149,48 @@ let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: 
 
     children
 
+/// Animated backdrop component - "The Projector Room"
+let private animatedBackdrop =
+    Html.div [
+        prop.className "animated-backdrop"
+        prop.children [
+            // Main projector light beam from top-right
+            Html.div [ prop.className "projector-beam" ]
+
+            // Diffused glow around the beam source
+            Html.div [ prop.className "projector-glow" ]
+
+            // Ambient light bounce from below
+            Html.div [ prop.className "ambient-light" ]
+
+            // Floating dust particles in the beam
+            Html.div [
+                prop.className "dust-container"
+                prop.children [
+                    for _ in 1..15 do
+                        Html.div [ prop.className "dust" ]
+                ]
+            ]
+
+            // Cinema vignette effect
+            Html.div [ prop.className "backdrop-vignette" ]
+
+            // Subtle film grain for authenticity
+            Html.div [ prop.className "film-grain" ]
+        ]
+    ]
+
 /// Main view
 let view (model: Model) (dispatch: Msg -> unit) =
     let onNavigate = fun page -> dispatch (NavigateTo page)
     let onSearch = fun () -> dispatch OpenSearchModal
 
     KeyboardShortcuts model dispatch (Html.div [
-        prop.className "min-h-screen bg-base-100"
+        prop.className "min-h-screen bg-transparent"
         prop.children [
+            // Animated backdrop
+            animatedBackdrop
+
             // Sidebar (desktop)
             Components.Layout.View.sidebar
                 model.Layout
@@ -181,7 +215,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Main content
             Html.main [
-                prop.className "lg:pl-64 min-h-screen"
+                prop.className "lg:pl-64 min-h-screen relative"
                 prop.children [
                     Html.div [
                         prop.className "p-4 lg:p-8 pb-24 lg:pb-8"

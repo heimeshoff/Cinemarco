@@ -170,6 +170,7 @@ let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> uni
                             prop.alt title
                             prop.className "poster-image"
                             prop.custom ("loading", "lazy")
+                            prop.custom ("crossorigin", "anonymous")
                         ]
                     | None ->
                         Html.div [

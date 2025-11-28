@@ -124,6 +124,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                     prop.src (getLocalPosterUrl series.PosterPath)
                                                     prop.alt series.Name
                                                     prop.className "poster-image"
+                                                    prop.custom ("crossorigin", "anonymous")
                                                 ]
                                             | None ->
                                                 Html.div [

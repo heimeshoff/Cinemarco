@@ -723,6 +723,215 @@
 }
 
 /* ============================================
+   PROJECTOR ROOM BACKDROP
+   "The magic of cinema projection"
+   ============================================ */
+
+.animated-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  /* Deep blue-black cinema darkness */
+  background: linear-gradient(
+    160deg,
+    #0a0c12 0%,
+    #080a0f 40%,
+    #05070a 100%
+  );
+
+  /* Dynamic projector color - defaults to warm amber */
+  --projector-r: 255;
+  --projector-g: 180;
+  --projector-b: 100;
+  --projector-color: rgb(var(--projector-r), var(--projector-g), var(--projector-b));
+
+  /* Transition for smooth color changes */
+  transition: --projector-r 1.5s ease-out, --projector-g 1.5s ease-out, --projector-b 1.5s ease-out;
+}
+
+/* Main projector beam - the hero element */
+.projector-beam {
+  position: absolute;
+  top: -10%;
+  right: -5%;
+  width: 120%;
+  height: 130%;
+  background: conic-gradient(
+    from 200deg at 95% 5%,
+    transparent 0deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.03) 15deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 25deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.12) 35deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 45deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.03) 55deg,
+    transparent 70deg,
+    transparent 360deg
+  );
+  animation: beam-flicker 8s ease-in-out infinite;
+}
+
+/* Secondary diffused light wash */
+.projector-glow {
+  position: absolute;
+  top: -20%;
+  right: -20%;
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(
+    ellipse at 100% 0%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.15) 0%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 30%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.03) 50%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  animation: glow-pulse 12s ease-in-out infinite;
+}
+
+/* Ambient room light bounce */
+.ambient-light {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(
+    to top,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.02) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Dust particles container */
+.dust-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Individual dust particles floating in the beam */
+.dust {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.7);
+  border-radius: 50%;
+  filter: blur(0.5px);
+  animation: dust-float linear infinite;
+}
+
+/* Dust particle positions and timings */
+.dust:nth-child(1) { top: 15%; right: 25%; animation-duration: 25s; animation-delay: 0s; }
+.dust:nth-child(2) { top: 8%; right: 35%; animation-duration: 30s; animation-delay: -5s; }
+.dust:nth-child(3) { top: 25%; right: 20%; animation-duration: 28s; animation-delay: -10s; }
+.dust:nth-child(4) { top: 12%; right: 40%; animation-duration: 32s; animation-delay: -3s; }
+.dust:nth-child(5) { top: 30%; right: 30%; animation-duration: 26s; animation-delay: -8s; }
+.dust:nth-child(6) { top: 5%; right: 28%; animation-duration: 35s; animation-delay: -15s; }
+.dust:nth-child(7) { top: 20%; right: 15%; animation-duration: 29s; animation-delay: -12s; }
+.dust:nth-child(8) { top: 35%; right: 22%; animation-duration: 31s; animation-delay: -7s; }
+.dust:nth-child(9) { top: 18%; right: 45%; animation-duration: 27s; animation-delay: -2s; }
+.dust:nth-child(10) { top: 28%; right: 38%; animation-duration: 33s; animation-delay: -18s; }
+.dust:nth-child(11) { top: 10%; right: 18%; animation-duration: 24s; animation-delay: -11s; }
+.dust:nth-child(12) { top: 22%; right: 32%; animation-duration: 30s; animation-delay: -6s; }
+.dust:nth-child(13) { top: 40%; right: 25%; animation-duration: 28s; animation-delay: -14s; }
+.dust:nth-child(14) { top: 6%; right: 42%; animation-duration: 34s; animation-delay: -9s; }
+.dust:nth-child(15) { top: 32%; right: 35%; animation-duration: 26s; animation-delay: -4s; }
+
+@keyframes dust-float {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-100px, 150px) scale(0.8);
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-200px, 300px) scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* Subtle beam flicker animation */
+@keyframes beam-flicker {
+  0%, 100% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.92;
+  }
+  85% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.97;
+  }
+}
+
+/* Glow pulse animation */
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+/* Strong cinema vignette */
+.backdrop-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 70% at 50% 50%,
+    transparent 0%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  pointer-events: none;
+}
+
+/* Film grain overlay for authenticity */
+.film-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  animation: grain-shift 0.5s steps(10) infinite;
+}
+
+@keyframes grain-shift {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-1%, -1%); }
+  20% { transform: translate(1%, 0%); }
+  30% { transform: translate(0%, 1%); }
+  40% { transform: translate(-1%, 1%); }
+  50% { transform: translate(1%, -1%); }
+  60% { transform: translate(0%, 0%); }
+  70% { transform: translate(1%, 1%); }
+  80% { transform: translate(-1%, 0%); }
+  90% { transform: translate(0%, -1%); }
+}
+
+/* ============================================
    RESPONSIVE ADJUSTMENTS
    ============================================ */
 
@@ -743,5 +952,35 @@
 
   .toast {
     width: 100%;
+  }
+
+  /* Adjust projector beam for mobile */
+  .projector-beam {
+    opacity: 0.8;
+  }
+
+  .projector-glow {
+    opacity: 0.7;
+  }
+
+  .dust {
+    display: none; /* Hide dust on mobile for performance */
+  }
+}
+
+/* Reduced motion: disable animations but keep static backdrop */
+@media (prefers-reduced-motion: reduce) {
+  .projector-beam,
+  .projector-glow,
+  .film-grain {
+    animation: none;
+  }
+
+  .dust {
+    display: none;
+  }
+
+  .film-grain {
+    animation: none;
   }
 }
