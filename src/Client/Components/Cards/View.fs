@@ -119,7 +119,7 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
                 prop.className "mt-3 space-y-1"
                 prop.children [
                     Html.p [
-                        prop.className "font-medium text-sm truncate text-base-content/90 group-hover:text-white transition-colors"
+                        prop.className "font-medium text-sm truncate text-base-content/90"
                         prop.title item.Title
                         prop.text item.Title
                     ]
@@ -232,7 +232,7 @@ let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> uni
                 prop.className "mt-3 space-y-1"
                 prop.children [
                     Html.p [
-                        prop.className "font-medium text-sm truncate text-base-content/90 group-hover:text-white transition-colors"
+                        prop.className "font-medium text-sm truncate text-base-content/90"
                         prop.title title
                         prop.text title
                     ]
