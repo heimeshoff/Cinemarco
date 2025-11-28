@@ -50,6 +50,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | TagDetailPage tagId when model.TagDetailPage.IsNone || model.TagDetailPage |> Option.map (fun m -> m.TagId <> tagId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.TagDetail.State.init tagId
             { model' with TagDetailPage = Some pageModel }, Cmd.map TagDetailMsg pageCmd
+        | CachePage when model.CachePage.IsNone ->
+            let pageModel, pageCmd = Pages.Cache.State.init ()
+            { model' with CachePage = Some pageModel }, Cmd.map CacheMsg pageCmd
         | _ -> model', Cmd.none
 
     // Global data loading
@@ -481,7 +484,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         model, Cmd.ofMsg (ShowNotification ("Entry abandoned", true))
 
     | EntryDeleted _ ->
-        model, Cmd.batch [
+        // Clear the library page cache so it reloads fresh data
+        { model with LibraryPage = None; HomePage = None },
+        Cmd.batch [
             Cmd.ofMsg (ShowNotification ("Entry deleted", true))
             Cmd.ofMsg (NavigateTo LibraryPage)
         ]
@@ -491,3 +496,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             Cmd.ofMsg (ShowNotification ("Added to library", true))
             Cmd.ofMsg (HomeMsg Pages.Home.Types.LoadLibrary)
         ]
+
+    // Page messages - Cache
+    | CacheMsg cacheMsg ->
+        match model.CachePage with
+        | Some pageModel ->
+            let cacheApi : Pages.Cache.State.CacheApi = {
+                GetEntries = fun () -> Api.api.cacheGetEntries ()
+                GetStats = fun () -> Api.api.cacheGetStats ()
+                ClearAll = fun () -> Api.api.cacheClearAll ()
+                ClearExpired = fun () -> Api.api.cacheClearExpired ()
+            }
+            let newPage, pageCmd, extMsg = Pages.Cache.State.update cacheApi cacheMsg pageModel
+            let model' = { model with CachePage = Some newPage }
+            let cmd = Cmd.map CacheMsg pageCmd
+            match extMsg with
+            | Pages.Cache.Types.NoOp -> model', cmd
+            | Pages.Cache.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none

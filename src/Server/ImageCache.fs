@@ -127,9 +127,48 @@ let getContentType (filename: string) =
     | ".webp" -> "image/webp"
     | _ -> "application/octet-stream"
 
-// Note: There is intentionally NO clearCache function.
-// Images are stored permanently and should never be automatically deleted.
-// Manual deletion requires direct file system access.
+/// Delete orphaned images that are no longer referenced in the database
+/// Returns the number of files deleted and bytes freed
+let deleteOrphanedImages (referencedPosters: Set<string>) (referencedBackdrops: Set<string>) : int * int64 =
+    let mutable filesDeleted = 0
+    let mutable bytesFreed = 0L
+
+    // Helper to convert local filename back to TMDB path format
+    let filenameToTmdbPath (filename: string) = "/" + filename
+
+    // Clean up posters
+    let postersDir = Path.Combine(getImagesDir(), "posters")
+    if Directory.Exists(postersDir) then
+        for file in Directory.GetFiles(postersDir) do
+            let filename = Path.GetFileName(file)
+            let tmdbPath = filenameToTmdbPath filename
+            if not (referencedPosters.Contains(tmdbPath)) then
+                try
+                    let fileInfo = FileInfo(file)
+                    bytesFreed <- bytesFreed + fileInfo.Length
+                    File.Delete(file)
+                    filesDeleted <- filesDeleted + 1
+                    printfn $"Deleted orphaned poster: {filename}"
+                with ex ->
+                    printfn $"Failed to delete poster {filename}: {ex.Message}"
+
+    // Clean up backdrops
+    let backdropsDir = Path.Combine(getImagesDir(), "backdrops")
+    if Directory.Exists(backdropsDir) then
+        for file in Directory.GetFiles(backdropsDir) do
+            let filename = Path.GetFileName(file)
+            let tmdbPath = filenameToTmdbPath filename
+            if not (referencedBackdrops.Contains(tmdbPath)) then
+                try
+                    let fileInfo = FileInfo(file)
+                    bytesFreed <- bytesFreed + fileInfo.Length
+                    File.Delete(file)
+                    filesDeleted <- filesDeleted + 1
+                    printfn $"Deleted orphaned backdrop: {filename}"
+                with ex ->
+                    printfn $"Failed to delete backdrop {filename}: {ex.Message}"
+
+    filesDeleted, bytesFreed
 
 /// Get cache statistics
 let getCacheStats () =

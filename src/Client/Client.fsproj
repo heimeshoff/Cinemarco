@@ -95,6 +95,11 @@
     <Compile Include="Pages/TagDetail/State.fs" />
     <Compile Include="Pages/TagDetail/View.fs" />
 
+    <!-- Cache Page -->
+    <Compile Include="Pages/Cache/Types.fs" />
+    <Compile Include="Pages/Cache/State.fs" />
+    <Compile Include="Pages/Cache/View.fs" />
+
     <!-- API Client -->
     <Compile Include="Api.fs" />
 

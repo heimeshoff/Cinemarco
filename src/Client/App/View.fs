@@ -70,6 +70,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | CachePage ->
+        match model.CachePage with
+        | Some pageModel ->
+            Pages.Cache.View.view pageModel (CacheMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | CollectionsPage
     | StatsPage
     | TimelinePage

@@ -22,6 +22,7 @@ let private getPageIcon (page: Page) =
     | TimelinePage -> timeline
     | GraphPage -> graph
     | ImportPage -> import
+    | CachePage -> cache
     | NotFoundPage -> warning
 
 /// Navigation item component
@@ -126,6 +127,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             Html.li [ prop.className "my-4 border-t border-white/5" ]
 
                             navItem ImportPage currentPage onNavigate
+                            navItem CachePage currentPage onNavigate
                         ]
                     ]
                 ]
@@ -344,28 +346,29 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                         // Divider
                                         Html.li [ prop.className "my-3 border-t border-base-300" ]
 
-                                        // Import
-                                        Html.li [
-                                            Html.button [
-                                                prop.className (
-                                                    "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
-                                                    if currentPage = ImportPage then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
-                                                )
-                                                prop.onClick (fun _ ->
-                                                    dispatch CloseMobileMenu
-                                                    onNavigate ImportPage)
-                                                prop.children [
-                                                    Html.span [
-                                                        prop.className "w-5 h-5"
-                                                        prop.children [ getPageIcon ImportPage ]
-                                                    ]
-                                                    Html.span [
-                                                        prop.className "font-medium"
-                                                        prop.text "Import"
+                                        // Import and Cache
+                                        for page in [ ImportPage; CachePage ] do
+                                            Html.li [
+                                                Html.button [
+                                                    prop.className (
+                                                        "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
+                                                        if currentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                    )
+                                                    prop.onClick (fun _ ->
+                                                        dispatch CloseMobileMenu
+                                                        onNavigate page)
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-5 h-5"
+                                                            prop.children [ getPageIcon page ]
+                                                        ]
+                                                        Html.span [
+                                                            prop.className "font-medium"
+                                                            prop.text (Page.toString page)
+                                                        ]
                                                     ]
                                                 ]
                                             ]
-                                        ]
                                     ]
                                 ]
                             ]

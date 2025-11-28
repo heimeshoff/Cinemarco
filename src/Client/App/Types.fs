@@ -41,6 +41,7 @@ type Model = {
     FriendDetailPage: Pages.FriendDetail.Types.Model option
     TagsPage: Pages.Tags.Types.Model option
     TagDetailPage: Pages.TagDetail.Types.Model option
+    CachePage: Pages.Cache.Types.Model option
 }
 
 /// Main application messages
@@ -85,6 +86,7 @@ type Msg =
     | FriendDetailMsg of Pages.FriendDetail.Types.Msg
     | TagsMsg of Pages.Tags.Types.Msg
     | TagDetailMsg of Pages.TagDetail.Types.Msg
+    | CacheMsg of Pages.Cache.Types.Msg
 
     // API result handlers
     | FriendSaved of Friend
@@ -111,4 +113,5 @@ module Model =
         FriendDetailPage = None
         TagsPage = None
         TagDetailPage = None
+        CachePage = None
     }

@@ -915,3 +915,28 @@ type ImportStatus = {
     Total: int
     Errors: string list
 }
+
+// =====================================
+// Cache Management Types
+// =====================================
+
+/// A cached TMDB response entry
+type CacheEntry = {
+    CacheKey: string
+    ExpiresAt: DateTime
+    SizeBytes: int
+}
+
+/// Summary of cache statistics
+type CacheStats = {
+    TotalEntries: int
+    TotalSizeBytes: int
+    ExpiredEntries: int
+    EntriesByType: Map<string, int>
+}
+
+/// Result of clearing the cache
+type ClearCacheResult = {
+    EntriesRemoved: int
+    BytesFreed: int
+}

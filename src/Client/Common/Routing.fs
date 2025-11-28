@@ -17,6 +17,7 @@ type Page =
     | TimelinePage
     | GraphPage
     | ImportPage
+    | CachePage
     | NotFoundPage
 
 module Page =
@@ -34,6 +35,7 @@ module Page =
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
         | ImportPage -> "/import"
+        | CachePage -> "/cache"
         | NotFoundPage -> "/404"
 
     let toString = function
@@ -50,4 +52,5 @@ module Page =
         | TimelinePage -> "Timeline"
         | GraphPage -> "Graph"
         | ImportPage -> "Import"
+        | CachePage -> "Cache"
         | NotFoundPage -> "Not Found"

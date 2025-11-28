@@ -37,6 +37,9 @@ let main args =
     // Add Giraffe
     builder.Services.AddGiraffe() |> ignore
 
+    // Add daily cleanup background service
+    builder.Services.AddHostedService<CleanupService.DailyCleanupService>() |> ignore
+
     // Configure CORS for development
     builder.Services.AddCors(fun options ->
         options.AddPolicy("AllowAll", fun policy ->

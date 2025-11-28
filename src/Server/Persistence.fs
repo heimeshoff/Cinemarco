@@ -225,6 +225,19 @@ type EpisodeProgressRecord = {
     watched_date: string
 }
 
+[<CLIMutable>]
+type CacheEntryRecord = {
+    cache_key: string
+    expires_at: string
+    cache_value: string
+}
+
+[<CLIMutable>]
+type CacheTypeCountRecord = {
+    type_prefix: string
+    cnt: int64
+}
+
 // =====================================
 // Helper Functions
 // =====================================
@@ -1046,6 +1059,161 @@ let clearExpiredCache () : Async<int> = async {
     return deleted
 }
 
+/// Get all cache entries with their metadata
+let getAllCacheEntries () : Async<CacheEntry list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<CacheEntryRecord>(
+            "SELECT cache_key, expires_at, cache_value FROM tmdb_cache ORDER BY expires_at ASC"
+        ) |> Async.AwaitTask
+    return records
+        |> Seq.map (fun r ->
+            {
+                CacheKey = r.cache_key
+                ExpiresAt = DateTime.Parse(r.expires_at)
+                SizeBytes = if isNull r.cache_value then 0 else System.Text.Encoding.UTF8.GetByteCount(r.cache_value)
+            })
+        |> Seq.toList
+}
+
+/// Get cache statistics
+let getCacheStats () : Async<CacheStats> = async {
+    use conn = getConnection()
+
+    let! totalEntries =
+        conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM tmdb_cache")
+        |> Async.AwaitTask
+
+    let! expiredEntries =
+        conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM tmdb_cache WHERE datetime(expires_at) <= datetime('now')")
+        |> Async.AwaitTask
+
+    let! totalSize =
+        conn.ExecuteScalarAsync<int64>("SELECT COALESCE(SUM(LENGTH(cache_value)), 0) FROM tmdb_cache")
+        |> Async.AwaitTask
+
+    // Get counts by cache key type (first part of key before ':')
+    let! typeRecords =
+        conn.QueryAsync<CacheTypeCountRecord>("""
+            SELECT
+                CASE
+                    WHEN INSTR(cache_key, ':') > 0 THEN SUBSTR(cache_key, 1, INSTR(cache_key, ':') - 1)
+                    ELSE cache_key
+                END as type_prefix,
+                COUNT(*) as cnt
+            FROM tmdb_cache
+            GROUP BY type_prefix
+        """) |> Async.AwaitTask
+
+    let entriesByType =
+        typeRecords
+        |> Seq.map (fun r -> r.type_prefix, int r.cnt)
+        |> Map.ofSeq
+
+    return {
+        TotalEntries = totalEntries
+        TotalSizeBytes = int totalSize
+        ExpiredEntries = expiredEntries
+        EntriesByType = entriesByType
+    }
+}
+
+/// Clear all cache entries and return stats
+let clearAllCache () : Async<ClearCacheResult> = async {
+    use conn = getConnection()
+
+    // Get stats before clearing
+    let! entriesCount =
+        conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM tmdb_cache")
+        |> Async.AwaitTask
+
+    let! totalSize =
+        conn.ExecuteScalarAsync<int64>("SELECT COALESCE(SUM(LENGTH(cache_value)), 0) FROM tmdb_cache")
+        |> Async.AwaitTask
+
+    // Clear all entries
+    do! conn.ExecuteAsync("DELETE FROM tmdb_cache")
+        |> Async.AwaitTask |> Async.Ignore
+
+    return {
+        EntriesRemoved = entriesCount
+        BytesFreed = int totalSize
+    }
+}
+
+/// Get all referenced image paths from the database (posters and backdrops)
+/// Only returns paths for movies/series that are actually in the library
+let getAllReferencedImagePaths () : Async<Set<string> * Set<string>> = async {
+    use conn = getConnection()
+
+    // Get poster paths only for movies that are in the library
+    let! moviePosters =
+        conn.QueryAsync<string>("""
+            SELECT m.poster_path FROM movies m
+            INNER JOIN library_entries le ON le.movie_id = m.id
+            WHERE m.poster_path IS NOT NULL AND m.poster_path != ''
+        """) |> Async.AwaitTask
+
+    // Get poster paths only for series that are in the library
+    let! seriesPosters =
+        conn.QueryAsync<string>("""
+            SELECT s.poster_path FROM series s
+            INNER JOIN library_entries le ON le.series_id = s.id
+            WHERE s.poster_path IS NOT NULL AND s.poster_path != ''
+        """) |> Async.AwaitTask
+
+    // Get backdrop paths only for movies that are in the library
+    let! movieBackdrops =
+        conn.QueryAsync<string>("""
+            SELECT m.backdrop_path FROM movies m
+            INNER JOIN library_entries le ON le.movie_id = m.id
+            WHERE m.backdrop_path IS NOT NULL AND m.backdrop_path != ''
+        """) |> Async.AwaitTask
+
+    // Get backdrop paths only for series that are in the library
+    let! seriesBackdrops =
+        conn.QueryAsync<string>("""
+            SELECT s.backdrop_path FROM series s
+            INNER JOIN library_entries le ON le.series_id = s.id
+            WHERE s.backdrop_path IS NOT NULL AND s.backdrop_path != ''
+        """) |> Async.AwaitTask
+
+    let posters =
+        Seq.append moviePosters seriesPosters
+        |> Seq.filter (not << String.IsNullOrEmpty)
+        |> Set.ofSeq
+
+    let backdrops =
+        Seq.append movieBackdrops seriesBackdrops
+        |> Seq.filter (not << String.IsNullOrEmpty)
+        |> Set.ofSeq
+
+    return posters, backdrops
+}
+
+/// Clear expired cache entries and return stats
+let clearExpiredCacheWithStats () : Async<ClearCacheResult> = async {
+    use conn = getConnection()
+
+    // Get stats before clearing
+    let! entriesCount =
+        conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM tmdb_cache WHERE datetime(expires_at) <= datetime('now')")
+        |> Async.AwaitTask
+
+    let! totalSize =
+        conn.ExecuteScalarAsync<int64>("SELECT COALESCE(SUM(LENGTH(cache_value)), 0) FROM tmdb_cache WHERE datetime(expires_at) <= datetime('now')")
+        |> Async.AwaitTask
+
+    // Clear expired entries
+    do! conn.ExecuteAsync("DELETE FROM tmdb_cache WHERE datetime(expires_at) <= datetime('now')")
+        |> Async.AwaitTask |> Async.Ignore
+
+    return {
+        EntriesRemoved = entriesCount
+        BytesFreed = int totalSize
+    }
+}
+
 // =====================================
 // Library Entries CRUD
 // =====================================
@@ -1421,11 +1589,71 @@ let insertLibraryEntryForSeries (seriesDetails: TmdbSeriesDetails) (request: Add
     | ex -> return Error $"Failed to add series: {ex.Message}"
 }
 
-/// Delete a library entry
+/// Delete a library entry and its associated movie/series record
 let deleteLibraryEntry (EntryId id) : Async<unit> = async {
     use conn = getConnection()
-    do! conn.ExecuteAsync("DELETE FROM library_entries WHERE id = @Id", {| Id = id |})
-        |> Async.AwaitTask |> Async.Ignore
+
+    // First, get the entry to know which movie/series to delete
+    let! entry =
+        conn.QueryFirstOrDefaultAsync<LibraryEntryRecord>(
+            "SELECT * FROM library_entries WHERE id = @Id",
+            {| Id = id |}
+        ) |> Async.AwaitTask
+
+    if not (isNull (box entry)) then
+        // Get image paths before deleting so we can clean up cached images
+        let mutable posterPath: string option = None
+        let mutable backdropPath: string option = None
+
+        if entry.movie_id.HasValue then
+            let! movie =
+                conn.QueryFirstOrDefaultAsync<MovieRecord>(
+                    "SELECT * FROM movies WHERE id = @Id",
+                    {| Id = entry.movie_id.Value |}
+                ) |> Async.AwaitTask
+            if not (isNull (box movie)) then
+                posterPath <- if String.IsNullOrEmpty(movie.poster_path) then None else Some movie.poster_path
+                backdropPath <- if String.IsNullOrEmpty(movie.backdrop_path) then None else Some movie.backdrop_path
+        elif entry.series_id.HasValue then
+            let! series =
+                conn.QueryFirstOrDefaultAsync<SeriesRecord>(
+                    "SELECT * FROM series WHERE id = @Id",
+                    {| Id = entry.series_id.Value |}
+                ) |> Async.AwaitTask
+            if not (isNull (box series)) then
+                posterPath <- if String.IsNullOrEmpty(series.poster_path) then None else Some series.poster_path
+                backdropPath <- if String.IsNullOrEmpty(series.backdrop_path) then None else Some series.backdrop_path
+
+        // Delete the library entry
+        do! conn.ExecuteAsync("DELETE FROM library_entries WHERE id = @Id", {| Id = id |})
+            |> Async.AwaitTask |> Async.Ignore
+
+        // Delete the associated movie or series record
+        if entry.movie_id.HasValue then
+            do! conn.ExecuteAsync("DELETE FROM movies WHERE id = @Id", {| Id = entry.movie_id.Value |})
+                |> Async.AwaitTask |> Async.Ignore
+        elif entry.series_id.HasValue then
+            // Also delete associated seasons and episodes
+            do! conn.ExecuteAsync("DELETE FROM episodes WHERE series_id = @Id", {| Id = entry.series_id.Value |})
+                |> Async.AwaitTask |> Async.Ignore
+            do! conn.ExecuteAsync("DELETE FROM seasons WHERE series_id = @Id", {| Id = entry.series_id.Value |})
+                |> Async.AwaitTask |> Async.Ignore
+            do! conn.ExecuteAsync("DELETE FROM series WHERE id = @Id", {| Id = entry.series_id.Value |})
+                |> Async.AwaitTask |> Async.Ignore
+
+        // Delete cached images
+        posterPath |> Option.iter (fun path ->
+            let localPath = ImageCache.getLocalImagePath "posters" path
+            if IO.File.Exists(localPath) then
+                try IO.File.Delete(localPath)
+                with _ -> ()
+        )
+        backdropPath |> Option.iter (fun path ->
+            let localPath = ImageCache.getLocalImagePath "backdrops" path
+            if IO.File.Exists(localPath) then
+                try IO.File.Delete(localPath)
+                with _ -> ()
+        )
 }
 
 // =====================================

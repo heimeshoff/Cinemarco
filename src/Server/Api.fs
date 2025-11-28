@@ -320,6 +320,18 @@ let cinemarcoApi : ICinemarcoApi = {
     tmdbGetTrendingMovies = fun () -> TmdbClient.getTrendingMovies()
 
     tmdbGetTrendingSeries = fun () -> TmdbClient.getTrendingSeries()
+
+    // =====================================
+    // Cache Management Operations
+    // =====================================
+
+    cacheGetEntries = fun () -> Persistence.getAllCacheEntries()
+
+    cacheGetStats = fun () -> Persistence.getCacheStats()
+
+    cacheClearExpired = fun () -> Persistence.clearExpiredCacheWithStats()
+
+    cacheClearAll = fun () -> Persistence.clearAllCache()
 }
 
 // =====================================

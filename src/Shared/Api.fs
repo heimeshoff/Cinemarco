@@ -159,4 +159,20 @@ type ICinemarcoApi = {
 
     /// Get trending series from TMDB
     tmdbGetTrendingSeries: unit -> Async<TmdbSearchResult list>
+
+    // =====================================
+    // Cache Management Operations
+    // =====================================
+
+    /// Get all cache entries grouped by expiration
+    cacheGetEntries: unit -> Async<CacheEntry list>
+
+    /// Get cache statistics
+    cacheGetStats: unit -> Async<CacheStats>
+
+    /// Clear all expired cache entries
+    cacheClearExpired: unit -> Async<ClearCacheResult>
+
+    /// Clear all cache entries
+    cacheClearAll: unit -> Async<ClearCacheResult>
 }
