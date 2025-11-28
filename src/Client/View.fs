@@ -5,6 +5,7 @@ open State
 open Types
 open Shared.Api
 open Shared.Domain
+open Browser.Types
 
 /// TMDB image base URL (for search results)
 let private tmdbImageBase = "https://image.tmdb.org/t/p"
@@ -208,6 +209,30 @@ let private sidebar (model: Model) (dispatch: Msg -> unit) =
                         prop.children [
                             navItem HomePage model.CurrentPage dispatch
                             navItem LibraryPage model.CurrentPage dispatch
+
+                            // Search button
+                            Html.li [
+                                Html.a [
+                                    prop.className "nav-item cursor-pointer"
+                                    prop.onClick (fun _ -> dispatch OpenSearchModal)
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "nav-icon"
+                                            prop.children [ Icons.search ]
+                                        ]
+                                        Html.span [
+                                            prop.className "font-medium text-sm"
+                                            prop.text "Search"
+                                        ]
+                                    ]
+                                ]
+                            ]
+
+                            // Divider
+                            Html.li [
+                                prop.className "my-4 border-t border-white/5"
+                            ]
+
                             navItem FriendsPage model.CurrentPage dispatch
                             navItem TagsPage model.CurrentPage dispatch
                             navItem CollectionsPage model.CurrentPage dispatch
@@ -272,6 +297,117 @@ let private sidebar (model: Model) (dispatch: Msg -> unit) =
         ]
     ]
 
+/// Mobile menu drawer
+let private mobileMenuDrawer (model: Model) (dispatch: Msg -> unit) =
+    if not model.IsMobileMenuOpen then Html.none
+    else
+        Html.div [
+            prop.className "fixed inset-0 z-50 lg:hidden"
+            prop.children [
+                // Backdrop
+                Html.div [
+                    prop.className "fixed inset-0 bg-black/60 backdrop-blur-sm"
+                    prop.onClick (fun _ -> dispatch CloseMobileMenu)
+                ]
+                // Drawer panel (slides from bottom)
+                Html.div [
+                    prop.className "fixed bottom-0 left-0 right-0 bg-base-100 rounded-t-2xl max-h-[70vh] overflow-y-auto safe-area-bottom animate-slide-up"
+                    prop.children [
+                        // Handle bar
+                        Html.div [
+                            prop.className "flex justify-center pt-3 pb-2"
+                            prop.children [
+                                Html.div [
+                                    prop.className "w-10 h-1 bg-base-content/20 rounded-full"
+                                ]
+                            ]
+                        ]
+                        // Menu items
+                        Html.nav [
+                            prop.className "px-4 pb-6"
+                            prop.children [
+                                Html.ul [
+                                    prop.className "space-y-1"
+                                    prop.children [
+                                        // Primary navigation
+                                        for page in [ FriendsPage; TagsPage; CollectionsPage ] do
+                                            Html.li [
+                                                Html.button [
+                                                    prop.className (
+                                                        "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
+                                                        if model.CurrentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                    )
+                                                    prop.onClick (fun _ -> dispatch (NavigateTo page))
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-5 h-5"
+                                                            prop.children [ getPageIcon page ]
+                                                        ]
+                                                        Html.span [
+                                                            prop.className "font-medium"
+                                                            prop.text (Page.toString page)
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+
+                                        // Divider
+                                        Html.li [ prop.className "my-3 border-t border-base-300" ]
+
+                                        // Secondary navigation
+                                        for page in [ StatsPage; TimelinePage; GraphPage ] do
+                                            Html.li [
+                                                Html.button [
+                                                    prop.className (
+                                                        "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
+                                                        if model.CurrentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                    )
+                                                    prop.onClick (fun _ -> dispatch (NavigateTo page))
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-5 h-5"
+                                                            prop.children [ getPageIcon page ]
+                                                        ]
+                                                        Html.span [
+                                                            prop.className "font-medium"
+                                                            prop.text (Page.toString page)
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+
+                                        // Divider
+                                        Html.li [ prop.className "my-3 border-t border-base-300" ]
+
+                                        // Import
+                                        Html.li [
+                                            Html.button [
+                                                prop.className (
+                                                    "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
+                                                    if model.CurrentPage = ImportPage then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                )
+                                                prop.onClick (fun _ -> dispatch (NavigateTo ImportPage))
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "w-5 h-5"
+                                                        prop.children [ getPageIcon ImportPage ]
+                                                    ]
+                                                    Html.span [
+                                                        prop.className "font-medium"
+                                                        prop.text "Import"
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
 /// Mobile bottom navigation
 let private mobileNav (model: Model) (dispatch: Msg -> unit) =
     Html.nav [
@@ -280,25 +416,80 @@ let private mobileNav (model: Model) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "flex justify-around items-center h-16"
                 prop.children [
-                    for page in [ HomePage; LibraryPage; FriendsPage; StatsPage ] do
-                        let isActive = model.CurrentPage = page
-                        Html.button [
-                            prop.className (
-                                "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
-                                if isActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
-                            )
-                            prop.onClick (fun _ -> dispatch (NavigateTo page))
-                            prop.children [
-                                Html.span [
-                                    prop.className (if isActive then "scale-110 transition-transform" else "transition-transform")
-                                    prop.children [ getPageIcon page ]
-                                ]
-                                Html.span [
-                                    prop.className "text-xs font-medium"
-                                    prop.text (Page.toString page)
-                                ]
+                    // Home button
+                    let isHomeActive = model.CurrentPage = HomePage
+                    Html.button [
+                        prop.className (
+                            "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
+                            if isHomeActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
+                        )
+                        prop.onClick (fun _ -> dispatch (NavigateTo HomePage))
+                        prop.children [
+                            Html.span [
+                                prop.className (if isHomeActive then "scale-110 transition-transform" else "transition-transform")
+                                prop.children [ getPageIcon HomePage ]
+                            ]
+                            Html.span [
+                                prop.className "text-xs font-medium"
+                                prop.text "Home"
                             ]
                         ]
+                    ]
+
+                    // Library button
+                    let isLibraryActive = model.CurrentPage = LibraryPage
+                    Html.button [
+                        prop.className (
+                            "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
+                            if isLibraryActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
+                        )
+                        prop.onClick (fun _ -> dispatch (NavigateTo LibraryPage))
+                        prop.children [
+                            Html.span [
+                                prop.className (if isLibraryActive then "scale-110 transition-transform" else "transition-transform")
+                                prop.children [ getPageIcon LibraryPage ]
+                            ]
+                            Html.span [
+                                prop.className "text-xs font-medium"
+                                prop.text "Library"
+                            ]
+                        ]
+                    ]
+
+                    // Search button
+                    Html.button [
+                        prop.className "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 text-base-content/50 hover:text-base-content/80"
+                        prop.onClick (fun _ -> dispatch OpenSearchModal)
+                        prop.children [
+                            Html.span [
+                                prop.className "transition-transform"
+                                prop.children [ Icons.search ]
+                            ]
+                            Html.span [
+                                prop.className "text-xs font-medium"
+                                prop.text "Search"
+                            ]
+                        ]
+                    ]
+
+                    // Menu button
+                    Html.button [
+                        prop.className (
+                            "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
+                            if model.IsMobileMenuOpen then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
+                        )
+                        prop.onClick (fun _ -> dispatch ToggleMobileMenu)
+                        prop.children [
+                            Html.span [
+                                prop.className (if model.IsMobileMenuOpen then "scale-110 transition-transform" else "transition-transform")
+                                prop.children [ Icons.menu ]
+                            ]
+                            Html.span [
+                                prop.className "text-xs font-medium"
+                                prop.text "Menu"
+                            ]
+                        ]
+                    ]
                 ]
             ]
         ]
@@ -478,38 +669,142 @@ let private searchResultsDropdown (model: Model) (dispatch: Msg -> unit) =
             ]
         ]
 
-/// Search bar component
-let private searchBar (model: Model) (dispatch: Msg -> unit) =
+/// Search modal component
+let private searchModal (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "search-container flex-1 max-w-2xl"
+        prop.className "fixed inset-0 z-50 flex items-start justify-center pt-[10vh] p-4"
         prop.children [
+            // Backdrop
             Html.div [
-                prop.className "relative"
+                prop.className "modal-backdrop"
+                prop.onClick (fun _ -> dispatch CloseModal)
+            ]
+            // Modal content
+            Html.div [
+                prop.className "modal-content relative w-full max-w-2xl"
                 prop.children [
-                    Html.input [
-                        prop.className "search-input focus-ring"
-                        prop.placeholder "Search movies and series..."
-                        prop.value model.Search.Query
-                        prop.onChange (fun (e: string) -> dispatch (SearchQueryChanged e))
-                        prop.onBlur (fun _ ->
-                            // Delay closing to allow click on results
-                            Fable.Core.JS.setTimeout (fun () -> dispatch CloseSearchDropdown) 200 |> ignore
-                        )
-                    ]
-                    Html.span [
-                        prop.className "search-icon"
-                        prop.children [ Icons.search ]
-                    ]
-                    if RemoteData.isLoading model.Search.Results then
-                        Html.span [
-                            prop.className "absolute right-3 top-1/2 -translate-y-1/2"
-                            prop.children [
-                                Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
+                    // Search input
+                    Html.div [
+                        prop.className "p-4 border-b border-base-300/50"
+                        prop.children [
+                            Html.div [
+                                prop.className "relative"
+                                prop.children [
+                                    Html.input [
+                                        prop.className "w-full pl-12 pr-4 py-3 bg-transparent text-lg placeholder:text-base-content/30 focus:outline-none"
+                                        prop.placeholder "Search movies and series..."
+                                        prop.value model.Search.Query
+                                        prop.autoFocus true
+                                        prop.onChange (fun (e: string) -> dispatch (SearchQueryChanged e))
+                                        prop.onKeyDown (fun e ->
+                                            if e.key = "Escape" then dispatch CloseModal
+                                        )
+                                    ]
+                                    Html.span [
+                                        prop.className "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-base-content/40"
+                                        prop.children [ Icons.search ]
+                                    ]
+                                    if RemoteData.isLoading model.Search.Results then
+                                        Html.span [
+                                            prop.className "absolute right-4 top-1/2 -translate-y-1/2"
+                                            prop.children [
+                                                Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
+                                            ]
+                                        ]
+                                ]
                             ]
                         ]
+                    ]
+                    // Results area
+                    Html.div [
+                        prop.className "max-h-[60vh] overflow-y-auto"
+                        prop.children [
+                            match model.Search.Results with
+                            | Loading ->
+                                Html.div [
+                                    prop.className "p-12 flex flex-col items-center justify-center gap-3"
+                                    prop.children [
+                                        Html.span [ prop.className "loading loading-spinner loading-lg text-primary" ]
+                                        Html.span [ prop.className "text-sm text-base-content/50"; prop.text "Searching..." ]
+                                    ]
+                                ]
+                            | Success results when List.isEmpty results ->
+                                Html.div [
+                                    prop.className "p-12 text-center"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "text-4xl opacity-30 mb-3 block"
+                                            prop.children [ Icons.film ]
+                                        ]
+                                        Html.p [
+                                            prop.className "text-base-content/60"
+                                            prop.text "No results found"
+                                        ]
+                                        Html.p [
+                                            prop.className "text-sm text-base-content/40 mt-1"
+                                            prop.text "Try a different search term"
+                                        ]
+                                    ]
+                                ]
+                            | Success results ->
+                                Html.div [
+                                    prop.className "p-4"
+                                    prop.children [
+                                        Html.p [
+                                            prop.className "text-xs text-base-content/50 mb-3 px-1"
+                                            prop.text $"Found {List.length results} results"
+                                        ]
+                                        Html.div [
+                                            prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4"
+                                            prop.children [
+                                                for item in results |> List.truncate 15 do
+                                                    posterCard item dispatch
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            | Failure err ->
+                                Html.div [
+                                    prop.className "p-8 text-center"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "text-3xl mb-2 block"
+                                            prop.children [ Icons.error ]
+                                        ]
+                                        Html.p [
+                                            prop.className "text-error"
+                                            prop.text $"Error: {err}"
+                                        ]
+                                    ]
+                                ]
+                            | NotAsked ->
+                                Html.div [
+                                    prop.className "p-8 text-center text-base-content/40"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-12 h-12 mx-auto mb-3 opacity-30 block"
+                                            prop.children [ Icons.search ]
+                                        ]
+                                        Html.p [ prop.text "Start typing to search" ]
+                                    ]
+                                ]
+                        ]
+                    ]
+                    // Footer with keyboard hints
+                    Html.div [
+                        prop.className "p-3 border-t border-base-300/50 flex items-center justify-end gap-4 text-xs text-base-content/40"
+                        prop.children [
+                            Html.span [
+                                prop.className "flex items-center gap-1"
+                                prop.children [
+                                    Html.kbd [ prop.className "px-1.5 py-0.5 bg-base-300/50 rounded text-[10px]"; prop.text "ESC" ]
+                                    Html.span [ prop.text "to close" ]
+                                ]
+                            ]
+                        ]
+                    ]
                 ]
             ]
-            searchResultsDropdown model dispatch
         ]
     ]
 
@@ -3579,43 +3874,6 @@ let private mainContent (model: Model) (tags: Tag list) (friends: Friend list) (
     Html.main [
         prop.className "lg:ml-64 min-h-screen pb-20 lg:pb-0"
         prop.children [
-            // Header with search
-            Html.header [
-                prop.className "sticky top-0 z-30 bg-base-100/80 backdrop-blur-lg border-b border-base-300"
-                prop.children [
-                    Html.div [
-                        prop.className "container mx-auto px-4 lg:px-8 py-4"
-                        prop.children [
-                            Html.div [
-                                prop.className "flex items-center gap-4"
-                                prop.children [
-                                    // Mobile logo
-                                    Html.h1 [
-                                        prop.className "text-xl font-bold text-primary lg:hidden"
-                                        prop.text "Cinemarco"
-                                    ]
-                                    // Search bar
-                                    Html.div [
-                                        prop.className "flex-1 hidden sm:block"
-                                        prop.children [
-                                            searchBar model dispatch
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-
-            // Mobile search bar
-            Html.div [
-                prop.className "sm:hidden px-4 py-2 border-b border-base-300"
-                prop.children [
-                    searchBar model dispatch
-                ]
-            ]
-
             // Page content
             Html.div [
                 prop.className "container mx-auto px-4 lg:px-8 py-8"
@@ -3626,40 +3884,70 @@ let private mainContent (model: Model) (tags: Tag list) (friends: Friend list) (
         ]
     ]
 
+/// Global keyboard shortcut handler component
+[<ReactComponent>]
+let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: Fable.React.ReactElement) =
+    React.useEffect(fun () ->
+        let handler (e: Event) =
+            let ke = e :?> KeyboardEvent
+            // Ctrl+K or Cmd+K to open search
+            if (ke.ctrlKey || ke.metaKey) && ke.key = "k" then
+                ke.preventDefault()
+                // Only open if no modal is currently open
+                if model.Modal = NoModal then
+                    dispatch OpenSearchModal
+
+        Browser.Dom.document.addEventListener("keydown", handler)
+
+        // Cleanup
+        React.createDisposable(fun () ->
+            Browser.Dom.document.removeEventListener("keydown", handler)
+        )
+    , [| box model.Modal |])
+
+    children
+
 /// Main view
 let view (model: Model) (dispatch: Msg -> unit) =
     let friends = RemoteData.defaultValue [] model.Friends
     let tags = RemoteData.defaultValue [] model.Tags
 
-    Html.div [
-        prop.className "min-h-screen bg-base-100"
-        prop.children [
-            sidebar model dispatch
-            mobileNav model dispatch
-            mainContent model tags friends dispatch
+    let modalElement =
+        match model.Modal with
+        | SearchModal ->
+            searchModal model dispatch
+        | QuickAddModal state ->
+            quickAddModal state friends tags dispatch
+        | FriendModal state ->
+            friendModal state dispatch
+        | TagModal state ->
+            tagModal state dispatch
+        | ConfirmDeleteFriendModal friend ->
+            confirmDeleteFriendModal friend dispatch
+        | ConfirmDeleteTagModal tag ->
+            confirmDeleteTagModal tag dispatch
+        | AbandonModal state ->
+            abandonModal state dispatch
+        | ConfirmDeleteEntryModal entryId ->
+            confirmDeleteEntryModal entryId dispatch
+        | NoModal -> Html.none
 
-            // Modal
-            match model.Modal with
-            | QuickAddModal state ->
-                quickAddModal state friends tags dispatch
-            | FriendModal state ->
-                friendModal state dispatch
-            | TagModal state ->
-                tagModal state dispatch
-            | ConfirmDeleteFriendModal friend ->
-                confirmDeleteFriendModal friend dispatch
-            | ConfirmDeleteTagModal tag ->
-                confirmDeleteTagModal tag dispatch
-            | AbandonModal state ->
-                abandonModal state dispatch
-            | ConfirmDeleteEntryModal entryId ->
-                confirmDeleteEntryModal entryId dispatch
-            | NoModal -> Html.none
+    let notificationElement =
+        match model.Notification with
+        | Some (message, isSuccess) ->
+            notificationToast message isSuccess dispatch
+        | None -> Html.none
 
-            // Notification
-            match model.Notification with
-            | Some (message, isSuccess) ->
-                notificationToast message isSuccess dispatch
-            | None -> Html.none
+    KeyboardShortcuts model dispatch (
+        Html.div [
+            prop.className "min-h-screen bg-base-100"
+            prop.children [
+                sidebar model dispatch
+                mobileNav model dispatch
+                mobileMenuDrawer model dispatch
+                mainContent model tags friends dispatch
+                modalElement
+                notificationElement
+            ]
         ]
-    ]
+    )

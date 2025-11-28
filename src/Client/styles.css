@@ -465,6 +465,7 @@
 
 .modal-content {
   position: relative;
+  z-index: 51;
   background: linear-gradient(
     180deg,
     rgba(23, 23, 23, 0.98) 0%,
@@ -653,6 +654,20 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Mobile menu drawer slide up animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
 }
 
 /* ============================================

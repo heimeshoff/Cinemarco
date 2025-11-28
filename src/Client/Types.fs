@@ -203,6 +203,7 @@ module AbandonModalState =
 /// Modal display states
 type ModalState =
     | NoModal
+    | SearchModal
     | QuickAddModal of QuickAddModalState
     | FriendModal of FriendModalState
     | TagModal of TagModalState

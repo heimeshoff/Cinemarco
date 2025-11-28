@@ -13,6 +13,8 @@ type Model = {
     Search: SearchState
     // Modal state
     Modal: ModalState
+    // Mobile menu state
+    IsMobileMenuOpen: bool
     // Reference data (friends and tags for the quick add modal)
     Friends: RemoteData<Friend list>
     Tags: RemoteData<Tag list>
@@ -38,6 +40,7 @@ type Msg =
     | CheckHealth
     | HealthCheckResult of Result<HealthCheckResponse, string>
     // Search messages
+    | OpenSearchModal
     | SearchQueryChanged of string
     | SearchDebounced
     | SearchResults of Result<TmdbSearchResult list, string>
@@ -124,6 +127,9 @@ type Msg =
     // Notifications
     | ShowNotification of string * bool
     | ClearNotification
+    // Mobile menu
+    | ToggleMobileMenu
+    | CloseMobileMenu
 
 /// Initialize the model
 let init () : Model * Cmd<Msg> =
@@ -132,6 +138,7 @@ let init () : Model * Cmd<Msg> =
         HealthCheck = NotAsked
         Search = SearchState.empty
         Modal = NoModal
+        IsMobileMenuOpen = false
         Friends = NotAsked
         Tags = NotAsked
         Library = NotAsked
@@ -158,7 +165,7 @@ let private searchDebounceDelay = 300
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     | NavigateTo page ->
-        { model with CurrentPage = page }, Cmd.none
+        { model with CurrentPage = page; IsMobileMenuOpen = false }, Cmd.none
 
     | CheckHealth ->
         let cmd =
@@ -178,6 +185,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // =====================================
     // Search
     // =====================================
+
+    | OpenSearchModal ->
+        { model with
+            Modal = SearchModal
+            Search = SearchState.empty
+        }, Cmd.none
 
     | SearchQueryChanged query ->
         let newSearch = { model.Search with Query = query; IsDropdownOpen = query.Length >= 2 }
@@ -235,7 +248,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         }, Cmd.none
 
     | CloseModal ->
-        { model with Modal = NoModal }, Cmd.none
+        match model.Modal with
+        | SearchModal ->
+            { model with Modal = NoModal; Search = SearchState.empty }, Cmd.none
+        | _ ->
+            { model with Modal = NoModal }, Cmd.none
 
     | QuickAddNoteChanged note ->
         match model.Modal with
@@ -920,3 +937,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | ClearNotification ->
         { model with Notification = None }, Cmd.none
+
+    | ToggleMobileMenu ->
+        { model with IsMobileMenuOpen = not model.IsMobileMenuOpen }, Cmd.none
+
+    | CloseMobileMenu ->
+        { model with IsMobileMenuOpen = false }, Cmd.none
