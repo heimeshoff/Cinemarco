@@ -5,6 +5,7 @@ open Common.Types
 open Common.Routing
 open Shared.Domain
 open Types
+open Browser.Types
 
 /// Render the current page content
 let private pageContent (model: Model) (dispatch: Msg -> unit) =
@@ -125,12 +126,35 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | ConfirmDeleteModal modalModel ->
         Components.ConfirmModal.View.view modalModel (ConfirmModalMsg >> dispatch)
 
+/// Global keyboard shortcut handler component
+[<ReactComponent>]
+let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: ReactElement) =
+    React.useEffect(fun () ->
+        let handler (e: Event) =
+            let ke = e :?> KeyboardEvent
+            // Ctrl+K or Cmd+K to open search
+            if (ke.ctrlKey || ke.metaKey) && ke.key = "k" then
+                ke.preventDefault()
+                // Only open if no modal is currently open
+                if model.Modal = NoModal then
+                    dispatch OpenSearchModal
+
+        Browser.Dom.document.addEventListener("keydown", handler)
+
+        // Cleanup
+        React.createDisposable(fun () ->
+            Browser.Dom.document.removeEventListener("keydown", handler)
+        )
+    , [| box model.Modal |])
+
+    children
+
 /// Main view
 let view (model: Model) (dispatch: Msg -> unit) =
     let onNavigate = fun page -> dispatch (NavigateTo page)
     let onSearch = fun () -> dispatch OpenSearchModal
 
-    Html.div [
+    KeyboardShortcuts model dispatch (Html.div [
         prop.className "min-h-screen bg-base-100"
         prop.children [
             // Sidebar (desktop)
@@ -174,4 +198,4 @@ let view (model: Model) (dispatch: Msg -> unit) =
             // Notification
             Components.Notification.View.view model.Notification (NotificationMsg >> dispatch)
         ]
-    ]
+    ])
