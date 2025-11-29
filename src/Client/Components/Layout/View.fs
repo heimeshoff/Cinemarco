@@ -25,9 +25,29 @@ let private getPageIcon (page: Page) =
     | CachePage -> cache
     | NotFoundPage -> warning
 
+/// Get icon color class for a page - Cinema-inspired color palette
+let private getIconColor (page: Page) =
+    match page with
+    | HomePage -> "text-nav-home"           // Amber - theater marquee
+    | LibraryPage -> "text-nav-library"     // Blue - film archives
+    | MovieDetailPage _ -> "text-nav-library"
+    | SeriesDetailPage _ -> "text-nav-library"
+    | FriendsPage -> "text-nav-friends"     // Emerald - social
+    | FriendDetailPage _ -> "text-nav-friends"
+    | TagsPage -> "text-nav-tags"           // Teal - organization
+    | TagDetailPage _ -> "text-nav-tags"
+    | CollectionsPage -> "text-nav-collections" // Pink - curated
+    | StatsPage -> "text-nav-stats"         // Orange - metrics
+    | TimelinePage -> "text-nav-timeline"   // Sky - time
+    | GraphPage -> "text-nav-graph"         // Violet - connections
+    | ImportPage -> "text-nav-import"       // Lime - fresh data
+    | CachePage -> "text-nav-cache"         // Slate - system
+    | NotFoundPage -> "text-error"
+
 /// Navigation item component
 let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) =
     let isActive = page = currentPage
+    let iconColor = getIconColor page
     Html.li [
         Html.a [
             prop.className (
@@ -37,7 +57,7 @@ let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) 
             prop.onClick (fun _ -> onNavigate page)
             prop.children [
                 Html.span [
-                    prop.className "nav-icon"
+                    prop.className $"nav-icon {iconColor}"
                     prop.children [ getPageIcon page ]
                 ]
                 Html.span [
@@ -98,7 +118,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                                     prop.onClick (fun _ -> onSearch ())
                                     prop.children [
                                         Html.span [
-                                            prop.className "nav-icon"
+                                            prop.className "nav-icon text-nav-search"
                                             prop.children [ search ]
                                         ]
                                         Html.span [
@@ -186,7 +206,7 @@ let mobileNav (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onS
                     Html.button [
                         prop.className (
                             "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
-                            if isHomeActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
+                            if isHomeActive then "text-nav-home scale-105" else "text-base-content/50 hover:text-nav-home/80"
                         )
                         prop.onClick (fun _ -> onNavigate HomePage)
                         prop.children [
@@ -206,7 +226,7 @@ let mobileNav (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onS
                     Html.button [
                         prop.className (
                             "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 " +
-                            if isLibraryActive then "text-primary scale-105" else "text-base-content/50 hover:text-base-content/80"
+                            if isLibraryActive then "text-nav-library scale-105" else "text-base-content/50 hover:text-nav-library/80"
                         )
                         prop.onClick (fun _ -> onNavigate LibraryPage)
                         prop.children [
@@ -223,11 +243,11 @@ let mobileNav (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onS
 
                     // Search button
                     Html.button [
-                        prop.className "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 text-base-content/50 hover:text-base-content/80"
+                        prop.className "flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 text-base-content/50 hover:text-nav-search/80"
                         prop.onClick (fun _ -> onSearch ())
                         prop.children [
                             Html.span [
-                                prop.className "transition-transform"
+                                prop.className "transition-transform text-nav-search/70 hover:text-nav-search"
                                 prop.children [ search ]
                             ]
                             Html.span [
@@ -294,18 +314,19 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                     prop.children [
                                         // Primary navigation
                                         for page in [ FriendsPage; TagsPage; CollectionsPage ] do
+                                            let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [
                                                     prop.className (
                                                         "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
-                                                        if currentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                        if currentPage = page then "bg-base-200" else "text-base-content/70 hover:bg-base-200"
                                                     )
                                                     prop.onClick (fun _ ->
                                                         dispatch CloseMobileMenu
                                                         onNavigate page)
                                                     prop.children [
                                                         Html.span [
-                                                            prop.className "w-5 h-5"
+                                                            prop.className $"w-5 h-5 {iconColor}"
                                                             prop.children [ getPageIcon page ]
                                                         ]
                                                         Html.span [
@@ -321,18 +342,19 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
 
                                         // Secondary navigation
                                         for page in [ StatsPage; TimelinePage; GraphPage ] do
+                                            let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [
                                                     prop.className (
                                                         "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
-                                                        if currentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                        if currentPage = page then "bg-base-200" else "text-base-content/70 hover:bg-base-200"
                                                     )
                                                     prop.onClick (fun _ ->
                                                         dispatch CloseMobileMenu
                                                         onNavigate page)
                                                     prop.children [
                                                         Html.span [
-                                                            prop.className "w-5 h-5"
+                                                            prop.className $"w-5 h-5 {iconColor}"
                                                             prop.children [ getPageIcon page ]
                                                         ]
                                                         Html.span [
@@ -348,18 +370,19 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
 
                                         // Import and Cache
                                         for page in [ ImportPage; CachePage ] do
+                                            let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [
                                                     prop.className (
                                                         "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all " +
-                                                        if currentPage = page then "bg-primary/10 text-primary" else "text-base-content/70 hover:bg-base-200"
+                                                        if currentPage = page then "bg-base-200" else "text-base-content/70 hover:bg-base-200"
                                                     )
                                                     prop.onClick (fun _ ->
                                                         dispatch CloseMobileMenu
                                                         onNavigate page)
                                                     prop.children [
                                                         Html.span [
-                                                            prop.className "w-5 h-5"
+                                                            prop.className $"w-5 h-5 {iconColor}"
                                                             prop.children [ getPageIcon page ]
                                                         ]
                                                         Html.span [

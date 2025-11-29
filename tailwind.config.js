@@ -3,6 +3,20 @@ export default {
   content: [
     './src/Client/**/*.{fs,html}'
   ],
+  safelist: [
+    // Navigation icon colors - ensure JIT compiles these
+    'text-nav-home',
+    'text-nav-library',
+    'text-nav-search',
+    'text-nav-friends',
+    'text-nav-tags',
+    'text-nav-collections',
+    'text-nav-stats',
+    'text-nav-timeline',
+    'text-nav-graph',
+    'text-nav-import',
+    'text-nav-cache',
+  ],
   theme: {
     extend: {
       fontFamily: {
@@ -15,6 +29,18 @@ export default {
         'rating-decent': '#3b82f6',
         'rating-meh': '#9ca3af',
         'rating-nope': '#ef4444',
+        // Navigation icon colors - Cinema palette
+        'nav-home': '#fbbf24',       // Amber - theater marquee
+        'nav-library': '#3b82f6',    // Blue - film archives
+        'nav-search': '#7c3aed',     // Purple - brand primary
+        'nav-friends': '#22c55e',    // Emerald - social
+        'nav-tags': '#14b8a6',       // Teal - organization
+        'nav-collections': '#ec4899', // Pink - curated
+        'nav-stats': '#f97316',      // Orange - metrics
+        'nav-timeline': '#0ea5e9',   // Sky - time
+        'nav-graph': '#8b5cf6',      // Violet - connections
+        'nav-import': '#84cc16',     // Lime - fresh data
+        'nav-cache': '#64748b',      // Slate - system
       },
       animation: {
         'fade-in': 'fadeIn 200ms ease-out',

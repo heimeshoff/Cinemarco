@@ -212,6 +212,22 @@
 }
 
 /* ============================================
+   NAVIGATION ICON COLORS - Cinema Palette
+   ============================================ */
+
+.text-nav-home { color: #fbbf24; }       /* Amber - theater marquee */
+.text-nav-library { color: #3b82f6; }    /* Blue - film archives */
+.text-nav-search { color: #7c3aed; }     /* Purple - brand primary */
+.text-nav-friends { color: #22c55e; }    /* Emerald - social */
+.text-nav-tags { color: #14b8a6; }       /* Teal - organization */
+.text-nav-collections { color: #ec4899; } /* Pink - curated */
+.text-nav-stats { color: #f97316; }      /* Orange - metrics */
+.text-nav-timeline { color: #0ea5e9; }   /* Sky - time */
+.text-nav-graph { color: #8b5cf6; }      /* Violet - connections */
+.text-nav-import { color: #84cc16; }     /* Lime - fresh data */
+.text-nav-cache { color: #64748b; }      /* Slate - system */
+
+/* ============================================
    NAVIGATION STYLES
    ============================================ */
 
@@ -236,9 +252,22 @@
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
   transition: all var(--transition-fast) ease-out;
   overflow: hidden;
+}
+
+/* Nav item text color (not icons) */
+.nav-item > span:last-child {
+  color: rgba(255, 255, 255, 0.6);
+  transition: color var(--transition-fast) ease-out;
+}
+
+.nav-item:hover > span:last-child {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-item-active > span:last-child {
+  color: #fff;
 }
 
 .nav-item::before {
@@ -255,7 +284,6 @@
 }
 
 .nav-item:hover {
-  color: rgba(255, 255, 255, 0.9);
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -265,8 +293,7 @@
 
 /* Active nav item */
 .nav-item-active {
-  color: #fff;
-  background: linear-gradient(90deg, rgba(124, 58, 237, 0.2), transparent);
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.15), transparent);
 }
 
 .nav-item-active::before {
@@ -277,13 +304,19 @@
 .nav-icon {
   width: 20px;
   height: 20px;
-  opacity: 0.7;
-  transition: opacity var(--transition-fast) ease-out;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast) ease-out, filter var(--transition-fast) ease-out;
+}
+
+/* Allow icon color classes to override nav-item color */
+.nav-icon[class*="text-nav-"] {
+  opacity: 0.85;
 }
 
 .nav-item:hover .nav-icon,
 .nav-item-active .nav-icon {
   opacity: 1;
+  filter: brightness(1.1);
 }
 
 /* ============================================
