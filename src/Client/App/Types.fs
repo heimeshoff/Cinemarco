@@ -13,6 +13,7 @@ type ActiveModal =
     | TagModal of Components.TagModal.Types.Model
     | AbandonModal of Components.AbandonModal.Types.Model
     | ConfirmDeleteModal of Components.ConfirmModal.Types.Model
+    | WatchSessionModal of Components.WatchSessionModal.Types.Model
 
 /// Main application model
 type Model = {
@@ -37,6 +38,7 @@ type Model = {
     LibraryPage: Pages.Library.Types.Model option
     MovieDetailPage: Pages.MovieDetail.Types.Model option
     SeriesDetailPage: Pages.SeriesDetail.Types.Model option
+    SessionDetailPage: Pages.SessionDetail.Types.Model option
     FriendsPage: Pages.Friends.Types.Model option
     FriendDetailPage: Pages.FriendDetail.Types.Model option
     TagsPage: Pages.Tags.Types.Model option
@@ -72,6 +74,8 @@ type Msg =
     | AbandonModalMsg of Components.AbandonModal.Types.Msg
     | OpenConfirmDeleteModal of Components.ConfirmModal.Types.DeleteTarget
     | ConfirmModalMsg of Components.ConfirmModal.Types.Msg
+    | OpenWatchSessionModal of EntryId
+    | WatchSessionModalMsg of Components.WatchSessionModal.Types.Msg
 
     // Notification
     | ShowNotification of message: string * isSuccess: bool
@@ -82,6 +86,7 @@ type Msg =
     | LibraryMsg of Pages.Library.Types.Msg
     | MovieDetailMsg of Pages.MovieDetail.Types.Msg
     | SeriesDetailMsg of Pages.SeriesDetail.Types.Msg
+    | SessionDetailMsg of Pages.SessionDetail.Types.Msg
     | FriendsMsg of Pages.Friends.Types.Msg
     | FriendDetailMsg of Pages.FriendDetail.Types.Msg
     | TagsMsg of Pages.Tags.Types.Msg
@@ -96,6 +101,8 @@ type Msg =
     | EntryAbandoned of LibraryEntry
     | EntryDeleted of EntryId
     | EntryAdded of LibraryEntry
+    | SessionCreated of WatchSession
+    | SessionDeleted of SessionId
 
 module Model =
     let empty = {
@@ -109,6 +116,7 @@ module Model =
         LibraryPage = None
         MovieDetailPage = None
         SeriesDetailPage = None
+        SessionDetailPage = None
         FriendsPage = None
         FriendDetailPage = None
         TagsPage = None

@@ -3,6 +3,7 @@ module Components.ConfirmModal.View
 open Feliz
 open Shared.Domain
 open Types
+open Components.Modal.View
 
 let private getDeleteInfo (target: DeleteTarget) =
     match target with
@@ -16,17 +17,13 @@ let private getDeleteInfo (target: DeleteTarget) =
 let view (model: Model) (dispatch: Msg -> unit) =
     let (title, message) = getDeleteInfo model.Target
 
-    Html.div [
-        prop.className "fixed inset-0 z-50 flex items-center justify-center p-4"
-        prop.children [
-            // Backdrop
+    wrapper {
+        OnClose = fun () -> if not model.IsSubmitting then dispatch Cancel
+        CanClose = not model.IsSubmitting
+        MaxWidth = Some "max-w-sm"
+        Children = [
             Html.div [
-                prop.className "absolute inset-0 bg-black/60"
-                prop.onClick (fun _ -> if not model.IsSubmitting then dispatch Cancel)
-            ]
-            // Modal content
-            Html.div [
-                prop.className "relative bg-base-100 rounded-xl shadow-2xl w-full max-w-sm p-6"
+                prop.className "p-6"
                 prop.children [
                     Html.h2 [
                         prop.className "text-xl font-bold mb-4"
@@ -60,4 +57,4 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
         ]
-    ]
+    }

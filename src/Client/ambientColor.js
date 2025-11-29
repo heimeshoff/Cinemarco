@@ -190,9 +190,15 @@ function lerpColor(current, target, t) {
 }
 
 /**
- * Update the CSS custom properties on the backdrop
+ * Update the CSS custom properties on the backdrop and root
  */
 function applyColor(color) {
+    // Set on :root so all elements can access the projector color
+    document.documentElement.style.setProperty('--projector-r', color.r);
+    document.documentElement.style.setProperty('--projector-g', color.g);
+    document.documentElement.style.setProperty('--projector-b', color.b);
+
+    // Also set on backdrop for backwards compatibility
     const backdrop = document.querySelector('.animated-backdrop');
     if (backdrop) {
         backdrop.style.setProperty('--projector-r', color.r);

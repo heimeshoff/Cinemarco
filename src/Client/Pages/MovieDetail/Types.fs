@@ -31,6 +31,7 @@ type ExternalMsg =
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
+    | EntryUpdated of LibraryEntry
 
 module Model =
     let create entryId = { EntryId = entryId; Entry = NotAsked }

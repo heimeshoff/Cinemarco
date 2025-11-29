@@ -13,6 +13,7 @@ let private getPageIcon (page: Page) =
     | LibraryPage -> library
     | MovieDetailPage _ -> film
     | SeriesDetailPage _ -> tv
+    | SessionDetailPage _ -> tv
     | FriendsPage -> friends
     | FriendDetailPage _ -> friends
     | TagsPage -> tags

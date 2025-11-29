@@ -74,6 +74,25 @@ type ICinemarcoApi = {
     libraryGetEpisodeProgress: EntryId -> Async<EpisodeProgress list>
 
     // =====================================
+    // Entry Update Operations
+    // =====================================
+
+    /// Set or clear the personal rating for an entry
+    librarySetRating: EntryId * PersonalRating option -> Async<Result<LibraryEntry, string>>
+
+    /// Toggle favorite status for an entry
+    libraryToggleFavorite: EntryId -> Async<Result<LibraryEntry, string>>
+
+    /// Update notes for an entry
+    libraryUpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
+
+    /// Add or remove a tag from an entry
+    libraryToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
+
+    /// Add or remove a friend from an entry
+    libraryToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
+
+    // =====================================
     // Friends Operations
     // =====================================
 
@@ -159,6 +178,40 @@ type ICinemarcoApi = {
 
     /// Get trending series from TMDB
     tmdbGetTrendingSeries: unit -> Async<TmdbSearchResult list>
+
+    // =====================================
+    // Watch Session Operations
+    // =====================================
+
+    /// Get all sessions for a series entry
+    sessionsGetForEntry: EntryId -> Async<WatchSession list>
+
+    /// Get a session by ID with full progress information
+    sessionsGetById: SessionId -> Async<Result<WatchSessionWithProgress, string>>
+
+    /// Create a new watch session
+    sessionsCreate: CreateSessionRequest -> Async<Result<WatchSession, string>>
+
+    /// Update an existing session
+    sessionsUpdate: UpdateSessionRequest -> Async<Result<WatchSession, string>>
+
+    /// Delete a session
+    sessionsDelete: SessionId -> Async<Result<unit, string>>
+
+    /// Toggle a tag on a session
+    sessionsToggleTag: SessionId * TagId -> Async<Result<WatchSession, string>>
+
+    /// Toggle a friend on a session
+    sessionsToggleFriend: SessionId * FriendId -> Async<Result<WatchSession, string>>
+
+    /// Update episode progress for a session
+    sessionsUpdateEpisodeProgress: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
+
+    /// Mark an entire season as watched for a session
+    sessionsMarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
+
+    /// Get episode progress for a session
+    sessionsGetProgress: SessionId -> Async<EpisodeProgress list>
 
     // =====================================
     // Cache Management Operations

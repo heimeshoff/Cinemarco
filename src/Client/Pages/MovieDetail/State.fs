@@ -80,10 +80,12 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | SetRating rating ->
+        // Rating of 0 means clear the rating
+        let ratingValue = if rating = 0 then None else Some rating
         let cmd =
             Cmd.OfAsync.either
                 api.SetRating
-                (model.EntryId, Some rating)
+                (model.EntryId, ratingValue)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
@@ -130,7 +132,7 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, cmd, NoOp
 
     | ActionResult (Ok entry) ->
-        { model with Entry = Success entry }, Cmd.none, ShowNotification ("Updated successfully", true)
+        { model with Entry = Success entry }, Cmd.none, EntryUpdated entry
 
     | ActionResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)

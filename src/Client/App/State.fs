@@ -9,6 +9,20 @@ open Types
 // Note: This file provides the structure for the App state management.
 // The actual API calls would need to be wired up with the real Api module.
 
+/// Helper to update an entry in a list of entries
+let private updateEntryInList (updatedEntry: LibraryEntry) (entries: LibraryEntry list) =
+    entries |> List.map (fun e -> if e.Id = updatedEntry.Id then updatedEntry else e)
+
+/// Helper to sync an updated entry to LibraryPage and HomePage models
+let private syncEntryToPages (entry: LibraryEntry) (model: Model) =
+    let updatedLibraryPage =
+        model.LibraryPage |> Option.map (fun lp ->
+            { lp with Entries = lp.Entries |> RemoteData.map (updateEntryInList entry) })
+    let updatedHomePage =
+        model.HomePage |> Option.map (fun hp ->
+            { hp with Library = hp.Library |> RemoteData.map (updateEntryInList entry) })
+    { model with LibraryPage = updatedLibraryPage; HomePage = updatedHomePage }
+
 let init () : Model * Cmd<Msg> =
     let model = Model.empty
     let cmds = Cmd.batch [
@@ -44,6 +58,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | SeriesDetailPage entryId when model.SeriesDetailPage.IsNone || model.SeriesDetailPage |> Option.map (fun m -> m.EntryId <> entryId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.SeriesDetail.State.init entryId
             { model' with SeriesDetailPage = Some pageModel }, Cmd.map SeriesDetailMsg pageCmd
+        | SessionDetailPage sessionId when model.SessionDetailPage.IsNone || model.SessionDetailPage |> Option.map (fun m -> m.SessionId <> sessionId) |> Option.defaultValue true ->
+            let pageModel, pageCmd = Pages.SessionDetail.State.init sessionId
+            { model' with SessionDetailPage = Some pageModel }, Cmd.map SessionDetailMsg pageCmd
         | FriendDetailPage friendId when model.FriendDetailPage.IsNone || model.FriendDetailPage |> Option.map (fun m -> m.FriendId <> friendId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.FriendDetail.State.init friendId
             { model' with FriendDetailPage = Some pageModel }, Cmd.map FriendDetailMsg pageCmd
@@ -242,6 +259,25 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
+    | OpenWatchSessionModal entryId ->
+        let modalModel = Components.WatchSessionModal.State.init entryId
+        { model with Modal = WatchSessionModal modalModel }, Cmd.none
+
+    | WatchSessionModalMsg sessionModalMsg ->
+        match model.Modal with
+        | WatchSessionModal modalModel ->
+            let createApi = fun req -> Api.api.sessionsCreate req
+            let newModal, modalCmd, extMsg = Components.WatchSessionModal.State.update createApi sessionModalMsg modalModel
+            let model' = { model with Modal = WatchSessionModal newModal }
+            let cmd = Cmd.map WatchSessionModalMsg modalCmd
+            match extMsg with
+            | Components.WatchSessionModal.Types.NoOp -> model', cmd
+            | Components.WatchSessionModal.Types.Created session ->
+                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (SessionCreated session)]
+            | Components.WatchSessionModal.Types.CloseRequested ->
+                { model' with Modal = NoModal }, cmd
+        | _ -> model, Cmd.none
+
     // Notification
     | ShowNotification (message, isSuccess) ->
         let newNotification, notificationCmd, _ =
@@ -350,8 +386,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | MovieDetailMsg movieMsg ->
         match model.MovieDetailPage with
         | Some pageModel ->
-            // Note: MovieApi would need to be properly constructed with real API calls
-            // Some operations (toggleFavorite, setRating, etc.) may need to be added to ICinemarcoApi
             let movieApi : Pages.MovieDetail.State.MovieApi = {
                 GetEntry = fun entryId -> async {
                     let! result = Api.api.libraryGetById entryId
@@ -362,12 +396,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
-                // These operations may need to be added to the API
-                ToggleFavorite = fun _ -> async { return Error "Not implemented" }
-                SetRating = fun _ -> async { return Error "Not implemented" }
-                UpdateNotes = fun _ -> async { return Error "Not implemented" }
-                ToggleTag = fun _ -> async { return Error "Not implemented" }
-                ToggleFriend = fun _ -> async { return Error "Not implemented" }
+                ToggleFavorite = fun entryId -> Api.api.libraryToggleFavorite entryId
+                SetRating = fun (entryId, ratingInt) ->
+                    let rating = ratingInt |> Option.bind PersonalRating.fromInt
+                    Api.api.librarySetRating (entryId, rating)
+                UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
+                ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
+                ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
             }
             let newPage, pageCmd, extMsg = Pages.MovieDetail.State.update movieApi movieMsg pageModel
             let model' = { model with MovieDetailPage = Some newPage }
@@ -378,45 +413,39 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.MovieDetail.Types.EntryUpdated entry ->
+                let model'' = syncEntryToPages entry model'
+                model'', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Updated successfully", true))]
         | None -> model, Cmd.none
 
     // Page messages - SeriesDetail
     | SeriesDetailMsg seriesMsg ->
         match model.SeriesDetailPage with
         | Some pageModel ->
-            // Note: SeriesApi would need to be properly constructed with real API calls
             let seriesApi : Pages.SeriesDetail.State.SeriesApi = {
                 GetEntry = fun entryId -> async {
                     let! result = Api.api.libraryGetById entryId
-                    let! progress = Api.api.libraryGetEpisodeProgress entryId
                     match result with
-                    | Ok entry -> return Some (entry, progress)
+                    | Ok entry -> return Some entry
                     | Error _ -> return None
                 }
+                GetSessions = fun entryId -> Api.api.sessionsGetForEntry entryId
+                GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
+                GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
                 MarkCompleted = fun entryId -> Api.api.libraryMarkSeriesCompleted entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
-                // These operations may need to be added to the API
-                ToggleFavorite = fun _ -> async { return Error "Not implemented" }
-                SetRating = fun _ -> async { return Error "Not implemented" }
-                UpdateNotes = fun _ -> async { return Error "Not implemented" }
-                ToggleTag = fun _ -> async { return Error "Not implemented" }
-                ToggleFriend = fun _ -> async { return Error "Not implemented" }
-                ToggleEpisode = fun (entryId, s, e, w) -> async {
-                    let! result = Api.api.libraryUpdateEpisodeProgress (entryId, s, e, w)
-                    match result with
-                    | Ok () ->
-                        let! progress = Api.api.libraryGetEpisodeProgress entryId
-                        return Ok progress
-                    | Error err -> return Error err
-                }
-                MarkSeasonWatched = fun (entryId, s) -> async {
-                    let! result = Api.api.libraryMarkSeasonWatched (entryId, s)
-                    match result with
-                    | Ok () ->
-                        let! progress = Api.api.libraryGetEpisodeProgress entryId
-                        return Ok progress
-                    | Error err -> return Error err
-                }
+                ToggleFavorite = fun entryId -> Api.api.libraryToggleFavorite entryId
+                SetRating = fun (entryId, ratingInt) ->
+                    let rating = ratingInt |> Option.bind PersonalRating.fromInt
+                    Api.api.librarySetRating (entryId, rating)
+                UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
+                ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
+                ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
+                ToggleEpisode = fun (sessionId, s, e, w) ->
+                    Api.api.sessionsUpdateEpisodeProgress (sessionId, s, e, w)
+                MarkSeasonWatched = fun (sessionId, s) ->
+                    Api.api.sessionsMarkSeasonWatched (sessionId, s)
+                DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
             }
             let newPage, pageCmd, extMsg = Pages.SeriesDetail.State.update seriesApi seriesMsg pageModel
             let model' = { model with SeriesDetailPage = Some newPage }
@@ -426,7 +455,36 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
+            | Pages.SeriesDetail.Types.RequestOpenNewSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenWatchSessionModal entryId)]
             | Pages.SeriesDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.SeriesDetail.Types.EntryUpdated entry ->
+                let model'' = syncEntryToPages entry model'
+                model'', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Updated successfully", true))]
+        | None -> model, Cmd.none
+
+    // Page messages - SessionDetail
+    | SessionDetailMsg sessionMsg ->
+        match model.SessionDetailPage with
+        | Some pageModel ->
+            let sessionApi : Pages.SessionDetail.State.SessionApi = {
+                GetSession = fun sessionId -> Api.api.sessionsGetById sessionId
+                UpdateSession = fun req -> Api.api.sessionsUpdate req
+                DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
+                ToggleTag = fun (sessionId, tagId) -> Api.api.sessionsToggleTag (sessionId, tagId)
+                ToggleFriend = fun (sessionId, friendId) -> Api.api.sessionsToggleFriend (sessionId, friendId)
+                ToggleEpisode = fun (sessionId, s, e, w) -> Api.api.sessionsUpdateEpisodeProgress (sessionId, s, e, w)
+                MarkSeasonWatched = fun (sessionId, s) -> Api.api.sessionsMarkSeasonWatched (sessionId, s)
+                GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
+            }
+            let newPage, pageCmd, extMsg = Pages.SessionDetail.State.update sessionApi sessionMsg pageModel
+            let model' = { model with SessionDetailPage = Some newPage }
+            let cmd = Cmd.map SessionDetailMsg pageCmd
+            match extMsg with
+            | Pages.SessionDetail.Types.NoOp -> model', cmd
+            | Pages.SessionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
+            | Pages.SessionDetail.Types.NavigateToSeries entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.SessionDetail.Types.SessionDeleted sessionId -> model', Cmd.batch [cmd; Cmd.ofMsg (SessionDeleted sessionId)]
         | None -> model, Cmd.none
 
     // API result handlers
@@ -495,6 +553,28 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         model, Cmd.batch [
             Cmd.ofMsg (ShowNotification ("Added to library", true))
             Cmd.ofMsg (HomeMsg Pages.Home.Types.LoadLibrary)
+        ]
+
+    | SessionCreated session ->
+        // Reload sessions on the SeriesDetail page and select the new session
+        let reloadAndSelectCmd =
+            match model.SeriesDetailPage with
+            | Some _ ->
+                Cmd.batch [
+                    Cmd.ofMsg (SeriesDetailMsg Pages.SeriesDetail.Types.LoadSessions)
+                    Cmd.ofMsg (SeriesDetailMsg (Pages.SeriesDetail.Types.SelectSession session.Id))
+                ]
+            | None -> Cmd.none
+        model, Cmd.batch [
+            Cmd.ofMsg (ShowNotification ($"Session '{session.Name}' created", true))
+            reloadAndSelectCmd
+        ]
+
+    | SessionDeleted _ ->
+        { model with SessionDetailPage = None },
+        Cmd.batch [
+            Cmd.ofMsg (ShowNotification ("Session deleted", true))
+            Cmd.ofMsg (NavigateTo LibraryPage)
         ]
 
     // Page messages - Cache

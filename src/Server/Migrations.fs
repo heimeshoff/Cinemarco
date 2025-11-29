@@ -431,6 +431,44 @@ CREATE TABLE IF NOT EXISTS stats_cache (
 CREATE INDEX IF NOT EXISTS idx_stats_cache_key ON stats_cache(stat_key);
 """
     }
+
+    // Migration 6: Add is_default flag and create default sessions
+    {
+        Version = 6
+        Name = "Add is_default flag to watch_sessions and create default sessions"
+        Up = """
+-- Add is_default column to watch_sessions
+ALTER TABLE watch_sessions ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0;
+
+-- Create default "Personal" session for each series entry that doesn't have one
+INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
+SELECT le.id, 'Personal', 'Active', datetime('now'), 1, datetime('now'), datetime('now')
+FROM library_entries le
+WHERE le.media_type = 'Series'
+AND NOT EXISTS (
+    SELECT 1 FROM watch_sessions ws WHERE ws.entry_id = le.id AND ws.is_default = 1
+);
+
+-- Migrate entry-level episode progress (session_id = NULL) to the default session
+UPDATE episode_progress
+SET session_id = (
+    SELECT ws.id
+    FROM watch_sessions ws
+    WHERE ws.entry_id = episode_progress.entry_id AND ws.is_default = 1
+)
+WHERE session_id IS NULL
+AND EXISTS (
+    SELECT 1 FROM watch_sessions ws
+    WHERE ws.entry_id = episode_progress.entry_id AND ws.is_default = 1
+);
+
+-- Delete any remaining orphaned entry-level progress (shouldn't happen, but cleanup)
+DELETE FROM episode_progress WHERE session_id IS NULL;
+
+-- Create index for is_default
+CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_default ON watch_sessions(is_default);
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

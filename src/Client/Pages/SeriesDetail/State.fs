@@ -6,7 +6,10 @@ open Shared.Domain
 open Types
 
 type SeriesApi = {
-    GetEntry: EntryId -> Async<(LibraryEntry * EpisodeProgress list) option>
+    GetEntry: EntryId -> Async<LibraryEntry option>
+    GetSessions: EntryId -> Async<WatchSession list>
+    GetSessionProgress: SessionId -> Async<EpisodeProgress list>
+    GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
     MarkCompleted: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
     ToggleFavorite: EntryId -> Async<Result<LibraryEntry, string>>
@@ -14,12 +17,13 @@ type SeriesApi = {
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
     ToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
     ToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
-    ToggleEpisode: EntryId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
-    MarkSeasonWatched: EntryId * int -> Async<Result<EpisodeProgress list, string>>
+    ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
+    MarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
+    DeleteSession: SessionId -> Async<Result<unit, string>>
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.ofMsg LoadEntry
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadSessions ]
 
 let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -32,14 +36,100 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (fun ex -> Error ex.Message |> EntryLoaded)
         { model with Entry = Loading }, cmd, NoOp
 
-    | EntryLoaded (Ok (Some (entry, progress))) ->
-        { model with Entry = Success entry; EpisodeProgress = progress }, Cmd.none, NoOp
+    | EntryLoaded (Ok (Some entry)) ->
+        // Trigger loading season details for all seasons
+        let seasonCmds =
+            match entry.Media with
+            | LibrarySeries series ->
+                [ 1 .. series.NumberOfSeasons ]
+                |> List.map (fun seasonNum -> Cmd.ofMsg (LoadSeasonDetails seasonNum))
+                |> Cmd.batch
+            | _ -> Cmd.none
+        { model with Entry = Success entry }, seasonCmds, NoOp
 
     | EntryLoaded (Ok None) ->
         { model with Entry = Failure "Entry not found" }, Cmd.none, NoOp
 
     | EntryLoaded (Error err) ->
         { model with Entry = Failure err }, Cmd.none, NoOp
+
+    | LoadSeasonDetails seasonNum ->
+        match model.Entry with
+        | Success entry ->
+            match entry.Media with
+            | LibrarySeries series ->
+                // Skip if already loaded or loading
+                if Map.containsKey seasonNum model.SeasonDetails || Set.contains seasonNum model.LoadingSeasons then
+                    model, Cmd.none, NoOp
+                else
+                    let cmd =
+                        Cmd.OfAsync.either
+                            api.GetSeasonDetails
+                            (series.TmdbId, seasonNum)
+                            (fun result -> SeasonDetailsLoaded (seasonNum, result))
+                            (fun ex -> SeasonDetailsLoaded (seasonNum, Error ex.Message))
+                    { model with LoadingSeasons = Set.add seasonNum model.LoadingSeasons }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | SeasonDetailsLoaded (seasonNum, Ok details) ->
+        { model with
+            SeasonDetails = Map.add seasonNum details model.SeasonDetails
+            LoadingSeasons = Set.remove seasonNum model.LoadingSeasons
+        }, Cmd.none, NoOp
+
+    | SeasonDetailsLoaded (seasonNum, Error _) ->
+        { model with LoadingSeasons = Set.remove seasonNum model.LoadingSeasons }, Cmd.none, NoOp
+
+    | LoadSessions ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetSessions
+                model.EntryId
+                (Ok >> SessionsLoaded)
+                (fun ex -> Error ex.Message |> SessionsLoaded)
+        { model with Sessions = Loading }, cmd, NoOp
+
+    | SessionsLoaded (Ok sessions) ->
+        // Preserve existing selection if valid, otherwise auto-select the default session
+        let existingSelectionValid =
+            model.SelectedSessionId
+            |> Option.bind (fun id -> sessions |> List.tryFind (fun s -> s.Id = id))
+            |> Option.map (fun s -> s.Id)
+        let defaultSession = sessions |> List.tryFind (fun s -> s.IsDefault)
+        let selectedId =
+            match existingSelectionValid with
+            | Some id -> Some id
+            | None -> defaultSession |> Option.map (fun s -> s.Id)
+        let loadProgressCmd =
+            match selectedId with
+            | Some id -> Cmd.ofMsg (LoadSessionProgress id)
+            | None -> Cmd.none
+        { model with Sessions = Success sessions; SelectedSessionId = selectedId }, loadProgressCmd, NoOp
+
+    | SessionsLoaded (Error _) ->
+        { model with Sessions = Success [] }, Cmd.none, NoOp
+
+    | SelectSession sessionId ->
+        { model with SelectedSessionId = Some sessionId }, Cmd.ofMsg (LoadSessionProgress sessionId), NoOp
+
+    | LoadSessionProgress sessionId ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetSessionProgress
+                sessionId
+                (Ok >> SessionProgressLoaded)
+                (fun ex -> Error ex.Message |> SessionProgressLoaded)
+        model, cmd, NoOp
+
+    | SessionProgressLoaded (Ok progress) ->
+        { model with EpisodeProgress = progress }, Cmd.none, NoOp
+
+    | SessionProgressLoaded (Error _) ->
+        { model with EpisodeProgress = [] }, Cmd.none, NoOp
+
+    | OpenNewSessionModal ->
+        model, Cmd.none, RequestOpenNewSessionModal model.EntryId
 
     | MarkSeriesCompleted ->
         let cmd =
@@ -63,22 +153,44 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         model, cmd, NoOp
 
     | ToggleEpisodeWatched (seasonNum, episodeNum, isWatched) ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.ToggleEpisode
-                (model.EntryId, seasonNum, episodeNum, isWatched)
-                EpisodeActionResult
-                (fun ex -> Error ex.Message |> EpisodeActionResult)
-        model, cmd, NoOp
+        match model.SelectedSessionId with
+        | Some sessionId ->
+            let cmd =
+                Cmd.OfAsync.either
+                    api.ToggleEpisode
+                    (sessionId, seasonNum, episodeNum, isWatched)
+                    EpisodeActionResult
+                    (fun ex -> Error ex.Message |> EpisodeActionResult)
+            model, cmd, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | MarkEpisodesUpTo (seasonNum, episodeNum, isWatched) ->
+        match model.SelectedSessionId with
+        | Some sessionId ->
+            // Mark all episodes from 1 to episodeNum in this season
+            let cmds =
+                [ 1 .. episodeNum ]
+                |> List.map (fun epNum ->
+                    Cmd.OfAsync.either
+                        api.ToggleEpisode
+                        (sessionId, seasonNum, epNum, isWatched)
+                        EpisodeActionResult
+                        (fun ex -> Error ex.Message |> EpisodeActionResult))
+                |> Cmd.batch
+            model, cmds, NoOp
+        | None -> model, Cmd.none, NoOp
 
     | MarkSeasonWatched seasonNum ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.MarkSeasonWatched
-                (model.EntryId, seasonNum)
-                EpisodeActionResult
-                (fun ex -> Error ex.Message |> EpisodeActionResult)
-        model, cmd, NoOp
+        match model.SelectedSessionId with
+        | Some sessionId ->
+            let cmd =
+                Cmd.OfAsync.either
+                    api.MarkSeasonWatched
+                    (sessionId, seasonNum)
+                    EpisodeActionResult
+                    (fun ex -> Error ex.Message |> EpisodeActionResult)
+            model, cmd, NoOp
+        | None -> model, Cmd.none, NoOp
 
     | ToggleFavorite ->
         let cmd =
@@ -90,10 +202,12 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         model, cmd, NoOp
 
     | SetRating rating ->
+        // Rating of 0 means clear the rating
+        let ratingValue = if rating = 0 then None else Some rating
         let cmd =
             Cmd.OfAsync.either
                 api.SetRating
-                (model.EntryId, Some rating)
+                (model.EntryId, ratingValue)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
@@ -139,7 +253,7 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         model, cmd, NoOp
 
     | ActionResult (Ok entry) ->
-        { model with Entry = Success entry }, Cmd.none, ShowNotification ("Updated successfully", true)
+        { model with Entry = Success entry }, Cmd.none, EntryUpdated entry
 
     | ActionResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
@@ -148,6 +262,35 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         { model with EpisodeProgress = progress }, Cmd.none, NoOp
 
     | EpisodeActionResult (Error err) ->
+        model, Cmd.none, ShowNotification (err, false)
+
+    | DeleteSession sessionId ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.DeleteSession
+                sessionId
+                (fun result -> result |> Result.map (fun () -> sessionId) |> SessionDeleteResult)
+                (fun ex -> Error ex.Message |> SessionDeleteResult)
+        model, cmd, NoOp
+
+    | SessionDeleteResult (Ok deletedId) ->
+        // Remove session from list and select default if we deleted the selected one
+        let updatedSessions =
+            model.Sessions |> RemoteData.map (List.filter (fun s -> s.Id <> deletedId))
+        let newSelectedId =
+            if model.SelectedSessionId = Some deletedId then
+                match updatedSessions with
+                | Success sessions -> sessions |> List.tryFind (fun s -> s.IsDefault) |> Option.map (fun s -> s.Id)
+                | _ -> None
+            else
+                model.SelectedSessionId
+        let loadProgressCmd =
+            match newSelectedId with
+            | Some id when model.SelectedSessionId = Some deletedId -> Cmd.ofMsg (LoadSessionProgress id)
+            | _ -> Cmd.none
+        { model with Sessions = updatedSessions; SelectedSessionId = newSelectedId }, loadProgressCmd, ShowNotification ("Session deleted", true)
+
+    | SessionDeleteResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
 
     | GoBack ->

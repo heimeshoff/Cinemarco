@@ -41,6 +41,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | SessionDetailPage _ ->
+        match model.SessionDetailPage with
+        | Some pageModel ->
+            Pages.SessionDetail.View.view pageModel tags friends (SessionDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | FriendsPage ->
         match model.FriendsPage with
         | Some pageModel ->
@@ -126,6 +133,9 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | ConfirmDeleteModal modalModel ->
         Components.ConfirmModal.View.view modalModel (ConfirmModalMsg >> dispatch)
 
+    | WatchSessionModal modalModel ->
+        Components.WatchSessionModal.View.view modalModel tags friends (WatchSessionModalMsg >> dispatch)
+
 /// Global keyboard shortcut handler component
 [<ReactComponent>]
 let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: ReactElement) =
@@ -149,16 +159,26 @@ let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: 
 
     children
 
+/// Check if the current page is a detail page (movie, series, or session)
+let private isDetailPage (page: Page) =
+    match page with
+    | MovieDetailPage _ | SeriesDetailPage _ | SessionDetailPage _ -> true
+    | _ -> false
+
 /// Animated backdrop component - "The Projector Room"
-let private animatedBackdrop =
+let private animatedBackdrop (currentPage: Page) =
+    let isFocused = isDetailPage currentPage
+    let beamClass = if isFocused then "projector-beam projector-beam-focused" else "projector-beam"
+    let glowClass = if isFocused then "projector-glow projector-glow-focused" else "projector-glow"
+
     Html.div [
         prop.className "animated-backdrop"
         prop.children [
             // Main projector light beam from top-right
-            Html.div [ prop.className "projector-beam" ]
+            Html.div [ prop.className beamClass ]
 
             // Diffused glow around the beam source
-            Html.div [ prop.className "projector-glow" ]
+            Html.div [ prop.className glowClass ]
 
             // Ambient light bounce from below
             Html.div [ prop.className "ambient-light" ]
@@ -189,7 +209,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
         prop.className "min-h-screen bg-transparent"
         prop.children [
             // Animated backdrop
-            animatedBackdrop
+            animatedBackdrop model.CurrentPage
 
             // Sidebar (desktop)
             Components.Layout.View.sidebar

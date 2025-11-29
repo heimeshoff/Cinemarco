@@ -8,6 +8,7 @@ type Page =
     | LibraryPage
     | MovieDetailPage of EntryId
     | SeriesDetailPage of EntryId
+    | SessionDetailPage of SessionId
     | FriendsPage
     | FriendDetailPage of FriendId
     | TagsPage
@@ -26,6 +27,7 @@ module Page =
         | LibraryPage -> "/library"
         | MovieDetailPage (EntryId id) -> $"/movie/{id}"
         | SeriesDetailPage (EntryId id) -> $"/series/{id}"
+        | SessionDetailPage (SessionId id) -> $"/session/{id}"
         | FriendsPage -> "/friends"
         | FriendDetailPage (FriendId id) -> $"/friend/{id}"
         | TagsPage -> "/tags"
@@ -43,6 +45,7 @@ module Page =
         | LibraryPage -> "Library"
         | MovieDetailPage _ -> "Movie"
         | SeriesDetailPage _ -> "Series"
+        | SessionDetailPage _ -> "Session"
         | FriendsPage -> "Friends"
         | FriendDetailPage _ -> "Friend"
         | TagsPage -> "Tags"

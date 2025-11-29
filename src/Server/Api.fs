@@ -193,6 +193,75 @@ let cinemarcoApi : ICinemarcoApi = {
     libraryGetEpisodeProgress = fun entryId -> Persistence.getEpisodeProgress entryId
 
     // =====================================
+    // Entry Update Operations
+    // =====================================
+
+    librarySetRating = fun (entryId, rating) -> async {
+        try
+            do! Persistence.updatePersonalRating entryId rating
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to set rating: {ex.Message}"
+    }
+
+    libraryToggleFavorite = fun entryId -> async {
+        try
+            let! _ = Persistence.toggleFavorite entryId
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to toggle favorite: {ex.Message}"
+    }
+
+    libraryUpdateNotes = fun (entryId, notes) -> async {
+        try
+            do! Persistence.updateNotes entryId notes
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to update notes: {ex.Message}"
+    }
+
+    libraryToggleTag = fun (entryId, tagId) -> async {
+        try
+            // Check if tag is already associated
+            let! currentTags = Persistence.getTagsForEntry entryId
+            if List.contains tagId currentTags then
+                do! Persistence.removeTagFromEntry entryId tagId
+            else
+                do! Persistence.addTagToEntry entryId tagId
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to toggle tag: {ex.Message}"
+    }
+
+    libraryToggleFriend = fun (entryId, friendId) -> async {
+        try
+            // Check if friend is already associated
+            let! currentFriends = Persistence.getFriendsForEntry entryId
+            if List.contains friendId currentFriends then
+                do! Persistence.removeFriendFromEntry entryId friendId
+            else
+                do! Persistence.addFriendToEntry entryId friendId
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | Some e -> return Ok e
+            | None -> return Error "Entry not found after update"
+        with
+        | ex -> return Error $"Failed to toggle friend: {ex.Message}"
+    }
+
+    // =====================================
     // Friends Operations
     // =====================================
 
@@ -289,6 +358,159 @@ let cinemarcoApi : ICinemarcoApi = {
             |> Async.Sequential
         return entries |> Array.choose id |> Array.toList
     }
+
+    // =====================================
+    // Watch Session Operations
+    // =====================================
+
+    sessionsGetForEntry = fun entryId -> Persistence.getSessionsForEntry entryId
+
+    sessionsGetById = fun sessionId -> async {
+        let! session = Persistence.getSessionById sessionId
+        match session with
+        | None -> return Error "Session not found"
+        | Some s ->
+            // Get the entry for total episode count
+            let! entry = Persistence.getLibraryEntryById s.EntryId
+            match entry with
+            | None -> return Error "Entry not found for session"
+            | Some e ->
+                // Get episode progress for this session
+                let! progress = Persistence.getSessionEpisodeProgress sessionId
+                let watchedCount = progress |> List.filter (fun p -> p.IsWatched) |> List.length
+                let totalEpisodes =
+                    match e.Media with
+                    | LibrarySeries series -> series.NumberOfEpisodes
+                    | LibraryMovie _ -> 0
+
+                let completionPct =
+                    if totalEpisodes > 0 then
+                        float watchedCount / float totalEpisodes * 100.0
+                    else 0.0
+
+                return Ok {
+                    Session = s
+                    Entry = e
+                    EpisodeProgress = progress
+                    TotalEpisodes = totalEpisodes
+                    WatchedEpisodes = watchedCount
+                    CompletionPercentage = completionPct
+                }
+    }
+
+    sessionsCreate = fun request -> async {
+        try
+            // Verify entry exists and is a series
+            let! entry = Persistence.getLibraryEntryById request.EntryId
+            match entry with
+            | None -> return Error "Entry not found"
+            | Some e ->
+                match e.Media with
+                | LibraryMovie _ -> return Error "Sessions can only be created for series"
+                | LibrarySeries _ ->
+                    let! session = Persistence.insertWatchSession request
+                    return Ok session
+        with
+        | ex -> return Error $"Failed to create session: {ex.Message}"
+    }
+
+    sessionsUpdate = fun request -> async {
+        try
+            do! Persistence.updateWatchSession request
+            let! session = Persistence.getSessionById request.Id
+            match session with
+            | Some s -> return Ok s
+            | None -> return Error "Session not found after update"
+        with
+        | ex -> return Error $"Failed to update session: {ex.Message}"
+    }
+
+    sessionsDelete = fun sessionId -> async {
+        try
+            do! Persistence.deleteWatchSession sessionId
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to delete session: {ex.Message}"
+    }
+
+    sessionsToggleTag = fun (sessionId, tagId) -> async {
+        try
+            // Check if tag is already associated
+            let! currentTags = Persistence.getTagsForSession sessionId
+            if List.contains tagId currentTags then
+                do! Persistence.removeTagFromSession sessionId tagId
+            else
+                do! Persistence.addTagToSession sessionId tagId
+            let! session = Persistence.getSessionById sessionId
+            match session with
+            | Some s -> return Ok s
+            | None -> return Error "Session not found after update"
+        with
+        | ex -> return Error $"Failed to toggle tag: {ex.Message}"
+    }
+
+    sessionsToggleFriend = fun (sessionId, friendId) -> async {
+        try
+            // Check if friend is already associated
+            let! currentFriends = Persistence.getFriendsForSession sessionId
+            if List.contains friendId currentFriends then
+                do! Persistence.removeFriendFromSession sessionId friendId
+            else
+                do! Persistence.addFriendToSession sessionId friendId
+            let! session = Persistence.getSessionById sessionId
+            match session with
+            | Some s -> return Ok s
+            | None -> return Error "Session not found after update"
+        with
+        | ex -> return Error $"Failed to toggle friend: {ex.Message}"
+    }
+
+    sessionsUpdateEpisodeProgress = fun (sessionId, seasonNumber, episodeNumber, watched) -> async {
+        try
+            let! session = Persistence.getSessionById sessionId
+            match session with
+            | None -> return Error "Session not found"
+            | Some s ->
+                match! Persistence.getSeriesInfoForEntry s.EntryId with
+                | None -> return Error "Entry is not a series"
+                | Some (seriesId, _) ->
+                    do! Persistence.updateSessionEpisodeProgress sessionId s.EntryId seriesId seasonNumber episodeNumber watched
+                    let! progress = Persistence.getSessionEpisodeProgress sessionId
+                    return Ok progress
+        with
+        | ex -> return Error $"Failed to update episode progress: {ex.Message}"
+    }
+
+    sessionsMarkSeasonWatched = fun (sessionId, seasonNumber) -> async {
+        try
+            let! session = Persistence.getSessionById sessionId
+            match session with
+            | None -> return Error "Session not found"
+            | Some s ->
+                let! entry = Persistence.getLibraryEntryById s.EntryId
+                match entry with
+                | None -> return Error "Entry not found"
+                | Some e ->
+                    match e.Media with
+                    | LibraryMovie _ -> return Error "Entry is not a series"
+                    | LibrarySeries series ->
+                        // Get season details from TMDB to find episode count
+                        let! seasonResult = TmdbClient.getSeasonDetails series.TmdbId seasonNumber
+                        match seasonResult with
+                        | Error err -> return Error $"Failed to get season details: {err}"
+                        | Ok season ->
+                            let episodeCount = season.Episodes.Length
+                            match! Persistence.getSeriesInfoForEntry s.EntryId with
+                            | None -> return Error "Series info not found"
+                            | Some (seriesId, _) ->
+                                do! Persistence.markSessionSeasonWatched sessionId s.EntryId seriesId seasonNumber episodeCount
+                                let! progress = Persistence.getSessionEpisodeProgress sessionId
+                                return Ok progress
+        with
+        | ex -> return Error $"Failed to mark season as watched: {ex.Message}"
+    }
+
+    sessionsGetProgress = fun sessionId -> Persistence.getSessionEpisodeProgress sessionId
 
     // =====================================
     // TMDB Operations

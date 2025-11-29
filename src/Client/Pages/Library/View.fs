@@ -161,6 +161,55 @@ let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg 
                                     ]
                             ]
                         ]
+
+                    // Rating filter
+                    Html.div [
+                        prop.className "flex flex-wrap items-center gap-2"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-xs uppercase tracking-wider text-base-content/40 font-medium"
+                                prop.text "Min Rating"
+                            ]
+                            // All ratings button
+                            Html.button [
+                                prop.type' "button"
+                                prop.className (
+                                    "px-3 py-1 rounded-full text-xs font-medium transition-all " +
+                                    if filters.MinRating.IsNone then "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                    else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
+                                )
+                                prop.onClick (fun _ -> dispatch (SetMinRatingFilter None))
+                                prop.text "Any"
+                            ]
+                            // Rating stars filter buttons
+                            for rating in [1..5] do
+                                let isSelected = filters.MinRating = Some rating
+                                let label =
+                                    match rating with
+                                    | 1 -> "1+"
+                                    | 2 -> "2+"
+                                    | 3 -> "3+"
+                                    | 4 -> "4+"
+                                    | 5 -> "5"
+                                    | _ -> ""
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className (
+                                        "px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1 " +
+                                        if isSelected then "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                        else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
+                                    )
+                                    prop.onClick (fun _ -> dispatch (SetMinRatingFilter (Some rating)))
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-3 h-3"
+                                            prop.children [ star ]
+                                        ]
+                                        Html.span [ prop.text label ]
+                                    ]
+                                ]
+                        ]
+                    ]
                 ]
             ]
         ]
@@ -217,9 +266,14 @@ let view (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
                         prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                         prop.children [
                             for entry in filteredEntries do
-                                libraryEntryCard entry (fun id isMovie ->
-                                    if isMovie then dispatch (ViewMovieDetail id)
-                                    else dispatch (ViewSeriesDetail id))
+                                Html.div [
+                                    prop.key (EntryId.value entry.Id)
+                                    prop.children [
+                                        libraryEntryCard entry (fun id isMovie ->
+                                            if isMovie then dispatch (ViewMovieDetail id)
+                                            else dispatch (ViewSeriesDetail id))
+                                    ]
+                                ]
                         ]
                     ]
             | Failure err ->

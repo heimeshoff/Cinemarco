@@ -334,40 +334,51 @@ type ITagApi = {
 
 ---
 
-## Milestone 8: Personal Rating (Estimated: Day 9-10)
+## Milestone 8: Personal Rating (COMPLETED)
 
 **Goal**: Implement the 5-tier rating system.
 
 ### Tasks
 
-- [ ] **M8.1** Create rating selector component (5 tiers)
-- [ ] **M8.2** Add rating to movie detail
-- [ ] **M8.3** Add rating to series detail
-- [ ] **M8.4** Display rating on poster cards
-- [ ] **M8.5** Filter library by rating
-- [ ] **M8.6** Add rating descriptions/tooltips
+- [x] **M8.1** Create rating selector component (5 tiers)
+- [x] **M8.2** Add rating to movie detail
+- [x] **M8.3** Add rating to series detail
+- [x] **M8.4** Display rating on poster cards
+- [x] **M8.5** Filter library by rating
+- [x] **M8.6** Add rating descriptions/tooltips
 
 ### Rating System
 ```
-5 - Absolutely brilliant (stays with you)
-4 - Really good (strong craft, recommendable)
-3 - Decent (worth watching)
-2 - Meh (didn't click)
-1 - Nope (would not watch again)
+5 - Outstanding (Absolutely brilliant, stays with you)
+4 - Entertaining (Strong craft, enjoyable, recommendable)
+3 - Decent (Watchable, even if not life-changing)
+2 - Meh (Didn't click, uninspiring)
+1 - Waste (Waste of time)
 ```
 
 ### Frontend Components
-- `RatingSelector` - 5-tier selector with labels
-- `RatingBadge` - Compact rating display
+- `ratingSelector` - 5-tier star selector with tooltips (inline in MovieDetail/View.fs and SeriesDetail/View.fs)
+- `ratingStars` - Compact rating display on poster cards (in Components/Cards/View.fs)
 
-### Files to Create/Modify
-- `src/Client/Components/RatingSelector.fs` (new)
-- `src/Client/Components/RatingBadge.fs` (new)
+### Files Modified
+- `src/Client/Pages/MovieDetail/View.fs` - Rating selector with tooltips
+- `src/Client/Pages/MovieDetail/State.fs` - SetRating message handler
+- `src/Client/Pages/MovieDetail/Types.fs` - SetRating message type
+- `src/Client/Pages/SeriesDetail/View.fs` - Rating selector with tooltips
+- `src/Client/Pages/SeriesDetail/State.fs` - SetRating message handler
+- `src/Client/Pages/SeriesDetail/Types.fs` - SetRating message type
+- `src/Client/Pages/Library/View.fs` - Min rating filter in filter bar
+- `src/Client/Pages/Library/State.fs` - Rating filter logic
+- `src/Client/Components/Cards/View.fs` - Rating stars on poster cards
+- `src/Client/App/State.fs` - SetRating API integration
+- `src/Server/Api.fs` - librarySetRating endpoint
+- `src/Server/Persistence.fs` - Rating persistence
+- `src/Shared/Api.fs` - API contract for rating
 
 ### Definition of Done
-- Can rate any movie/series on 5-tier scale
-- Ratings display on detail pages and posters
-- Can filter by rating
+- [x] Can rate any movie/series on 5-tier scale
+- [x] Ratings display on detail pages and posters
+- [x] Can filter by rating
 
 ---
 

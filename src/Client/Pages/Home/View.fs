@@ -94,9 +94,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                             prop.children [
                                 for entry in entries |> List.sortByDescending (fun e -> e.DateAdded) |> List.truncate 12 do
-                                    libraryEntryCard entry (fun id isMovie ->
-                                        if isMovie then dispatch (ViewMovieDetail id)
-                                        else dispatch (ViewSeriesDetail id))
+                                    Html.div [
+                                        prop.key (EntryId.value entry.Id)
+                                        prop.children [
+                                            libraryEntryCard entry (fun id isMovie ->
+                                                if isMovie then dispatch (ViewMovieDetail id)
+                                                else dispatch (ViewSeriesDetail id))
+                                        ]
+                                    ]
                             ]
                         ]
                     ]

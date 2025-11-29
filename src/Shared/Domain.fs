@@ -384,12 +384,13 @@ type WatchSession = {
     Friends: FriendId list
     Notes: string option
     CreatedAt: DateTime
+    IsDefault: bool
 }
 
-/// Tracks individual episode watch status
+/// Tracks individual episode watch status (always tied to a session)
 type EpisodeProgress = {
     EntryId: EntryId
-    SessionId: SessionId option
+    SessionId: SessionId
     SeriesId: SeriesId
     SeasonNumber: int
     EpisodeNumber: int

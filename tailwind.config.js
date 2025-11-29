@@ -16,6 +16,17 @@ export default {
     'text-nav-graph',
     'text-nav-import',
     'text-nav-cache',
+    // Episode checkbox states
+    'bg-success',
+    'text-success-content',
+    'border-success',
+    'bg-base-200',
+    'bg-base-300',
+    'border-base-300',
+    'border-primary',
+    'hover:bg-base-300',
+    'hover:bg-success',
+    'hover:border-primary',
   ],
   theme: {
     extend: {

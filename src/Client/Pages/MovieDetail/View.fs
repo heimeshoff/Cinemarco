@@ -55,20 +55,71 @@ let private watchControls (entry: LibraryEntry) (dispatch: Msg -> unit) =
         ]
     ]
 
-/// Rating stars component
-let private ratingStars (current: int option) (dispatch: Msg -> unit) =
+/// Rating labels and descriptions
+let private ratingInfo = [
+    (1, "Waste", "Waste of time")
+    (2, "Meh", "Didn't click, uninspiring")
+    (3, "Decent", "Watchable, even if not life-changing")
+    (4, "Entertaining", "Strong craft, enjoyable, recommendable")
+    (5, "Outstanding", "Absolutely brilliant, stays with you")
+]
+
+/// Rating selector component with tooltips
+let private ratingSelector (current: int option) (dispatch: Msg -> unit) =
+    let currentRating = current |> Option.defaultValue 0
     Html.div [
-        prop.className "flex gap-1"
+        prop.className "space-y-2"
         prop.children [
-            for i in 1..5 do
-                let isFilled = current |> Option.map (fun r -> i <= r) |> Option.defaultValue false
-                Html.button [
-                    prop.className (
-                        "w-6 h-6 transition-colors " +
-                        if isFilled then "text-yellow-400" else "text-base-content/20 hover:text-yellow-400/50"
-                    )
-                    prop.onClick (fun _ -> dispatch (SetRating i))
-                    prop.children [ starSolid ]
+            // Stars row
+            Html.div [
+                prop.className "flex items-center gap-1"
+                prop.children [
+                    for i in 1..5 do
+                        let isFilled = i <= currentRating
+                        let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = i)
+                        Html.div [
+                            prop.className "tooltip tooltip-top"
+                            prop.custom ("data-tip", $"{label}: {description}")
+                            prop.children [
+                                Html.button [
+                                    prop.className (
+                                        "w-8 h-8 transition-all hover:scale-110 " +
+                                        if isFilled then "text-yellow-400" else "text-base-content/20 hover:text-yellow-400/50"
+                                    )
+                                    prop.onClick (fun _ ->
+                                        // Click on current rating clears it
+                                        if i = currentRating then
+                                            dispatch (SetRating 0)
+                                        else
+                                            dispatch (SetRating i))
+                                    prop.children [ starSolid ]
+                                ]
+                            ]
+                        ]
+                    // Clear button when rating is set
+                    if currentRating > 0 then
+                        Html.button [
+                            prop.className "ml-2 text-xs text-base-content/40 hover:text-base-content/60 transition-colors"
+                            prop.onClick (fun _ -> dispatch (SetRating 0))
+                            prop.text "Clear"
+                        ]
+                ]
+            ]
+            // Current rating description
+            match current with
+            | Some r when r > 0 ->
+                let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = r)
+                Html.p [
+                    prop.className "text-sm text-base-content/60"
+                    prop.children [
+                        Html.span [ prop.className "font-medium text-base-content/80"; prop.text label ]
+                        Html.span [ prop.text $" - {description}" ]
+                    ]
+                ]
+            | _ ->
+                Html.p [
+                    prop.className "text-sm text-base-content/40"
+                    prop.text "Click a star to rate"
                 ]
         ]
     ]
@@ -107,7 +158,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                 prop.className "space-y-4"
                                 prop.children [
                                     Html.div [
-                                        prop.className "poster-image-container poster-shadow"
+                                        prop.className "poster-image-container poster-shadow poster-projector-glow"
                                         prop.children [
                                             match movie.PosterPath with
                                             | Some _ ->
@@ -166,7 +217,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                     // Rating
                                     Html.div [
                                         Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Your Rating" ]
-                                        ratingStars (entry.PersonalRating |> Option.map PersonalRating.toInt) dispatch
+                                        ratingSelector (entry.PersonalRating |> Option.map PersonalRating.toInt) dispatch
                                     ]
 
                                     // Favorite toggle

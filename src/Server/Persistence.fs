@@ -211,6 +211,7 @@ type WatchSessionRecord = {
     notes: string
     created_at: string
     updated_at: string
+    is_default: int
 }
 
 [<CLIMutable>]
@@ -236,6 +237,12 @@ type CacheEntryRecord = {
 type CacheTypeCountRecord = {
     type_prefix: string
     cnt: int64
+}
+
+[<CLIMutable>]
+type SeriesInfoRecord = {
+    series_id: Nullable<int>
+    number_of_episodes: int
 }
 
 // =====================================
@@ -966,6 +973,7 @@ let getSessionsForEntry (EntryId entryId) : Async<WatchSession list> = async {
             Friends = friendIds |> Seq.map FriendId |> Seq.toList
             Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
             CreatedAt = DateTime.Parse(r.created_at)
+            IsDefault = r.is_default = 1
         }
     }
 
@@ -978,8 +986,8 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
     let now = DateTime.UtcNow.ToString("o")
     let! id =
         conn.ExecuteScalarAsync<int64>("""
-            INSERT INTO watch_sessions (entry_id, name, status, start_date, created_at, updated_at)
-            VALUES (@EntryId, @Name, 'Active', @StartDate, @CreatedAt, @UpdatedAt);
+            INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
+            VALUES (@EntryId, @Name, 'Active', @StartDate, 0, @CreatedAt, @UpdatedAt);
             SELECT last_insert_rowid();
         """, {|
             EntryId = EntryId.value request.EntryId
@@ -1014,13 +1022,305 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
         Friends = request.Friends
         Notes = None
         CreatedAt = DateTime.UtcNow
+        IsDefault = false
     }
+}
+
+/// Create the default "Personal" session for a series entry
+let createDefaultSession (entryId: EntryId) (seriesId: SeriesId) : Async<WatchSession> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let! id =
+        conn.ExecuteScalarAsync<int64>("""
+            INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
+            VALUES (@EntryId, 'Personal', 'Active', @StartDate, 1, @CreatedAt, @UpdatedAt);
+            SELECT last_insert_rowid();
+        """, {|
+            EntryId = EntryId.value entryId
+            StartDate = now
+            CreatedAt = now
+            UpdatedAt = now
+        |}) |> Async.AwaitTask
+
+    return {
+        Id = SessionId (int id)
+        EntryId = entryId
+        Name = "Personal"
+        Status = Active
+        StartDate = Some DateTime.UtcNow
+        EndDate = None
+        Tags = []
+        Friends = []
+        Notes = None
+        CreatedAt = DateTime.UtcNow
+        IsDefault = true
+    }
+}
+
+/// Get the default session for an entry
+let getDefaultSession (entryId: EntryId) : Async<WatchSession option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<WatchSessionRecord>(
+            "SELECT * FROM watch_sessions WHERE entry_id = @EntryId AND is_default = 1",
+            {| EntryId = EntryId.value entryId |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then return None
+    else
+        let! tagIds =
+            conn.QueryAsync<int>(
+                "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
+                {| SessionId = record.id |}
+            ) |> Async.AwaitTask
+        let! friendIds =
+            conn.QueryAsync<int>(
+                "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
+                {| SessionId = record.id |}
+            ) |> Async.AwaitTask
+        return Some {
+            Id = SessionId record.id
+            EntryId = EntryId record.entry_id
+            Name = record.name
+            Status = parseSessionStatus record.status
+            StartDate = parseDateTime record.start_date
+            EndDate = parseDateTime record.end_date
+            Tags = tagIds |> Seq.map TagId |> Seq.toList
+            Friends = friendIds |> Seq.map FriendId |> Seq.toList
+            Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
+            CreatedAt = DateTime.Parse(record.created_at)
+            IsDefault = record.is_default = 1
+        }
 }
 
 let deleteWatchSession (SessionId id) : Async<unit> = async {
     use conn = getConnection()
+    // Delete associated episode progress first
+    do! conn.ExecuteAsync("DELETE FROM episode_progress WHERE session_id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
+    // Delete session tags and friends
+    do! conn.ExecuteAsync("DELETE FROM session_tags WHERE session_id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
+    do! conn.ExecuteAsync("DELETE FROM session_friends WHERE session_id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
+    // Delete the session
     do! conn.ExecuteAsync("DELETE FROM watch_sessions WHERE id = @Id", {| Id = id |})
         |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Get a session by ID
+let getSessionById (SessionId id) : Async<WatchSession option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<WatchSessionRecord>(
+            "SELECT * FROM watch_sessions WHERE id = @Id",
+            {| Id = id |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then
+        return None
+    else
+        let tagParam = {| SessionId = record.id |}
+        let friendParam = {| SessionId = record.id |}
+        let! tagIds =
+            conn.QueryAsync<int>(
+                "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
+                tagParam
+            ) |> Async.AwaitTask
+        let! friendIds =
+            conn.QueryAsync<int>(
+                "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
+                friendParam
+            ) |> Async.AwaitTask
+        return Some {
+            Id = SessionId record.id
+            EntryId = EntryId record.entry_id
+            Name = record.name
+            Status = parseSessionStatus record.status
+            StartDate = parseDateTime record.start_date
+            EndDate = parseDateTime record.end_date
+            Tags = tagIds |> Seq.map TagId |> Seq.toList
+            Friends = friendIds |> Seq.map FriendId |> Seq.toList
+            Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
+            CreatedAt = DateTime.Parse(record.created_at)
+            IsDefault = record.is_default = 1
+        }
+}
+
+/// Update a watch session
+let updateWatchSession (request: UpdateSessionRequest) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    // Build the update dynamically based on what fields are provided
+    let! existing = getSessionById request.Id
+    match existing with
+    | None -> ()
+    | Some session ->
+        let name = Option.defaultValue session.Name request.Name
+        let notes = Option.toObj (Option.orElse session.Notes request.Notes)
+        let status = request.Status |> Option.defaultValue session.Status
+
+        // If marking as completed, set end date
+        let endDate =
+            match status with
+            | SessionCompleted when session.EndDate.IsNone -> now
+            | _ -> formatDateTime session.EndDate
+
+        let param = {|
+            Id = SessionId.value request.Id
+            Name = name
+            Notes = notes
+            Status = formatSessionStatus status
+            EndDate = endDate
+            UpdatedAt = now
+        |}
+
+        do! conn.ExecuteAsync("""
+            UPDATE watch_sessions SET
+                name = @Name,
+                notes = @Notes,
+                status = @Status,
+                end_date = @EndDate,
+                updated_at = @UpdatedAt
+            WHERE id = @Id
+        """, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+// =====================================
+// Session Tags Junction
+// =====================================
+
+let getTagsForSession (SessionId sessionId) : Async<TagId list> = async {
+    use conn = getConnection()
+    let! ids =
+        conn.QueryAsync<int>(
+            "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
+            {| SessionId = sessionId |}
+        ) |> Async.AwaitTask
+    return ids |> Seq.map TagId |> Seq.toList
+}
+
+let addTagToSession (SessionId sessionId) (TagId tagId) : Async<unit> = async {
+    use conn = getConnection()
+    do! conn.ExecuteAsync("""
+        INSERT OR IGNORE INTO session_tags (session_id, tag_id) VALUES (@SessionId, @TagId)
+    """, {| SessionId = sessionId; TagId = tagId |}) |> Async.AwaitTask |> Async.Ignore
+}
+
+let removeTagFromSession (SessionId sessionId) (TagId tagId) : Async<unit> = async {
+    use conn = getConnection()
+    let param = {| SessionId = sessionId; TagId = tagId |}
+    let! _ = conn.ExecuteAsync("DELETE FROM session_tags WHERE session_id = @SessionId AND tag_id = @TagId", param) |> Async.AwaitTask
+    return ()
+}
+
+// =====================================
+// Session Friends Junction
+// =====================================
+
+let getFriendsForSession (SessionId sessionId) : Async<FriendId list> = async {
+    use conn = getConnection()
+    let! ids =
+        conn.QueryAsync<int>(
+            "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
+            {| SessionId = sessionId |}
+        ) |> Async.AwaitTask
+    return ids |> Seq.map FriendId |> Seq.toList
+}
+
+let addFriendToSession (SessionId sessionId) (FriendId friendId) : Async<unit> = async {
+    use conn = getConnection()
+    do! conn.ExecuteAsync("""
+        INSERT OR IGNORE INTO session_friends (session_id, friend_id) VALUES (@SessionId, @FriendId)
+    """, {| SessionId = sessionId; FriendId = friendId |}) |> Async.AwaitTask |> Async.Ignore
+}
+
+let removeFriendFromSession (SessionId sessionId) (FriendId friendId) : Async<unit> = async {
+    use conn = getConnection()
+    let param = {| SessionId = sessionId; FriendId = friendId |}
+    let! _ = conn.ExecuteAsync("DELETE FROM session_friends WHERE session_id = @SessionId AND friend_id = @FriendId", param) |> Async.AwaitTask
+    return ()
+}
+
+// =====================================
+// Session Episode Progress
+// =====================================
+
+/// Get episode progress for a specific session
+let getSessionEpisodeProgress (SessionId sessionId) : Async<EpisodeProgress list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<EpisodeProgressRecord>(
+            """SELECT * FROM episode_progress WHERE session_id = @SessionId
+               ORDER BY season_number, episode_number""",
+            {| SessionId = sessionId |}
+        ) |> Async.AwaitTask
+
+    return records |> Seq.map (fun r -> {
+        EntryId = EntryId r.entry_id
+        SessionId = SessionId r.session_id.Value
+        SeriesId = SeriesId r.series_id
+        SeasonNumber = r.season_number
+        EpisodeNumber = r.episode_number
+        IsWatched = r.is_watched = 1
+        WatchedDate = parseDateTime r.watched_date
+    }) |> Seq.toList
+}
+
+/// Update episode progress for a session (insert or update)
+let updateSessionEpisodeProgress (sessionId: SessionId) (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeNumber: int) (watched: bool) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    let sessionIdVal = SessionId.value sessionId
+    let entryIdVal = EntryId.value entryId
+
+    // Check if record exists for this session
+    let! existingId =
+        conn.ExecuteScalarAsync<Nullable<int>>(
+            """SELECT id FROM episode_progress
+               WHERE entry_id = @EntryId AND session_id = @SessionId
+               AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber""",
+            {| EntryId = entryIdVal; SessionId = sessionIdVal; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber |}
+        ) |> Async.AwaitTask
+
+    match existingId.HasValue with
+    | true ->
+        // Update existing record
+        let! _ =
+            conn.ExecuteAsync(
+                """UPDATE episode_progress SET is_watched = @IsWatched, watched_date = @WatchedDate
+                   WHERE id = @Id""",
+                {| Id = existingId.Value; IsWatched = (if watched then 1 else 0); WatchedDate = (if watched then now else null) |}
+            ) |> Async.AwaitTask
+        return ()
+    | false ->
+        // Insert new record
+        let! _ =
+            conn.ExecuteAsync(
+                """INSERT INTO episode_progress (entry_id, session_id, series_id, season_number, episode_number, is_watched, watched_date)
+                   VALUES (@EntryId, @SessionId, @SeriesId, @SeasonNumber, @EpisodeNumber, @IsWatched, @WatchedDate)""",
+                {| EntryId = entryIdVal; SessionId = sessionIdVal; SeriesId = SeriesId.value seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; IsWatched = (if watched then 1 else 0); WatchedDate = (if watched then now else null) |}
+            ) |> Async.AwaitTask
+        return ()
+}
+
+/// Mark all episodes in a season as watched for a session
+let markSessionSeasonWatched (sessionId: SessionId) (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeCount: int) : Async<unit> = async {
+    for ep in 1 .. episodeCount do
+        do! updateSessionEpisodeProgress sessionId entryId seriesId seasonNumber ep true
+}
+
+/// Count watched episodes for a session
+let countSessionWatchedEpisodes (SessionId sessionId) : Async<int> = async {
+    use conn = getConnection()
+    let! count =
+        conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM episode_progress WHERE session_id = @SessionId AND is_watched = 1",
+            {| SessionId = sessionId |}
+        ) |> Async.AwaitTask
+    return count
 }
 
 // =====================================
@@ -1580,6 +1880,9 @@ let insertLibraryEntryForSeries (seriesDetails: TmdbSeriesDetails) (request: Add
             for friendId in request.InitialFriends do
                 do! addFriendToEntry (EntryId entryIdInt) friendId
 
+            // Create default "Personal" session for the series
+            let! _ = createDefaultSession (EntryId entryIdInt) (SeriesId seriesId)
+
             // Fetch and return the complete entry
             let! entry = getLibraryEntryById (EntryId entryIdInt)
             match entry with
@@ -1654,6 +1957,76 @@ let deleteLibraryEntry (EntryId id) : Async<unit> = async {
                 try IO.File.Delete(localPath)
                 with _ -> ()
         )
+}
+
+// =====================================
+// Entry Update Operations
+// =====================================
+
+/// Update personal rating for a library entry
+let updatePersonalRating (EntryId id) (rating: PersonalRating option) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let ratingValue =
+        rating
+        |> Option.map PersonalRating.toInt
+        |> optionToNullable
+
+    let param = {|
+        Id = id
+        PersonalRating = ratingValue
+        UpdatedAt = now
+    |}
+
+    do! conn.ExecuteAsync("""
+        UPDATE library_entries SET
+            personal_rating = @PersonalRating,
+            updated_at = @UpdatedAt
+        WHERE id = @Id
+    """, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Toggle favorite status for a library entry
+let toggleFavorite (EntryId id) : Async<bool> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    // Get current favorite status
+    let! currentRecord =
+        conn.QueryFirstOrDefaultAsync<{| is_favorite: int |}>(
+            "SELECT is_favorite FROM library_entries WHERE id = @Id",
+            {| Id = id |}
+        ) |> Async.AwaitTask
+
+    let newValue = if currentRecord.is_favorite = 1 then 0 else 1
+
+    do! conn.ExecuteAsync("""
+        UPDATE library_entries SET
+            is_favorite = @IsFavorite,
+            updated_at = @UpdatedAt
+        WHERE id = @Id
+    """, {| Id = id; IsFavorite = newValue; UpdatedAt = now |}) |> Async.AwaitTask |> Async.Ignore
+
+    return newValue = 1
+}
+
+/// Update notes for a library entry
+let updateNotes (EntryId id) (notes: string option) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+
+    let param = {|
+        Id = id
+        Notes = notes |> Option.toObj
+        UpdatedAt = now
+    |}
+
+    do! conn.ExecuteAsync("""
+        UPDATE library_entries SET
+            notes = @Notes,
+            updated_at = @UpdatedAt
+        WHERE id = @Id
+    """, param) |> Async.AwaitTask |> Async.Ignore
 }
 
 // =====================================
@@ -1741,75 +2114,50 @@ let markMovieUnwatched (entryId: EntryId) : Async<unit> = async {
 }
 
 // =====================================
-// Episode Progress Operations
+// Episode Progress Operations (Default Session)
 // =====================================
 
-/// Get episode progress for an entry
-let getEpisodeProgress (EntryId entryId) : Async<EpisodeProgress list> = async {
-    use conn = getConnection()
-    let! records =
-        conn.QueryAsync<EpisodeProgressRecord>(
-            """SELECT * FROM episode_progress WHERE entry_id = @EntryId
-               ORDER BY season_number, episode_number""",
-            {| EntryId = entryId |}
-        ) |> Async.AwaitTask
-
-    return records |> Seq.map (fun r -> {
-        EntryId = EntryId r.entry_id
-        SessionId = if r.session_id.HasValue then Some (SessionId r.session_id.Value) else None
-        SeriesId = SeriesId r.series_id
-        SeasonNumber = r.season_number
-        EpisodeNumber = r.episode_number
-        IsWatched = r.is_watched = 1
-        WatchedDate = parseDateTime r.watched_date
-    }) |> Seq.toList
+/// Get episode progress for an entry's default session
+let getEpisodeProgress (entryId: EntryId) : Async<EpisodeProgress list> = async {
+    let! defaultSession = getDefaultSession entryId
+    match defaultSession with
+    | Some session -> return! getSessionEpisodeProgress session.Id
+    | None -> return []
 }
 
-/// Update episode progress (insert or update)
+/// Update episode progress for an entry's default session
 let updateEpisodeProgress (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeNumber: int) (watched: bool) : Async<unit> = async {
-    use conn = getConnection()
-    let now = DateTime.UtcNow.ToString("o")
-
-    let param = {|
-        EntryId = EntryId.value entryId
-        SeriesId = SeriesId.value seriesId
-        SeasonNumber = seasonNumber
-        EpisodeNumber = episodeNumber
-        IsWatched = if watched then 1 else 0
-        WatchedDate = if watched then now else null
-    |}
-
-    do! conn.ExecuteAsync("""
-        INSERT INTO episode_progress (entry_id, series_id, season_number, episode_number, is_watched, watched_date)
-        VALUES (@EntryId, @SeriesId, @SeasonNumber, @EpisodeNumber, @IsWatched, @WatchedDate)
-        ON CONFLICT(entry_id, season_number, episode_number) DO UPDATE SET
-            is_watched = @IsWatched,
-            watched_date = @WatchedDate
-    """, param) |> Async.AwaitTask |> Async.Ignore
+    let! defaultSession = getDefaultSession entryId
+    match defaultSession with
+    | Some session ->
+        do! updateSessionEpisodeProgress session.Id entryId seriesId seasonNumber episodeNumber watched
+    | None ->
+        // No default session - this shouldn't happen after migration
+        ()
 }
 
-/// Mark all episodes in a season as watched
+/// Mark all episodes in a season as watched (for default session)
 let markSeasonWatched (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeCount: int) : Async<unit> = async {
-    for ep in 1 .. episodeCount do
-        do! updateEpisodeProgress entryId seriesId seasonNumber ep true
+    let! defaultSession = getDefaultSession entryId
+    match defaultSession with
+    | Some session ->
+        do! markSessionSeasonWatched session.Id entryId seriesId seasonNumber episodeCount
+    | None -> ()
 }
 
-/// Count watched episodes for an entry
-let countWatchedEpisodes (EntryId entryId) : Async<int> = async {
-    use conn = getConnection()
-    let! count =
-        conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM episode_progress WHERE entry_id = @EntryId AND is_watched = 1",
-            {| EntryId = entryId |}
-        ) |> Async.AwaitTask
-    return count
+/// Count watched episodes for an entry (from default session)
+let countWatchedEpisodes (entryId: EntryId) : Async<int> = async {
+    let! defaultSession = getDefaultSession entryId
+    match defaultSession with
+    | Some session -> return! countSessionWatchedEpisodes session.Id
+    | None -> return 0
 }
 
 /// Get series info for a library entry (returns SeriesId and total episodes)
 let getSeriesInfoForEntry (EntryId entryId) : Async<(SeriesId * int) option> = async {
     use conn = getConnection()
     let! record =
-        conn.QueryFirstOrDefaultAsync<{| series_id: Nullable<int>; number_of_episodes: int |}>(
+        conn.QueryFirstOrDefaultAsync<SeriesInfoRecord>(
             """SELECT le.series_id, s.number_of_episodes
                FROM library_entries le
                JOIN series s ON le.series_id = s.id

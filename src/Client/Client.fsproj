@@ -11,6 +11,7 @@
     <!-- Stateless Components -->
     <Compile Include="Components/Icons.fs" />
     <Compile Include="Components/Cards/View.fs" />
+    <Compile Include="Components/Modal/View.fs" />
 
     <!-- Notification Component -->
     <Compile Include="Components/Notification/Types.fs" />
@@ -47,6 +48,11 @@
     <Compile Include="Components/QuickAddModal/State.fs" />
     <Compile Include="Components/QuickAddModal/View.fs" />
 
+    <!-- WatchSessionModal Component -->
+    <Compile Include="Components/WatchSessionModal/Types.fs" />
+    <Compile Include="Components/WatchSessionModal/State.fs" />
+    <Compile Include="Components/WatchSessionModal/View.fs" />
+
     <!-- Layout Component -->
     <Compile Include="Components/Layout/Types.fs" />
     <Compile Include="Components/Layout/State.fs" />
@@ -74,6 +80,11 @@
     <Compile Include="Pages/SeriesDetail/Types.fs" />
     <Compile Include="Pages/SeriesDetail/State.fs" />
     <Compile Include="Pages/SeriesDetail/View.fs" />
+
+    <!-- SessionDetail Page -->
+    <Compile Include="Pages/SessionDetail/Types.fs" />
+    <Compile Include="Pages/SessionDetail/State.fs" />
+    <Compile Include="Pages/SessionDetail/View.fs" />
 
     <!-- Friends Page -->
     <Compile Include="Pages/Friends/Types.fs" />

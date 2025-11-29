@@ -6,22 +6,37 @@ open Shared.Domain
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
+    Sessions: RemoteData<WatchSession list>
+    SelectedSessionId: SessionId option
     EpisodeProgress: EpisodeProgress list
+    SeasonDetails: Map<int, TmdbSeasonDetails>
+    LoadingSeasons: Set<int>
 }
 
 type Msg =
     | LoadEntry
-    | EntryLoaded of Result<(LibraryEntry * EpisodeProgress list) option, string>
+    | EntryLoaded of Result<LibraryEntry option, string>
+    | LoadSessions
+    | SessionsLoaded of Result<WatchSession list, string>
+    | SelectSession of SessionId
+    | LoadSessionProgress of SessionId
+    | SessionProgressLoaded of Result<EpisodeProgress list, string>
+    | LoadSeasonDetails of int
+    | SeasonDetailsLoaded of int * Result<TmdbSeasonDetails, string>
     | MarkSeriesCompleted
     | OpenAbandonModal
     | ResumeEntry
     | ToggleEpisodeWatched of seasonNum: int * episodeNum: int * isWatched: bool
+    | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
     | ToggleFavorite
     | SetRating of int
     | UpdateNotes of string
     | SaveNotes
     | OpenDeleteModal
+    | OpenNewSessionModal
+    | DeleteSession of SessionId
+    | SessionDeleteResult of Result<SessionId, string>
     | ToggleTag of TagId
     | ToggleFriend of FriendId
     | ActionResult of Result<LibraryEntry, string>
@@ -33,11 +48,17 @@ type ExternalMsg =
     | NavigateBack
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
+    | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
+    | EntryUpdated of LibraryEntry
 
 module Model =
     let create entryId = {
         EntryId = entryId
         Entry = NotAsked
+        Sessions = NotAsked
+        SelectedSessionId = None
         EpisodeProgress = []
+        SeasonDetails = Map.empty
+        LoadingSeasons = Set.empty
     }
