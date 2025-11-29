@@ -372,11 +372,10 @@ type LibraryEntry = {
 // Watch Sessions & Progress
 // =====================================
 
-/// A named watch session for a series
+/// A watch session for a series (requires at least one friend)
 type WatchSession = {
     Id: SessionId
     EntryId: EntryId
-    Name: string
     Status: SessionStatus
     StartDate: DateTime option
     EndDate: DateTime option
@@ -672,10 +671,9 @@ type UpdateCollectionRequest = {
     Description: string option
 }
 
-/// Request to create a watch session
+/// Request to create a watch session (requires at least one friend)
 type CreateSessionRequest = {
     EntryId: EntryId
-    Name: string
     Friends: FriendId list
     Tags: TagId list
 }
@@ -690,7 +688,6 @@ type AbandonRequest = {
 /// Request to update a watch session
 type UpdateSessionRequest = {
     Id: SessionId
-    Name: string option
     Notes: string option
     Status: SessionStatus option
 }

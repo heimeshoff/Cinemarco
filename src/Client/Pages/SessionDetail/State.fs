@@ -106,7 +106,6 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | UpdateStatus status ->
         let request : UpdateSessionRequest = {
             Id = model.SessionId
-            Name = None
             Notes = None
             Status = Some status
         }

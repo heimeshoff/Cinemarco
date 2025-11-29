@@ -965,7 +965,6 @@ let getSessionsForEntry (EntryId entryId) : Async<WatchSession list> = async {
         return {
             Id = SessionId r.id
             EntryId = EntryId r.entry_id
-            Name = r.name
             Status = parseSessionStatus r.status
             StartDate = parseDateTime r.start_date
             EndDate = parseDateTime r.end_date
@@ -987,11 +986,10 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
     let! id =
         conn.ExecuteScalarAsync<int64>("""
             INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
-            VALUES (@EntryId, @Name, 'Active', @StartDate, 0, @CreatedAt, @UpdatedAt);
+            VALUES (@EntryId, '', 'Active', @StartDate, 0, @CreatedAt, @UpdatedAt);
             SELECT last_insert_rowid();
         """, {|
             EntryId = EntryId.value request.EntryId
-            Name = request.Name
             StartDate = now
             CreatedAt = now
             UpdatedAt = now
@@ -1014,7 +1012,6 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
     return {
         Id = SessionId sessionId
         EntryId = request.EntryId
-        Name = request.Name
         Status = Active
         StartDate = Some DateTime.UtcNow
         EndDate = None
@@ -1033,7 +1030,7 @@ let createDefaultSession (entryId: EntryId) (seriesId: SeriesId) : Async<WatchSe
     let! id =
         conn.ExecuteScalarAsync<int64>("""
             INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
-            VALUES (@EntryId, 'Personal', 'Active', @StartDate, 1, @CreatedAt, @UpdatedAt);
+            VALUES (@EntryId, '', 'Active', @StartDate, 1, @CreatedAt, @UpdatedAt);
             SELECT last_insert_rowid();
         """, {|
             EntryId = EntryId.value entryId
@@ -1045,7 +1042,6 @@ let createDefaultSession (entryId: EntryId) (seriesId: SeriesId) : Async<WatchSe
     return {
         Id = SessionId (int id)
         EntryId = entryId
-        Name = "Personal"
         Status = Active
         StartDate = Some DateTime.UtcNow
         EndDate = None
@@ -1081,7 +1077,6 @@ let getDefaultSession (entryId: EntryId) : Async<WatchSession option> = async {
         return Some {
             Id = SessionId record.id
             EntryId = EntryId record.entry_id
-            Name = record.name
             Status = parseSessionStatus record.status
             StartDate = parseDateTime record.start_date
             EndDate = parseDateTime record.end_date
@@ -1135,7 +1130,6 @@ let getSessionById (SessionId id) : Async<WatchSession option> = async {
         return Some {
             Id = SessionId record.id
             EntryId = EntryId record.entry_id
-            Name = record.name
             Status = parseSessionStatus record.status
             StartDate = parseDateTime record.start_date
             EndDate = parseDateTime record.end_date
@@ -1157,7 +1151,6 @@ let updateWatchSession (request: UpdateSessionRequest) : Async<unit> = async {
     match existing with
     | None -> ()
     | Some session ->
-        let name = Option.defaultValue session.Name request.Name
         let notes = Option.toObj (Option.orElse session.Notes request.Notes)
         let status = request.Status |> Option.defaultValue session.Status
 
@@ -1169,7 +1162,6 @@ let updateWatchSession (request: UpdateSessionRequest) : Async<unit> = async {
 
         let param = {|
             Id = SessionId.value request.Id
-            Name = name
             Notes = notes
             Status = formatSessionStatus status
             EndDate = endDate
@@ -1178,7 +1170,6 @@ let updateWatchSession (request: UpdateSessionRequest) : Async<unit> = async {
 
         do! conn.ExecuteAsync("""
             UPDATE watch_sessions SET
-                name = @Name,
                 notes = @Notes,
                 status = @Status,
                 end_date = @EndDate,

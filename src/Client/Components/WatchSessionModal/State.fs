@@ -11,9 +11,6 @@ let init (entryId: EntryId) : Model =
 
 let update (api: CreateApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
-    | NameChanged name ->
-        { model with Name = name }, Cmd.none, NoOp
-
     | ToggleTag tagId ->
         let newTags =
             if List.contains tagId model.SelectedTags then
@@ -31,12 +28,11 @@ let update (api: CreateApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         { model with SelectedFriends = newFriends }, Cmd.none, NoOp
 
     | Submit ->
-        if model.Name.Trim().Length = 0 then
-            { model with Error = Some "Session name is required" }, Cmd.none, NoOp
+        if List.isEmpty model.SelectedFriends then
+            { model with Error = Some "Please select at least one friend to watch with" }, Cmd.none, NoOp
         else
             let request : CreateSessionRequest = {
                 EntryId = model.EntryId
-                Name = model.Name.Trim()
                 Tags = model.SelectedTags
                 Friends = model.SelectedFriends
             }

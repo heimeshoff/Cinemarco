@@ -198,6 +198,23 @@ let private groupBySeasons (progress: EpisodeProgress list) : Map<int, int list>
     |> List.map (fun (season, eps) -> season, eps |> List.map (fun e -> e.EpisodeNumber))
     |> Map.ofList
 
+/// Generate a display name for a session based on its friends
+let private sessionDisplayName (session: WatchSession) (allFriends: Friend list) =
+    if session.IsDefault then
+        "Personal"
+    else
+        let friendNames =
+            session.Friends
+            |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+            |> List.map (fun f -> f.Name)
+        match friendNames with
+        | [] -> "Personal"
+        | [name] -> $"with {name}"
+        | names ->
+            let allButLast = names |> List.take (names.Length - 1) |> String.concat ", "
+            let last = List.last names
+            $"with {allButLast} and {last}"
+
 let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
@@ -344,14 +361,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                                         if isSelected then "btn-primary" else "btn-ghost"
                                                                     )
                                                                     prop.onClick (fun _ -> dispatch (SelectSession session.Id))
-                                                                    prop.children [
-                                                                        Html.span [ prop.text session.Name ]
-                                                                        if not session.IsDefault && not (List.isEmpty session.Friends) then
-                                                                            Html.span [
-                                                                                prop.className "badge badge-xs badge-ghost ml-1"
-                                                                                prop.text $"+{List.length session.Friends}"
-                                                                            ]
-                                                                    ]
+                                                                    prop.text (sessionDisplayName session friends)
                                                                 ]
                                                                 // Delete button for non-default sessions
                                                                 if not session.IsDefault then

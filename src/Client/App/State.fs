@@ -566,7 +566,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 ]
             | None -> Cmd.none
         model, Cmd.batch [
-            Cmd.ofMsg (ShowNotification ($"Session '{session.Name}' created", true))
+            Cmd.ofMsg (ShowNotification ("Watch session created", true))
             reloadAndSelectCmd
         ]
 

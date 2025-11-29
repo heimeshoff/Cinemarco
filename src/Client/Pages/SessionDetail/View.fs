@@ -197,6 +197,20 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                     | LibrarySeries s -> s.Name
                     | LibraryMovie m -> m.Title
 
+                // Generate session name from friends
+                let sessionDisplayName =
+                    let friendNames =
+                        session.Friends
+                        |> List.choose (fun fid -> friends |> List.tryFind (fun f -> f.Id = fid))
+                        |> List.map (fun f -> f.Name)
+                    match friendNames with
+                    | [] -> "Personal viewing"
+                    | [name] -> $"watching with {name}"
+                    | names ->
+                        let allButLast = names |> List.take (names.Length - 1) |> String.concat ", "
+                        let last = List.last names
+                        $"watching with {allButLast} and {last}"
+
                 Html.div [
                     prop.className "space-y-6"
                     prop.children [
@@ -206,12 +220,12 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                             prop.children [
                                 Html.div [
                                     Html.h1 [
-                                        prop.className "text-2xl font-bold"
-                                        prop.text session.Name
+                                        prop.className "text-2xl font-bold capitalize"
+                                        prop.text sessionDisplayName
                                     ]
                                     Html.p [
                                         prop.className "text-base-content/60"
-                                        prop.text $"Session for {seriesName}"
+                                        prop.text seriesName
                                     ]
                                     Html.div [
                                         prop.className "flex items-center gap-2 mt-2"
