@@ -8,6 +8,7 @@ type Model = {
     SessionData: RemoteData<WatchSessionWithProgress>
     SeasonDetails: Map<int, TmdbSeasonDetails>
     LoadingSeasons: Set<int>
+    IsAddingFriend: bool
 }
 
 type Msg =
@@ -21,6 +22,8 @@ type Msg =
     | UpdateStatus of SessionStatus
     | ToggleTag of TagId
     | ToggleFriend of FriendId
+    | AddNewFriend of string
+    | FriendCreated of Result<Friend, string>
     | DeleteSession
     | ActionResult of Result<WatchSession, string>
     | EpisodeActionResult of Result<EpisodeProgress list, string>
@@ -33,6 +36,7 @@ type ExternalMsg =
     | NavigateToSeries of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | SessionDeleted of SessionId
+    | FriendCreatedInline of Friend
 
 module Model =
     let create sessionId = {
@@ -40,4 +44,5 @@ module Model =
         SessionData = NotAsked
         SeasonDetails = Map.empty
         LoadingSeasons = Set.empty
+        IsAddingFriend = false
     }

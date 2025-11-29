@@ -5,6 +5,7 @@ open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
+open Components.FriendSelector.View
 
 let view (model: Model) (friends: Friend list) (tags: Tag list) (dispatch: Msg -> unit) =
     let year =
@@ -193,41 +194,41 @@ let view (model: Model) (friends: Friend list) (tags: Tag list) (dispatch: Msg -
                                     ]
                                 ]
 
-                            // Friends selection
-                            if not (List.isEmpty friends) then
-                                Html.div [
-                                    prop.className "space-y-3"
-                                    prop.children [
-                                        Html.label [
-                                            prop.className "flex items-center gap-2 text-sm font-medium text-base-content/70"
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "w-4 h-4"
-                                                    prop.children [ Components.Icons.friends ]
-                                                ]
-                                                Html.span [ prop.text "Watch with" ]
+                            // Friends selection - using FriendSelector component
+                            Html.div [
+                                prop.className "space-y-3"
+                                prop.children [
+                                    Html.label [
+                                        prop.className "flex items-center gap-2 text-sm font-medium text-base-content/70"
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "w-4 h-4"
+                                                prop.children [ Components.Icons.friends ]
                                             ]
-                                        ]
-                                        Html.div [
-                                            prop.className "flex flex-wrap gap-2"
-                                            prop.children [
-                                                for friend in friends do
-                                                    let isSelected = List.contains friend.Id model.SelectedFriends
-                                                    Html.button [
-                                                        prop.type' "button"
-                                                        prop.className (
-                                                            "px-3 py-1.5 rounded-full text-sm font-medium transition-all " +
-                                                            if isSelected then "bg-secondary text-secondary-content shadow-glow-secondary"
-                                                            else "bg-base-200/50 text-base-content/60 hover:bg-base-200 hover:text-base-content"
-                                                        )
-                                                        prop.onClick (fun _ -> dispatch (ToggleFriend friend.Id))
-                                                        prop.disabled model.IsSubmitting
-                                                        prop.text friend.Name
-                                                    ]
-                                            ]
+                                            Html.span [ prop.text "Watch with" ]
                                         ]
                                     ]
+                                    FriendSelector {
+                                        AllFriends = friends
+                                        SelectedFriends = model.SelectedFriends
+                                        OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                                        OnAddNew = fun name -> dispatch (AddNewFriend name)
+                                        OnSubmit = if not model.IsSubmitting && not model.IsAddingFriend then Some (fun () -> dispatch Submit) else None
+                                        IsDisabled = model.IsSubmitting || model.IsAddingFriend
+                                        Placeholder = "Search or add friends..."
+                                        IsRequired = false
+                                        AutoFocus = false
+                                    }
+                                    if model.IsAddingFriend then
+                                        Html.div [
+                                            prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
+                                            prop.children [
+                                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                Html.span [ prop.text "Adding friend..." ]
+                                            ]
+                                        ]
                                 ]
+                            ]
 
                             // Divider
                             Html.div [ prop.className "border-t border-white/5" ]

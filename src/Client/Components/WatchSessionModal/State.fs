@@ -4,12 +4,15 @@ open Elmish
 open Shared.Domain
 open Types
 
-type CreateApi = CreateSessionRequest -> Async<Result<WatchSession, string>>
+type Api = {
+    CreateSession: CreateSessionRequest -> Async<Result<WatchSession, string>>
+    CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
+}
 
 let init (entryId: EntryId) : Model =
     Model.create entryId
 
-let update (api: CreateApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | ToggleTag tagId ->
         let newTags =
@@ -27,6 +30,29 @@ let update (api: CreateApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 friendId :: model.SelectedFriends
         { model with SelectedFriends = newFriends }, Cmd.none, NoOp
 
+    | AddNewFriend name ->
+        let request : CreateFriendRequest = {
+            Name = name
+            Nickname = None
+            Notes = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateFriend
+                request
+                FriendCreated
+                (fun ex -> Error ex.Message |> FriendCreated)
+        { model with IsAddingFriend = true; Error = None }, cmd, NoOp
+
+    | FriendCreated (Ok friend) ->
+        // Add the new friend to the selected list
+        { model with
+            IsAddingFriend = false
+            SelectedFriends = friend.Id :: model.SelectedFriends }, Cmd.none, NoOp
+
+    | FriendCreated (Error err) ->
+        { model with IsAddingFriend = false; Error = Some err }, Cmd.none, NoOp
+
     | Submit ->
         if List.isEmpty model.SelectedFriends then
             { model with Error = Some "Please select at least one friend to watch with" }, Cmd.none, NoOp
@@ -38,7 +64,7 @@ let update (api: CreateApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
             }
             let cmd =
                 Cmd.OfAsync.either
-                    api
+                    api.CreateSession
                     request
                     SubmitResult
                     (fun ex -> Error ex.Message |> SubmitResult)

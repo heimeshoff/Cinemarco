@@ -8,6 +8,7 @@ open Types
 type AddApi = {
     AddMovie: AddMovieRequest -> Async<Result<LibraryEntry, string>>
     AddSeries: AddSeriesRequest -> Async<Result<LibraryEntry, string>>
+    CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
 }
 
 let init (item: TmdbSearchResult) : Model =
@@ -33,6 +34,28 @@ let update (api: AddApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * External
             else
                 friendId :: model.SelectedFriends
         { model with SelectedFriends = newFriends }, Cmd.none, NoOp
+
+    | AddNewFriend name ->
+        let request : CreateFriendRequest = {
+            Name = name
+            Nickname = None
+            Notes = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateFriend
+                request
+                FriendCreated
+                (fun ex -> Error ex.Message |> FriendCreated)
+        { model with IsAddingFriend = true }, cmd, NoOp
+
+    | FriendCreated (Ok friend) ->
+        // Add the friend to selected list and notify the app
+        let newFriends = friend.Id :: model.SelectedFriends
+        { model with IsAddingFriend = false; SelectedFriends = newFriends }, Cmd.none, FriendCreatedInline friend
+
+    | FriendCreated (Error err) ->
+        { model with IsAddingFriend = false; Error = Some err }, Cmd.none, NoOp
 
     | Submit ->
         let whyAdded =

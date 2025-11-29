@@ -11,6 +11,7 @@ type SessionApi = {
     DeleteSession: SessionId -> Async<Result<unit, string>>
     ToggleTag: SessionId * TagId -> Async<Result<WatchSession, string>>
     ToggleFriend: SessionId * FriendId -> Async<Result<WatchSession, string>>
+    CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
     ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
     MarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
@@ -134,6 +135,33 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
+
+    | AddNewFriend name ->
+        let request : CreateFriendRequest = {
+            Name = name
+            Nickname = None
+            Notes = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateFriend
+                request
+                FriendCreated
+                (fun ex -> Error ex.Message |> FriendCreated)
+        { model with IsAddingFriend = true }, cmd, NoOp
+
+    | FriendCreated (Ok friend) ->
+        // Toggle the friend on this session (to add them) and notify the app
+        let toggleCmd =
+            Cmd.OfAsync.either
+                api.ToggleFriend
+                (model.SessionId, friend.Id)
+                ActionResult
+                (fun ex -> Error ex.Message |> ActionResult)
+        { model with IsAddingFriend = false }, toggleCmd, FriendCreatedInline friend
+
+    | FriendCreated (Error err) ->
+        { model with IsAddingFriend = false }, Cmd.none, ShowNotification (err, false)
 
     | DeleteSession ->
         let cmd =

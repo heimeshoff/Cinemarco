@@ -6,6 +6,7 @@ open Shared.Domain
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
+    IsAddingFriend: bool
 }
 
 type Msg =
@@ -22,6 +23,8 @@ type Msg =
     | OpenDeleteModal
     | ToggleTag of TagId
     | ToggleFriend of FriendId
+    | AddNewFriend of string
+    | FriendCreated of Result<Friend, string>
     | ActionResult of Result<LibraryEntry, string>
     | GoBack
 
@@ -32,6 +35,7 @@ type ExternalMsg =
     | RequestOpenDeleteModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
+    | FriendCreatedInline of Friend
 
 module Model =
-    let create entryId = { EntryId = entryId; Entry = NotAsked }
+    let create entryId = { EntryId = entryId; Entry = NotAsked; IsAddingFriend = false }

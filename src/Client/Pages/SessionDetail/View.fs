@@ -6,6 +6,7 @@ open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
+open Components.FriendSelector.View
 
 /// Progress bar component
 let private progressBar (current: int) (total: int) =
@@ -259,34 +260,37 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                             ]
                         ]
 
-                        // Friends
-                        if not (List.isEmpty friends) then
-                            Html.div [
-                                prop.className "card bg-base-200"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "card-body"
-                                        prop.children [
-                                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Watching With" ]
+                        // Friends - using FriendSelector component
+                        Html.div [
+                            prop.className "card bg-base-200"
+                            prop.children [
+                                Html.div [
+                                    prop.className "card-body"
+                                    prop.children [
+                                        Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Watching With" ]
+                                        FriendSelector {
+                                            AllFriends = friends
+                                            SelectedFriends = session.Friends
+                                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                                            OnAddNew = fun name -> dispatch (AddNewFriend name)
+                                            OnSubmit = None
+                                            IsDisabled = model.IsAddingFriend
+                                            Placeholder = "Search or add friends..."
+                                            IsRequired = false
+                                            AutoFocus = false
+                                        }
+                                        if model.IsAddingFriend then
                                             Html.div [
-                                                prop.className "flex flex-wrap gap-2"
+                                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
                                                 prop.children [
-                                                    for friend in friends do
-                                                        let isSelected = List.contains friend.Id session.Friends
-                                                        Html.button [
-                                                            prop.className (
-                                                                "btn btn-sm " +
-                                                                if isSelected then "btn-primary" else "btn-ghost"
-                                                            )
-                                                            prop.onClick (fun _ -> dispatch (ToggleFriend friend.Id))
-                                                            prop.text friend.Name
-                                                        ]
+                                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                    Html.span [ prop.text "Adding friend..." ]
                                                 ]
                                             ]
-                                        ]
                                     ]
                                 ]
                             ]
+                        ]
 
                         // Tags
                         if not (List.isEmpty tags) then

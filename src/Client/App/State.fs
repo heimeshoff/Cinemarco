@@ -145,6 +145,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let addApi : Components.QuickAddModal.State.AddApi = {
                 AddMovie = fun req -> Api.api.libraryAddMovie req
                 AddSeries = fun req -> Api.api.libraryAddSeries req
+                CreateFriend = fun req -> Api.api.friendsCreate req
             }
             let newModal, modalCmd, extMsg = Components.QuickAddModal.State.update addApi quickAddMsg modalModel
             let model' = { model with Modal = QuickAddModal newModal }
@@ -155,6 +156,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (EntryAdded entry)]
             | Components.QuickAddModal.Types.CloseRequested ->
                 { model' with Modal = NoModal }, cmd
+            | Components.QuickAddModal.Types.FriendCreatedInline friend ->
+                // Update global friends list
+                let updatedFriends =
+                    match model'.Friends with
+                    | Success friends -> Success (friend :: friends)
+                    | other -> other
+                { model' with Friends = updatedFriends }, cmd
         | _ -> model, Cmd.none
 
     | OpenFriendModal friend ->
@@ -266,16 +274,29 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | WatchSessionModalMsg sessionModalMsg ->
         match model.Modal with
         | WatchSessionModal modalModel ->
-            let createApi = fun req -> Api.api.sessionsCreate req
-            let newModal, modalCmd, extMsg = Components.WatchSessionModal.State.update createApi sessionModalMsg modalModel
+            let sessionApi : Components.WatchSessionModal.State.Api = {
+                CreateSession = fun req -> Api.api.sessionsCreate req
+                CreateFriend = fun req -> Api.api.friendsCreate req
+            }
+            let newModal, modalCmd, extMsg = Components.WatchSessionModal.State.update sessionApi sessionModalMsg modalModel
             let model' = { model with Modal = WatchSessionModal newModal }
             let cmd = Cmd.map WatchSessionModalMsg modalCmd
+            // Check if a friend was just created and update the global friends list
+            let model'' =
+                match sessionModalMsg with
+                | Components.WatchSessionModal.Types.FriendCreated (Ok friend) ->
+                    let updatedFriends =
+                        match model'.Friends with
+                        | Success friends -> Success (friend :: friends)
+                        | other -> other
+                    { model' with Friends = updatedFriends }
+                | _ -> model'
             match extMsg with
-            | Components.WatchSessionModal.Types.NoOp -> model', cmd
+            | Components.WatchSessionModal.Types.NoOp -> model'', cmd
             | Components.WatchSessionModal.Types.Created session ->
-                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (SessionCreated session)]
+                { model'' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (SessionCreated session)]
             | Components.WatchSessionModal.Types.CloseRequested ->
-                { model' with Modal = NoModal }, cmd
+                { model'' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
     // Notification
@@ -403,6 +424,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
                 ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
                 ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
+                CreateFriend = fun request -> Api.api.friendsCreate request
             }
             let newPage, pageCmd, extMsg = Pages.MovieDetail.State.update movieApi movieMsg pageModel
             let model' = { model with MovieDetailPage = Some newPage }
@@ -416,6 +438,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.EntryUpdated entry ->
                 let model'' = syncEntryToPages entry model'
                 model'', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Updated successfully", true))]
+            | Pages.MovieDetail.Types.FriendCreatedInline friend ->
+                // Update global friends list
+                let updatedFriends =
+                    match model'.Friends with
+                    | Success friends -> Success (friend :: friends)
+                    | other -> other
+                { model' with Friends = updatedFriends }, cmd
         | None -> model, Cmd.none
 
     // Page messages - SeriesDetail
@@ -472,6 +501,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
                 ToggleTag = fun (sessionId, tagId) -> Api.api.sessionsToggleTag (sessionId, tagId)
                 ToggleFriend = fun (sessionId, friendId) -> Api.api.sessionsToggleFriend (sessionId, friendId)
+                CreateFriend = fun req -> Api.api.friendsCreate req
                 ToggleEpisode = fun (sessionId, s, e, w) -> Api.api.sessionsUpdateEpisodeProgress (sessionId, s, e, w)
                 MarkSeasonWatched = fun (sessionId, s) -> Api.api.sessionsMarkSeasonWatched (sessionId, s)
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
@@ -485,6 +515,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SessionDetail.Types.NavigateToSeries entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
             | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
             | Pages.SessionDetail.Types.SessionDeleted sessionId -> model', Cmd.batch [cmd; Cmd.ofMsg (SessionDeleted sessionId)]
+            | Pages.SessionDetail.Types.FriendCreatedInline friend ->
+                // Update global friends list
+                let updatedFriends =
+                    match model'.Friends with
+                    | Success friends -> Success (friend :: friends)
+                    | other -> other
+                { model' with Friends = updatedFriends }, cmd
         | None -> model, Cmd.none
 
     // API result handlers

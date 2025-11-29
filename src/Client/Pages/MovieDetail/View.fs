@@ -6,6 +6,7 @@ open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
+open Components.FriendSelector.View
 
 /// Watch status controls for movies
 let private watchControls (entry: LibraryEntry) (dispatch: Msg -> unit) =
@@ -261,28 +262,29 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             ]
                                         ]
 
-                                    // Friends
-                                    if not (List.isEmpty friends) then
-                                        Html.div [
-                                            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
+                                    // Friends - using FriendSelector component
+                                    Html.div [
+                                        Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
+                                        FriendSelector {
+                                            AllFriends = friends
+                                            SelectedFriends = entry.Friends
+                                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                                            OnAddNew = fun name -> dispatch (AddNewFriend name)
+                                            OnSubmit = None
+                                            IsDisabled = model.IsAddingFriend
+                                            Placeholder = "Search or add friends..."
+                                            IsRequired = false
+                                            AutoFocus = false
+                                        }
+                                        if model.IsAddingFriend then
                                             Html.div [
-                                                prop.className "flex flex-wrap gap-2"
+                                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
                                                 prop.children [
-                                                    for friend in friends do
-                                                        let isSelected = List.contains friend.Id entry.Friends
-                                                        Html.button [
-                                                            prop.type' "button"
-                                                            prop.className (
-                                                                "px-3 py-1 rounded-full text-sm transition-all " +
-                                                                if isSelected then "bg-primary text-primary-content"
-                                                                else "bg-base-200 text-base-content/60 hover:bg-base-300"
-                                                            )
-                                                            prop.onClick (fun _ -> dispatch (ToggleFriend friend.Id))
-                                                            prop.text friend.Name
-                                                        ]
+                                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                    Html.span [ prop.text "Adding friend..." ]
                                                 ]
                                             ]
-                                        ]
+                                    ]
 
                                     // Notes
                                     Html.div [

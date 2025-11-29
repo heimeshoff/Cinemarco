@@ -7,12 +7,15 @@ type Model = {
     SelectedTags: TagId list
     SelectedFriends: FriendId list
     IsSubmitting: bool
+    IsAddingFriend: bool
     Error: string option
 }
 
 type Msg =
     | ToggleTag of TagId
     | ToggleFriend of FriendId
+    | AddNewFriend of string
+    | FriendCreated of Result<Friend, string>
     | Submit
     | SubmitResult of Result<WatchSession, string>
     | Close
@@ -28,5 +31,6 @@ module Model =
         SelectedTags = []
         SelectedFriends = []
         IsSubmitting = false
+        IsAddingFriend = false
         Error = None
     }

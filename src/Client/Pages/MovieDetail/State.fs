@@ -15,6 +15,7 @@ type MovieApi = {
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
     ToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
     ToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
+    CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
@@ -130,6 +131,33 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
+
+    | AddNewFriend name ->
+        let request : CreateFriendRequest = {
+            Name = name
+            Nickname = None
+            Notes = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateFriend
+                request
+                FriendCreated
+                (fun ex -> Error ex.Message |> FriendCreated)
+        { model with IsAddingFriend = true }, cmd, NoOp
+
+    | FriendCreated (Ok friend) ->
+        // Toggle the friend on this entry (to add them) and notify the app
+        let toggleCmd =
+            Cmd.OfAsync.either
+                api.ToggleFriend
+                (model.EntryId, friend.Id)
+                ActionResult
+                (fun ex -> Error ex.Message |> ActionResult)
+        { model with IsAddingFriend = false }, toggleCmd, FriendCreatedInline friend
+
+    | FriendCreated (Error err) ->
+        { model with IsAddingFriend = false }, Cmd.none, ShowNotification (err, false)
 
     | ActionResult (Ok entry) ->
         { model with Entry = Success entry }, Cmd.none, EntryUpdated entry

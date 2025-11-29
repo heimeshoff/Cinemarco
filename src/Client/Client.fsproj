@@ -12,6 +12,7 @@
     <Compile Include="Components/Icons.fs" />
     <Compile Include="Components/Cards/View.fs" />
     <Compile Include="Components/Modal/View.fs" />
+    <Compile Include="Components/FriendSelector/View.fs" />
 
     <!-- Notification Component -->
     <Compile Include="Components/Notification/Types.fs" />

@@ -33,7 +33,7 @@ let wrapper (props: ModalProps) =
             ]
             // Modal content with gradient background and shadow
             Html.div [
-                prop.className $"modal-content w-full {maxWidthClass} max-h-[90vh] overflow-y-auto"
+                prop.className $"modal-content w-full {maxWidthClass} max-h-[90vh] overflow-visible"
                 prop.children props.Children
             ]
         ]
@@ -67,7 +67,7 @@ let header (title: string) (subtitle: string option) (canClose: bool) (onClose: 
 /// Modal body container
 let body (children: ReactElement list) =
     Html.div [
-        prop.className "p-6 space-y-4"
+        prop.className "p-6 space-y-4 overflow-visible"
         prop.children children
     ]
 

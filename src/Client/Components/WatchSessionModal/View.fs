@@ -4,53 +4,69 @@ open Feliz
 open Shared.Domain
 open Types
 open Components.Modal.View
+open Components.FriendSelector.View
 
 let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
-    let canSubmit = not (List.isEmpty model.SelectedFriends) && not model.IsSubmitting
+    let isWorking = model.IsSubmitting || model.IsAddingFriend
+    let canSubmit = not (List.isEmpty model.SelectedFriends) && not isWorking
 
     wrapper {
-        OnClose = fun () -> if not model.IsSubmitting then dispatch Close
-        CanClose = not model.IsSubmitting
+        OnClose = fun () -> if not isWorking then dispatch Close
+        CanClose = not isWorking
         MaxWidth = Some "max-w-md"
         Children = [
             // Header
-            header "New Watch Session" (Some "Track a viewing with friends") (not model.IsSubmitting) (fun () -> dispatch Close)
+            header "New Watch Session" (Some "Track a viewing with friends") (not isWorking) (fun () -> dispatch Close)
 
             // Form body
             body [
                 // Error message
                 errorAlert model.Error
 
-                // Friends selection (required)
-                if not (List.isEmpty friends) then
-                    formField "Watching With" true [
-                        Html.div [
-                            prop.className "flex flex-wrap gap-2"
-                            prop.children [
-                                for friend in friends do
-                                    let isSelected = List.contains friend.Id model.SelectedFriends
-                                    Html.button [
-                                        prop.className (
-                                            "btn btn-sm " +
-                                            if isSelected then "btn-primary" else "btn-ghost"
-                                        )
-                                        prop.onClick (fun _ -> dispatch (ToggleFriend friend.Id))
-                                        prop.disabled model.IsSubmitting
-                                        prop.text friend.Name
-                                    ]
+                // Friends selection with inline submit button
+                formField "Watching With" true [
+                    Html.div [
+                        prop.className "flex gap-2 items-start"
+                        prop.children [
+                            // Friend selector (flex-1 to take available space)
+                            Html.div [
+                                prop.className "flex-1"
+                                prop.children [
+                                    FriendSelector {
+                                        AllFriends = friends
+                                        SelectedFriends = model.SelectedFriends
+                                        OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                                        OnAddNew = fun name -> dispatch (AddNewFriend name)
+                                        OnSubmit = if canSubmit then Some (fun () -> dispatch Submit) else None
+                                        IsDisabled = isWorking
+                                        Placeholder = "Search or add friends..."
+                                        IsRequired = true
+                                        AutoFocus = true
+                                    }
+                                ]
+                            ]
+                            // Submit button inline
+                            Html.button [
+                                prop.className "btn btn-primary shrink-0"
+                                prop.disabled (not canSubmit)
+                                prop.onClick (fun _ -> dispatch Submit)
+                                prop.children [
+                                    if model.IsSubmitting then
+                                        Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                    Html.span [ prop.text "Start" ]
+                                ]
                             ]
                         ]
-                        if List.isEmpty model.SelectedFriends then
-                            Html.p [
-                                prop.className "text-sm text-base-content/60 mt-2"
-                                prop.text "Select at least one friend"
+                    ]
+                    if model.IsAddingFriend then
+                        Html.div [
+                            prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
+                            prop.children [
+                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                Html.span [ prop.text "Adding friend..." ]
                             ]
-                    ]
-                else
-                    Html.div [
-                        prop.className "alert alert-warning"
-                        prop.text "Please add some friends first before creating a watch session."
-                    ]
+                        ]
+                ]
 
                 // Tags selection
                 if not (List.isEmpty tags) then
@@ -66,29 +82,12 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             if isSelected then "btn-secondary" else "btn-ghost"
                                         )
                                         prop.onClick (fun _ -> dispatch (ToggleTag tag.Id))
-                                        prop.disabled model.IsSubmitting
+                                        prop.disabled isWorking
                                         prop.text tag.Name
                                     ]
                             ]
                         ]
                     ]
-
-                // Submit button (disabled if no friends selected)
-                Html.div [
-                    prop.className "flex justify-end mt-6"
-                    prop.children [
-                        Html.button [
-                            prop.className "btn btn-primary"
-                            prop.disabled (not canSubmit)
-                            prop.onClick (fun _ -> dispatch Submit)
-                            prop.children [
-                                if model.IsSubmitting then
-                                    Html.span [ prop.className "loading loading-spinner loading-sm" ]
-                                Html.span [ prop.text "Start Session" ]
-                            ]
-                        ]
-                    ]
-                ]
             ]
         ]
     }
