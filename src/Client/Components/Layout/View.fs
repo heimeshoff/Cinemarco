@@ -19,6 +19,7 @@ let private getPageIcon (page: Page) =
     | TagsPage -> tags
     | TagDetailPage _ -> tags
     | CollectionsPage -> collections
+    | CollectionDetailPage _ -> collections
     | StatsPage -> stats
     | TimelinePage -> timeline
     | GraphPage -> graph
@@ -33,11 +34,13 @@ let private getIconColor (page: Page) =
     | LibraryPage -> "text-nav-library"     // Blue - film archives
     | MovieDetailPage _ -> "text-nav-library"
     | SeriesDetailPage _ -> "text-nav-library"
+    | SessionDetailPage _ -> "text-nav-library"
     | FriendsPage -> "text-nav-friends"     // Emerald - social
     | FriendDetailPage _ -> "text-nav-friends"
     | TagsPage -> "text-nav-tags"           // Teal - organization
     | TagDetailPage _ -> "text-nav-tags"
     | CollectionsPage -> "text-nav-collections" // Pink - curated
+    | CollectionDetailPage _ -> "text-nav-collections"
     | StatsPage -> "text-nav-stats"         // Orange - metrics
     | TimelinePage -> "text-nav-timeline"   // Sky - time
     | GraphPage -> "text-nav-graph"         // Violet - connections

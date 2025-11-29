@@ -14,6 +14,8 @@ type ActiveModal =
     | AbandonModal of Components.AbandonModal.Types.Model
     | ConfirmDeleteModal of Components.ConfirmModal.Types.Model
     | WatchSessionModal of Components.WatchSessionModal.Types.Model
+    | CollectionModal of Components.CollectionModal.Types.Model
+    | AddToCollectionModal of Components.AddToCollectionModal.Types.Model
 
 /// Main application model
 type Model = {
@@ -43,6 +45,8 @@ type Model = {
     FriendDetailPage: Pages.FriendDetail.Types.Model option
     TagsPage: Pages.Tags.Types.Model option
     TagDetailPage: Pages.TagDetail.Types.Model option
+    CollectionsPage: Pages.Collections.Types.Model option
+    CollectionDetailPage: Pages.CollectionDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
 }
 
@@ -76,6 +80,10 @@ type Msg =
     | ConfirmModalMsg of Components.ConfirmModal.Types.Msg
     | OpenWatchSessionModal of EntryId
     | WatchSessionModalMsg of Components.WatchSessionModal.Types.Msg
+    | OpenCollectionModal of Collection option
+    | CollectionModalMsg of Components.CollectionModal.Types.Msg
+    | OpenAddToCollectionModal of EntryId * title: string
+    | AddToCollectionModalMsg of Components.AddToCollectionModal.Types.Msg
 
     // Notification
     | ShowNotification of message: string * isSuccess: bool
@@ -91,6 +99,8 @@ type Msg =
     | FriendDetailMsg of Pages.FriendDetail.Types.Msg
     | TagsMsg of Pages.Tags.Types.Msg
     | TagDetailMsg of Pages.TagDetail.Types.Msg
+    | CollectionsMsg of Pages.Collections.Types.Msg
+    | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
 
     // API result handlers
@@ -103,6 +113,9 @@ type Msg =
     | EntryAdded of LibraryEntry
     | SessionCreated of WatchSession
     | SessionDeleted of SessionId
+    | CollectionSaved of Collection
+    | CollectionDeleted of CollectionId
+    | AddedToCollection of Collection
 
 module Model =
     let empty = {
@@ -121,5 +134,7 @@ module Model =
         FriendDetailPage = None
         TagsPage = None
         TagDetailPage = None
+        CollectionsPage = None
+        CollectionDetailPage = None
         CachePage = None
     }

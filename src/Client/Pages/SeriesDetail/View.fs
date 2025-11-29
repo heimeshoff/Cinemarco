@@ -484,9 +484,9 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                         ratingSelector (entry.PersonalRating |> Option.map PersonalRating.toInt) dispatch
                                     ]
 
-                                    // Favorite toggle
+                                    // Favorite toggle and Add to Collection
                                     Html.div [
-                                        prop.className "flex items-center gap-2"
+                                        prop.className "flex items-center gap-2 flex-wrap"
                                         prop.children [
                                             Html.button [
                                                 prop.className (
@@ -499,8 +499,37 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                     Html.span [ prop.text (if entry.IsFavorite then "Favorited" else "Add to Favorites") ]
                                                 ]
                                             ]
+                                            Html.button [
+                                                prop.className "btn btn-sm btn-ghost"
+                                                prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
+                                                prop.children [
+                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
+                                                    Html.span [ prop.text "Add to Collection" ]
+                                                ]
+                                            ]
                                         ]
                                     ]
+
+                                    // Collections this entry belongs to
+                                    match model.Collections with
+                                    | Success collectionsList when not (List.isEmpty collectionsList) ->
+                                        Html.div [
+                                            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "In Collections" ]
+                                            Html.div [
+                                                prop.className "flex flex-wrap gap-2"
+                                                prop.children [
+                                                    for collection in collectionsList do
+                                                        Html.span [
+                                                            prop.className "badge badge-outline gap-1"
+                                                            prop.children [
+                                                                Html.span [ prop.text (if collection.IsPublicFranchise then "🎬" else "📚") ]
+                                                                Html.span [ prop.text collection.Name ]
+                                                            ]
+                                                        ]
+                                                ]
+                                            ]
+                                        ]
+                                    | _ -> Html.none
 
                                     // Delete button
                                     Html.div [

@@ -85,7 +85,20 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
-    | CollectionsPage
+    | CollectionsPage ->
+        match model.CollectionsPage with
+        | Some pageModel ->
+            Pages.Collections.View.view pageModel (CollectionsMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
+    | CollectionDetailPage _ ->
+        match model.CollectionDetailPage with
+        | Some pageModel ->
+            Pages.CollectionDetail.View.view pageModel (CollectionDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | StatsPage
     | TimelinePage
     | GraphPage
@@ -135,6 +148,12 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
 
     | WatchSessionModal modalModel ->
         Components.WatchSessionModal.View.view modalModel tags friends (WatchSessionModalMsg >> dispatch)
+
+    | CollectionModal modalModel ->
+        Components.CollectionModal.View.view modalModel (CollectionModalMsg >> dispatch)
+
+    | AddToCollectionModal modalModel ->
+        Components.AddToCollectionModal.View.view modalModel (AddToCollectionModalMsg >> dispatch)
 
 /// Global keyboard shortcut handler component
 [<ReactComponent>]

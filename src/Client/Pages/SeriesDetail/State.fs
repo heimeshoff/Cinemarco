@@ -7,6 +7,7 @@ open Types
 
 type SeriesApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
+    GetCollections: EntryId -> Async<Collection list>
     GetSessions: EntryId -> Async<WatchSession list>
     GetSessionProgress: SessionId -> Async<EpisodeProgress list>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
@@ -23,7 +24,7 @@ type SeriesApi = {
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadSessions ]
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadSessions ]
 
 let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -52,6 +53,21 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | EntryLoaded (Error err) ->
         { model with Entry = Failure err }, Cmd.none, NoOp
+
+    | LoadCollections ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetCollections
+                model.EntryId
+                (Ok >> CollectionsLoaded)
+                (fun ex -> Error ex.Message |> CollectionsLoaded)
+        { model with Collections = Loading }, cmd, NoOp
+
+    | CollectionsLoaded (Ok collections) ->
+        { model with Collections = Success collections }, Cmd.none, NoOp
+
+    | CollectionsLoaded (Error _) ->
+        { model with Collections = Success [] }, Cmd.none, NoOp
 
     | LoadSeasonDetails seasonNum ->
         match model.Entry with
@@ -233,6 +249,16 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | OpenDeleteModal ->
         model, Cmd.none, RequestOpenDeleteModal model.EntryId
+
+    | OpenAddToCollectionModal ->
+        match model.Entry with
+        | Success entry ->
+            let title =
+                match entry.Media with
+                | LibraryMovie m -> m.Title
+                | LibrarySeries s -> s.Name
+            model, Cmd.none, RequestOpenAddToCollectionModal (model.EntryId, title)
+        | _ -> model, Cmd.none, NoOp
 
     | ToggleTag tagId ->
         let cmd =

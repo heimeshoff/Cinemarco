@@ -6,12 +6,15 @@ open Shared.Domain
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
+    Collections: RemoteData<Collection list>
     IsAddingFriend: bool
 }
 
 type Msg =
     | LoadEntry
     | EntryLoaded of Result<LibraryEntry option, string>
+    | LoadCollections
+    | CollectionsLoaded of Result<Collection list, string>
     | MarkWatched
     | MarkUnwatched
     | OpenAbandonModal
@@ -21,6 +24,7 @@ type Msg =
     | UpdateNotes of string
     | SaveNotes
     | OpenDeleteModal
+    | OpenAddToCollectionModal
     | ToggleTag of TagId
     | ToggleFriend of FriendId
     | AddNewFriend of string
@@ -33,9 +37,10 @@ type ExternalMsg =
     | NavigateBack
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
+    | RequestOpenAddToCollectionModal of EntryId * title: string
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
     | FriendCreatedInline of Friend
 
 module Model =
-    let create entryId = { EntryId = entryId; Entry = NotAsked; IsAddingFriend = false }
+    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; IsAddingFriend = false }

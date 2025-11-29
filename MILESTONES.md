@@ -413,18 +413,18 @@ type ITagApi = {
 
 ---
 
-## Milestone 10: Collections & Franchises (Estimated: Day 11-12)
+## Milestone 10: Collections & Franchises (COMPLETED)
 
 **Goal**: Ordered collections for franchises and custom lists.
 
 ### Tasks
 
-- [ ] **M10.1** Create collection CRUD
-- [ ] **M10.2** Create collection detail page
-- [ ] **M10.3** Implement drag-and-drop ordering
-- [ ] **M10.4** Display collection progress (X of Y completed)
-- [ ] **M10.5** Create "Add to Collection" action
-- [ ] **M10.6** Create pre-made franchise templates (MCU, Star Wars, etc.)
+- [x] **M10.1** Create collection CRUD
+- [x] **M10.2** Create collection detail page
+- [x] **M10.3** Implement drag-and-drop ordering
+- [x] **M10.4** Display collection progress (X of Y completed)
+- [x] **M10.5** Create "Add to Collection" action (via API - UI to add items pending)
+- [ ] **M10.6** Create pre-made franchise templates (MCU, Star Wars, etc.) - Deferred to future milestone
 
 ### Use Cases
 - MCU watch order
@@ -432,16 +432,21 @@ type ITagApi = {
 - Ghibli marathon
 - Custom "Sci-Fi classics" list
 
-### Files to Create/Modify
-- `src/Client/Pages/Collections.fs` (new)
-- `src/Client/Pages/CollectionDetail.fs` (new)
-- `src/Client/Components/DraggableList.fs` (new)
+### Files Created/Modified
+- `src/Shared/Api.fs` - Added collection API endpoints
+- `src/Server/Persistence.fs` - Added collection CRUD and item management
+- `src/Server/Api.fs` - Implemented collection API handlers
+- `src/Client/Pages/Collections/` - Types.fs, State.fs, View.fs
+- `src/Client/Pages/CollectionDetail/` - Types.fs, State.fs, View.fs
+- `src/Client/Components/CollectionModal/` - Types.fs, State.fs, View.fs
+- `src/Client/App/Types.fs`, `State.fs`, `View.fs` - Wired up collections
+- `src/Client/Common/Routing.fs` - Added CollectionDetailPage route
 
 ### Definition of Done
-- Can create ordered collections
-- Can reorder items via drag-and-drop
-- Progress bar shows completion
-- Can add items to collections
+- [x] Can create ordered collections
+- [x] Can reorder items via drag-and-drop
+- [x] Progress bar shows completion
+- [x] Can add items to collections (via API)
 
 ---
 

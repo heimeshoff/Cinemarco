@@ -13,6 +13,12 @@ let private getDeleteInfo (target: DeleteTarget) =
         ("Delete Tag?", $"Are you sure you want to delete \"{tag.Name}\"? This cannot be undone.")
     | Entry _ ->
         ("Delete Entry?", "Are you sure you want to delete this entry? This cannot be undone.")
+    | Collection (collection, itemCount) ->
+        let itemWarning =
+            if itemCount = 0 then ""
+            elif itemCount = 1 then " It contains 1 item that will be removed from this collection."
+            else $" It contains {itemCount} items that will be removed from this collection."
+        ("Delete Collection?", $"Are you sure you want to delete \"{collection.Name}\"?{itemWarning} This cannot be undone.")
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let (title, message) = getDeleteInfo model.Target

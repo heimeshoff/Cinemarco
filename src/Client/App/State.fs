@@ -70,6 +70,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | CachePage when model.CachePage.IsNone ->
             let pageModel, pageCmd = Pages.Cache.State.init ()
             { model' with CachePage = Some pageModel }, Cmd.map CacheMsg pageCmd
+        | CollectionsPage when model.CollectionsPage.IsNone ->
+            let pageModel, pageCmd = Pages.Collections.State.init ()
+            { model' with CollectionsPage = Some pageModel }, Cmd.map CollectionsMsg pageCmd
+        | CollectionDetailPage collectionId when model.CollectionDetailPage.IsNone || model.CollectionDetailPage |> Option.map (fun m -> m.CollectionId <> collectionId) |> Option.defaultValue true ->
+            let pageModel, pageCmd = Pages.CollectionDetail.State.init collectionId
+            { model' with CollectionDetailPage = Some pageModel }, Cmd.map CollectionDetailMsg pageCmd
         | _ -> model', Cmd.none
 
     // Global data loading
@@ -262,6 +268,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                             entryId
                             (fun _ -> EntryDeleted entryId)
                             (fun ex -> ShowNotification (ex.Message, false))
+                    | Components.ConfirmModal.Types.Collection (collection, _) ->
+                        Cmd.OfAsync.either
+                            Api.api.collectionsDelete
+                            collection.Id
+                            (fun _ -> CollectionDeleted collection.Id)
+                            (fun ex -> ShowNotification (ex.Message, false))
                 { model' with Modal = NoModal }, Cmd.batch [cmd; deleteCmd]
             | Components.ConfirmModal.Types.Cancelled ->
                 { model' with Modal = NoModal }, cmd
@@ -297,6 +309,50 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model'' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (SessionCreated session)]
             | Components.WatchSessionModal.Types.CloseRequested ->
                 { model'' with Modal = NoModal }, cmd
+        | _ -> model, Cmd.none
+
+    | OpenCollectionModal collection ->
+        let modalModel = Components.CollectionModal.State.init collection
+        { model with Modal = CollectionModal modalModel }, Cmd.none
+
+    | CollectionModalMsg collectionMsg ->
+        match model.Modal with
+        | CollectionModal modalModel ->
+            let saveApi : Components.CollectionModal.State.SaveApi = {
+                Create = fun req -> Api.api.collectionsCreate req
+                Update = fun req -> Api.api.collectionsUpdate req
+            }
+            let newModal, modalCmd, extMsg = Components.CollectionModal.State.update saveApi collectionMsg modalModel
+            let model' = { model with Modal = CollectionModal newModal }
+            let cmd = Cmd.map CollectionModalMsg modalCmd
+            match extMsg with
+            | Components.CollectionModal.Types.NoOp -> model', cmd
+            | Components.CollectionModal.Types.Saved collection ->
+                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (CollectionSaved collection)]
+            | Components.CollectionModal.Types.CloseRequested ->
+                { model' with Modal = NoModal }, cmd
+        | _ -> model, Cmd.none
+
+    | OpenAddToCollectionModal (entryId, title) ->
+        let modalModel, modalCmd = Components.AddToCollectionModal.State.init entryId title
+        { model with Modal = AddToCollectionModal modalModel }, Cmd.map AddToCollectionModalMsg modalCmd
+
+    | AddToCollectionModalMsg addToCollectionMsg ->
+        match model.Modal with
+        | AddToCollectionModal modalModel ->
+            let api : Components.AddToCollectionModal.State.Api = {
+                GetCollections = fun () -> Api.api.collectionsGetAll ()
+                AddToCollection = fun (collectionId, entryId, notes) -> Api.api.collectionsAddItem (collectionId, entryId, notes)
+            }
+            let newModal, modalCmd, extMsg = Components.AddToCollectionModal.State.update api addToCollectionMsg modalModel
+            let model' = { model with Modal = AddToCollectionModal newModal }
+            let cmd = Cmd.map AddToCollectionModalMsg modalCmd
+            match extMsg with
+            | Components.AddToCollectionModal.Types.NoOp -> model', cmd
+            | Components.AddToCollectionModal.Types.AddedToCollection collection ->
+                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (AddedToCollection collection)]
+            | Components.AddToCollectionModal.Types.CloseRequested ->
+                { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
     // Notification
@@ -403,6 +459,58 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.TagDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
         | None -> model, Cmd.none
 
+    // Page messages - Collections
+    | CollectionsMsg collectionsMsg ->
+        match model.CollectionsPage with
+        | Some pageModel ->
+            let collectionsApi = fun () -> Api.api.collectionsGetAll ()
+            let newPage, pageCmd, extMsg = Pages.Collections.State.update collectionsApi collectionsMsg pageModel
+            let model' = { model with CollectionsPage = Some newPage }
+            let cmd = Cmd.map CollectionsMsg pageCmd
+            match extMsg with
+            | Pages.Collections.Types.NoOp -> model', cmd
+            | Pages.Collections.Types.NavigateToCollectionDetail collectionId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage collectionId))]
+            | Pages.Collections.Types.RequestOpenAddModal -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenCollectionModal None)]
+            | Pages.Collections.Types.RequestOpenEditModal collection -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenCollectionModal (Some collection))]
+            | Pages.Collections.Types.RequestOpenDeleteModal collection ->
+                // Fetch item count first, then show confirm modal
+                let fetchCmd =
+                    Cmd.OfAsync.perform
+                        Api.api.collectionsGetById
+                        collection.Id
+                        (fun result ->
+                            match result with
+                            | Ok collectionWithItems ->
+                                let itemCount = List.length collectionWithItems.Items
+                                OpenConfirmDeleteModal (Components.ConfirmModal.Types.Collection (collection, itemCount))
+                            | Error _ ->
+                                // Assume 0 items if fetch fails
+                                OpenConfirmDeleteModal (Components.ConfirmModal.Types.Collection (collection, 0))
+                        )
+                model', Cmd.batch [cmd; fetchCmd]
+        | None -> model, Cmd.none
+
+    // Page messages - CollectionDetail
+    | CollectionDetailMsg collectionDetailMsg ->
+        match model.CollectionDetailPage with
+        | Some pageModel ->
+            let collectionApi : Pages.CollectionDetail.State.CollectionApi = {
+                GetCollection = fun collectionId -> Api.api.collectionsGetById collectionId
+                GetProgress = fun collectionId -> Api.api.collectionsGetProgress collectionId
+                RemoveItem = fun (collectionId, entryId) -> Api.api.collectionsRemoveItem (collectionId, entryId)
+                ReorderItems = fun (collectionId, entryIds) -> Api.api.collectionsReorderItems (collectionId, entryIds)
+            }
+            let newPage, pageCmd, extMsg = Pages.CollectionDetail.State.update collectionApi collectionDetailMsg pageModel
+            let model' = { model with CollectionDetailPage = Some newPage }
+            let cmd = Cmd.map CollectionDetailMsg pageCmd
+            match extMsg with
+            | Pages.CollectionDetail.Types.NoOp -> model', cmd
+            | Pages.CollectionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo CollectionsPage)]
+            | Pages.CollectionDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
+            | Pages.CollectionDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none
+
     // Page messages - MovieDetail
     | MovieDetailMsg movieMsg ->
         match model.MovieDetailPage with
@@ -414,6 +522,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Ok entry -> return Some entry
                     | Error _ -> return None
                 }
+                GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
@@ -434,6 +543,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
+            | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
             | Pages.MovieDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
             | Pages.MovieDetail.Types.EntryUpdated entry ->
                 let model'' = syncEntryToPages entry model'
@@ -458,6 +568,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Ok entry -> return Some entry
                     | Error _ -> return None
                 }
+                GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
                 GetSessions = fun entryId -> Api.api.sessionsGetForEntry entryId
                 GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
@@ -484,6 +595,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
+            | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
             | Pages.SeriesDetail.Types.RequestOpenNewSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenWatchSessionModal entryId)]
             | Pages.SeriesDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
             | Pages.SeriesDetail.Types.EntryUpdated entry ->
@@ -613,6 +725,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             Cmd.ofMsg (ShowNotification ("Session deleted", true))
             Cmd.ofMsg (NavigateTo LibraryPage)
         ]
+
+    | CollectionSaved _ ->
+        { model with CollectionsPage = None },
+        Cmd.batch [
+            Cmd.ofMsg (ShowNotification ("Collection saved", true))
+            Cmd.ofMsg (NavigateTo CollectionsPage)
+        ]
+
+    | CollectionDeleted _ ->
+        { model with CollectionsPage = None },
+        Cmd.batch [
+            Cmd.ofMsg (ShowNotification ("Collection deleted", true))
+            Cmd.ofMsg (NavigateTo CollectionsPage)
+        ]
+
+    | AddedToCollection collection ->
+        model, Cmd.ofMsg (ShowNotification ($"Added to \"{collection.Name}\"", true))
 
     // Page messages - Cache
     | CacheMsg cacheMsg ->

@@ -6,6 +6,7 @@ open Shared.Domain
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
+    Collections: RemoteData<Collection list>
     Sessions: RemoteData<WatchSession list>
     SelectedSessionId: SessionId option
     EpisodeProgress: EpisodeProgress list
@@ -16,6 +17,8 @@ type Model = {
 type Msg =
     | LoadEntry
     | EntryLoaded of Result<LibraryEntry option, string>
+    | LoadCollections
+    | CollectionsLoaded of Result<Collection list, string>
     | LoadSessions
     | SessionsLoaded of Result<WatchSession list, string>
     | SelectSession of SessionId
@@ -34,6 +37,7 @@ type Msg =
     | UpdateNotes of string
     | SaveNotes
     | OpenDeleteModal
+    | OpenAddToCollectionModal
     | OpenNewSessionModal
     | DeleteSession of SessionId
     | SessionDeleteResult of Result<SessionId, string>
@@ -48,6 +52,7 @@ type ExternalMsg =
     | NavigateBack
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
+    | RequestOpenAddToCollectionModal of EntryId * title: string
     | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
@@ -56,6 +61,7 @@ module Model =
     let create entryId = {
         EntryId = entryId
         Entry = NotAsked
+        Collections = NotAsked
         Sessions = NotAsked
         SelectedSessionId = None
         EpisodeProgress = []

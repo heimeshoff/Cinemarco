@@ -7,6 +7,7 @@ open Types
 
 type MovieApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
+    GetCollections: EntryId -> Async<Collection list>
     MarkWatched: EntryId -> Async<Result<LibraryEntry, string>>
     MarkUnwatched: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
@@ -19,7 +20,7 @@ type MovieApi = {
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.ofMsg LoadEntry
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections ]
 
 let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -40,6 +41,21 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | EntryLoaded (Error err) ->
         { model with Entry = Failure err }, Cmd.none, NoOp
+
+    | LoadCollections ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetCollections
+                model.EntryId
+                (Ok >> CollectionsLoaded)
+                (fun ex -> Error ex.Message |> CollectionsLoaded)
+        { model with Collections = Loading }, cmd, NoOp
+
+    | CollectionsLoaded (Ok collections) ->
+        { model with Collections = Success collections }, Cmd.none, NoOp
+
+    | CollectionsLoaded (Error _) ->
+        { model with Collections = Success [] }, Cmd.none, NoOp
 
     | MarkWatched ->
         let cmd =
@@ -113,6 +129,16 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | OpenDeleteModal ->
         model, Cmd.none, RequestOpenDeleteModal model.EntryId
+
+    | OpenAddToCollectionModal ->
+        match model.Entry with
+        | Success entry ->
+            let title =
+                match entry.Media with
+                | LibraryMovie m -> m.Title
+                | LibrarySeries s -> s.Name
+            model, Cmd.none, RequestOpenAddToCollectionModal (model.EntryId, title)
+        | _ -> model, Cmd.none, NoOp
 
     | ToggleTag tagId ->
         let cmd =

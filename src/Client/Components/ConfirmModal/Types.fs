@@ -7,6 +7,7 @@ type DeleteTarget =
     | Friend of Friend
     | Tag of Tag
     | Entry of EntryId
+    | Collection of Collection * itemCount: int
 
 type Model = {
     Target: DeleteTarget

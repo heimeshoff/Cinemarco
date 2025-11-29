@@ -14,6 +14,7 @@ type Page =
     | TagsPage
     | TagDetailPage of TagId
     | CollectionsPage
+    | CollectionDetailPage of CollectionId
     | StatsPage
     | TimelinePage
     | GraphPage
@@ -33,6 +34,7 @@ module Page =
         | TagsPage -> "/tags"
         | TagDetailPage (TagId id) -> $"/tag/{id}"
         | CollectionsPage -> "/collections"
+        | CollectionDetailPage (CollectionId id) -> $"/collection/{id}"
         | StatsPage -> "/stats"
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
@@ -51,6 +53,7 @@ module Page =
         | TagsPage -> "Tags"
         | TagDetailPage _ -> "Tag"
         | CollectionsPage -> "Collections"
+        | CollectionDetailPage _ -> "Collection"
         | StatsPage -> "Stats"
         | TimelinePage -> "Timeline"
         | GraphPage -> "Graph"

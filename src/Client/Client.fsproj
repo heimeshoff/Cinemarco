@@ -54,6 +54,16 @@
     <Compile Include="Components/WatchSessionModal/State.fs" />
     <Compile Include="Components/WatchSessionModal/View.fs" />
 
+    <!-- CollectionModal Component -->
+    <Compile Include="Components/CollectionModal/Types.fs" />
+    <Compile Include="Components/CollectionModal/State.fs" />
+    <Compile Include="Components/CollectionModal/View.fs" />
+
+    <!-- AddToCollectionModal Component -->
+    <Compile Include="Components/AddToCollectionModal/Types.fs" />
+    <Compile Include="Components/AddToCollectionModal/State.fs" />
+    <Compile Include="Components/AddToCollectionModal/View.fs" />
+
     <!-- Layout Component -->
     <Compile Include="Components/Layout/Types.fs" />
     <Compile Include="Components/Layout/State.fs" />
@@ -106,6 +116,16 @@
     <Compile Include="Pages/TagDetail/Types.fs" />
     <Compile Include="Pages/TagDetail/State.fs" />
     <Compile Include="Pages/TagDetail/View.fs" />
+
+    <!-- Collections Page -->
+    <Compile Include="Pages/Collections/Types.fs" />
+    <Compile Include="Pages/Collections/State.fs" />
+    <Compile Include="Pages/Collections/View.fs" />
+
+    <!-- CollectionDetail Page -->
+    <Compile Include="Pages/CollectionDetail/Types.fs" />
+    <Compile Include="Pages/CollectionDetail/State.fs" />
+    <Compile Include="Pages/CollectionDetail/View.fs" />
 
     <!-- Cache Page -->
     <Compile Include="Pages/Cache/Types.fs" />

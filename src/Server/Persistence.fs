@@ -157,6 +157,15 @@ type CollectionRecord = {
 }
 
 [<CLIMutable>]
+type CollectionItemRecord = {
+    id: int
+    collection_id: int
+    entry_id: int
+    position: int
+    notes: string
+}
+
+[<CLIMutable>]
 type ContributorRecord = {
     id: int
     tmdb_person_id: int
@@ -764,8 +773,81 @@ let insertCollection (request: CreateCollectionRequest) : Async<Collection> = as
 
 let deleteCollection (CollectionId id) : Async<unit> = async {
     use conn = getConnection()
+    // Delete collection items first
+    do! conn.ExecuteAsync("DELETE FROM collection_items WHERE collection_id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
     do! conn.ExecuteAsync("DELETE FROM collections WHERE id = @Id", {| Id = id |})
         |> Async.AwaitTask |> Async.Ignore
+}
+
+let updateCollection (request: UpdateCollectionRequest) : Async<unit> = async {
+    use conn = getConnection()
+    let! existing = getCollectionById request.Id
+    match existing with
+    | None -> ()
+    | Some collection ->
+        let now = DateTime.UtcNow.ToString("o")
+        let name = Option.defaultValue collection.Name request.Name
+        let description = Option.toObj (Option.orElse collection.Description request.Description)
+        let param = {|
+            Id = CollectionId.value request.Id
+            Name = name
+            Description = description
+            UpdatedAt = now
+        |}
+        do! conn.ExecuteAsync("""
+            UPDATE collections SET
+                name = @Name,
+                description = @Description,
+                updated_at = @UpdatedAt
+            WHERE id = @Id
+        """, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+// =====================================
+// Collection Items CRUD
+// =====================================
+
+let private recordToCollectionItem (r: CollectionItemRecord) : CollectionItem = {
+    CollectionId = CollectionId r.collection_id
+    EntryId = EntryId r.entry_id
+    Position = r.position
+    Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
+}
+
+let getCollectionItems (CollectionId collectionId) : Async<CollectionItem list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<CollectionItemRecord>(
+            "SELECT * FROM collection_items WHERE collection_id = @CollectionId ORDER BY position",
+            {| CollectionId = collectionId |}
+        ) |> Async.AwaitTask
+    return records |> Seq.map recordToCollectionItem |> Seq.toList
+}
+
+let addItemToCollection (CollectionId collectionId) (EntryId entryId) (notes: string option) : Async<unit> = async {
+    use conn = getConnection()
+    // Get the max position for this collection
+    let! maxPos = conn.ExecuteScalarAsync<Nullable<int>>("SELECT MAX(position) FROM collection_items WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
+    let nextPos = if maxPos.HasValue then maxPos.Value + 1 else 0
+    let! _ = conn.ExecuteAsync("INSERT OR IGNORE INTO collection_items (collection_id, entry_id, position, notes) VALUES (@CollectionId, @EntryId, @Position, @Notes)", {| CollectionId = collectionId; EntryId = entryId; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+    ()
+}
+
+let removeItemFromCollection (CollectionId collectionId) (EntryId entryId) : Async<unit> = async {
+    use conn = getConnection()
+    let! _ = conn.ExecuteAsync("DELETE FROM collection_items WHERE collection_id = @CollectionId AND entry_id = @EntryId", {| CollectionId = collectionId; EntryId = entryId |}) |> Async.AwaitTask
+    // Reorder remaining items to fill gaps
+    let! _ = conn.ExecuteAsync("UPDATE collection_items SET position = (SELECT COUNT(*) - 1 FROM collection_items AS ci2 WHERE ci2.collection_id = collection_items.collection_id AND ci2.position <= collection_items.position) WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
+    ()
+}
+
+let reorderCollectionItems (CollectionId collectionId) (entryIds: EntryId list) : Async<unit> = async {
+    use conn = getConnection()
+    // Update positions based on the order of entry IDs provided
+    for (position, EntryId entryId) in List.indexed entryIds do
+        let! _ = conn.ExecuteAsync("UPDATE collection_items SET position = @Position WHERE collection_id = @CollectionId AND entry_id = @EntryId", {| CollectionId = collectionId; EntryId = entryId; Position = position |}) |> Async.AwaitTask
+        ()
 }
 
 // =====================================
@@ -2218,4 +2300,100 @@ let getDatabaseStats () : Async<Map<string, int>> = async {
         "contributors", contributorCount
         "library_entries", entryCount
     ]
+}
+
+// =====================================
+// Collection With Items & Progress
+// =====================================
+
+/// Get a collection with all its items and their library entries
+let getCollectionWithItems (collectionId: CollectionId) : Async<CollectionWithItems option> = async {
+    let! collection = getCollectionById collectionId
+    match collection with
+    | None -> return None
+    | Some c ->
+        let! items = getCollectionItems collectionId
+        let! itemsWithEntries =
+            items
+            |> List.map (fun item -> async {
+                let! entry = getLibraryEntryById item.EntryId
+                return entry |> Option.map (fun e -> (item, e))
+            })
+            |> Async.Sequential
+        let validItems = itemsWithEntries |> Array.choose id |> Array.toList
+        return Some {
+            Collection = c
+            Items = validItems
+        }
+}
+
+/// Calculate collection progress
+let getCollectionProgress (collectionId: CollectionId) : Async<CollectionProgress option> = async {
+    let! collectionWithItems = getCollectionWithItems collectionId
+    match collectionWithItems with
+    | None -> return None
+    | Some cwi ->
+        let totalItems = List.length cwi.Items
+        let completedItems =
+            cwi.Items
+            |> List.filter (fun (_, entry) ->
+                match entry.WatchStatus with
+                | Completed -> true
+                | _ -> false)
+            |> List.length
+        let inProgressItems =
+            cwi.Items
+            |> List.filter (fun (_, entry) ->
+                match entry.WatchStatus with
+                | InProgress _ -> true
+                | _ -> false)
+            |> List.length
+
+        // Calculate total and watched runtime
+        let totalMinutes =
+            cwi.Items
+            |> List.sumBy (fun (_, entry) ->
+                match entry.Media with
+                | LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
+                | LibrarySeries series ->
+                    series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45))
+        let watchedMinutes =
+            cwi.Items
+            |> List.sumBy (fun (_, entry) ->
+                match entry.WatchStatus, entry.Media with
+                | Completed, LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
+                | Completed, LibrarySeries series ->
+                    series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
+                | InProgress _, LibrarySeries _ ->
+                    // For in-progress series, we'd need to calculate watched episodes
+                    // For now, estimate based on progress - this is simplified
+                    0
+                | _ -> 0)
+
+        let completionPct =
+            if totalItems > 0 then float completedItems / float totalItems * 100.0
+            else 0.0
+
+        return Some {
+            CollectionId = collectionId
+            TotalItems = totalItems
+            CompletedItems = completedItems
+            InProgressItems = inProgressItems
+            TotalMinutes = totalMinutes
+            WatchedMinutes = watchedMinutes
+            CompletionPercentage = completionPct
+        }
+}
+
+/// Get all collections that contain a specific entry
+let getCollectionsForEntry (entryId: EntryId) : Async<Collection list> = async {
+    use conn = getConnection()
+    let entryIdVal = EntryId.value entryId
+    let! records = conn.QueryAsync<CollectionRecord>(
+        """SELECT c.* FROM collections c
+           INNER JOIN collection_items ci ON c.id = ci.collection_id
+           WHERE ci.entry_id = @entryId
+           ORDER BY c.name""",
+        {| entryId = entryIdVal |}) |> Async.AwaitTask
+    return records |> Seq.map recordToCollection |> Seq.toList
 }

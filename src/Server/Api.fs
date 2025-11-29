@@ -513,6 +513,93 @@ let cinemarcoApi : ICinemarcoApi = {
     sessionsGetProgress = fun sessionId -> Persistence.getSessionEpisodeProgress sessionId
 
     // =====================================
+    // Collection Operations
+    // =====================================
+
+    collectionsGetAll = fun () -> Persistence.getAllCollections()
+
+    collectionsGetById = fun collectionId -> async {
+        let! result = Persistence.getCollectionWithItems collectionId
+        match result with
+        | Some cwi -> return Ok cwi
+        | None -> return Error "Collection not found"
+    }
+
+    collectionsCreate = fun request -> async {
+        try
+            let! collection = Persistence.insertCollection request
+            return Ok collection
+        with
+        | ex -> return Error $"Failed to create collection: {ex.Message}"
+    }
+
+    collectionsUpdate = fun request -> async {
+        try
+            do! Persistence.updateCollection request
+            let! collection = Persistence.getCollectionById request.Id
+            match collection with
+            | Some c -> return Ok c
+            | None -> return Error "Collection not found after update"
+        with
+        | ex -> return Error $"Failed to update collection: {ex.Message}"
+    }
+
+    collectionsDelete = fun collectionId -> async {
+        try
+            do! Persistence.deleteCollection collectionId
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to delete collection: {ex.Message}"
+    }
+
+    collectionsAddItem = fun (collectionId, entryId, notes) -> async {
+        try
+            // Verify entry exists
+            let! entry = Persistence.getLibraryEntryById entryId
+            match entry with
+            | None -> return Error "Entry not found"
+            | Some _ ->
+                do! Persistence.addItemToCollection collectionId entryId notes
+                let! result = Persistence.getCollectionWithItems collectionId
+                match result with
+                | Some cwi -> return Ok cwi
+                | None -> return Error "Collection not found after update"
+        with
+        | ex -> return Error $"Failed to add item to collection: {ex.Message}"
+    }
+
+    collectionsRemoveItem = fun (collectionId, entryId) -> async {
+        try
+            do! Persistence.removeItemFromCollection collectionId entryId
+            let! result = Persistence.getCollectionWithItems collectionId
+            match result with
+            | Some cwi -> return Ok cwi
+            | None -> return Error "Collection not found after update"
+        with
+        | ex -> return Error $"Failed to remove item from collection: {ex.Message}"
+    }
+
+    collectionsReorderItems = fun (collectionId, entryIds) -> async {
+        try
+            do! Persistence.reorderCollectionItems collectionId entryIds
+            let! result = Persistence.getCollectionWithItems collectionId
+            match result with
+            | Some cwi -> return Ok cwi
+            | None -> return Error "Collection not found after update"
+        with
+        | ex -> return Error $"Failed to reorder collection items: {ex.Message}"
+    }
+
+    collectionsGetProgress = fun collectionId -> async {
+        let! result = Persistence.getCollectionProgress collectionId
+        match result with
+        | Some progress -> return Ok progress
+        | None -> return Error "Collection not found"
+    }
+
+    collectionsGetForEntry = fun entryId -> Persistence.getCollectionsForEntry entryId
+
+    // =====================================
     // TMDB Operations
     // =====================================
 
