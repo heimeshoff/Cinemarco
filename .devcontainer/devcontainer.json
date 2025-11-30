@@ -1,0 +1,36 @@
+{
+  "name": "Cinemarco",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:9.0",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "25"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ionide.ionide-fsharp",
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "bradlc.vscode-tailwindcss",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "FSharp.enableMSBuildProjectGraph": true
+      }
+    }
+  },
+  "forwardPorts": [5000, 5173],
+  "portsAttributes": {
+    "5000": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite Frontend",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postCreateCommand": "dotnet restore && npm install",
+  "remoteUser": "vscode"
+}
