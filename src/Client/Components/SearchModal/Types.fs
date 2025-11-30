@@ -6,22 +6,26 @@ open Shared.Domain
 type Model = {
     Query: string
     Results: RemoteData<TmdbSearchResult list>
+    LibraryEntries: LibraryEntry list
 }
 
 type Msg =
     | QueryChanged of string
-    | SearchDebounced
+    | SearchDebounced of string  // Carries the query that triggered it
     | SearchResults of Result<TmdbSearchResult list, string>
-    | SelectItem of TmdbSearchResult
+    | SelectTmdbItem of TmdbSearchResult
+    | SelectLibraryItem of EntryId * MediaType
     | Close
 
 type ExternalMsg =
     | NoOp
-    | ItemSelected of TmdbSearchResult
+    | TmdbItemSelected of TmdbSearchResult
+    | LibraryItemSelected of EntryId * MediaType
     | CloseRequested
 
 module Model =
     let empty = {
         Query = ""
         Results = NotAsked
+        LibraryEntries = []
     }

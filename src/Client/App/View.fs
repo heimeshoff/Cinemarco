@@ -131,9 +131,6 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | SearchModal modalModel ->
         Components.SearchModal.View.view modalModel (SearchModalMsg >> dispatch)
 
-    | QuickAddModal modalModel ->
-        Components.QuickAddModal.View.view modalModel friends tags (QuickAddModalMsg >> dispatch)
-
     | FriendModal modalModel ->
         Components.FriendModal.View.view modalModel (FriendModalMsg >> dispatch)
 

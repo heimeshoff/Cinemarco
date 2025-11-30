@@ -120,7 +120,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     // Modal management
     | OpenSearchModal ->
-        let modalModel = Components.SearchModal.State.init ()
+        // Get library entries from HomePage or LibraryPage (prefer loaded data)
+        let libraryEntries =
+            model.HomePage
+            |> Option.bind (fun hp -> hp.Library |> RemoteData.toOption)
+            |> Option.orElse (model.LibraryPage |> Option.bind (fun lp -> lp.Entries |> RemoteData.toOption))
+            |> Option.defaultValue []
+        let modalModel = Components.SearchModal.State.init libraryEntries
         { model with Modal = SearchModal modalModel }, Cmd.none
 
     | CloseModal ->
@@ -135,41 +141,64 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map SearchModalMsg modalCmd
             match extMsg with
             | Components.SearchModal.Types.NoOp -> model', cmd
-            | Components.SearchModal.Types.ItemSelected item ->
-                model', Cmd.batch [cmd; Cmd.ofMsg (OpenQuickAddModal item)]
+            | Components.SearchModal.Types.TmdbItemSelected item ->
+                // Close modal and add directly to library
+                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (AddTmdbItemDirectly item)]
+            | Components.SearchModal.Types.LibraryItemSelected (entryId, mediaType) ->
+                let page =
+                    match mediaType with
+                    | MediaType.Movie -> MovieDetailPage entryId
+                    | MediaType.Series -> SeriesDetailPage entryId
+                { model' with Modal = NoModal }, Cmd.ofMsg (NavigateTo page)
             | Components.SearchModal.Types.CloseRequested ->
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
-    | OpenQuickAddModal item ->
-        let modalModel = Components.QuickAddModal.State.init item
-        { model with Modal = QuickAddModal modalModel }, Cmd.none
+    | AddTmdbItemDirectly item ->
+        // Add the item directly to library without showing the modal
+        let addCmd =
+            match item.MediaType with
+            | MediaType.Movie ->
+                let request : AddMovieRequest = {
+                    TmdbId = TmdbMovieId item.TmdbId
+                    WhyAdded = None
+                    InitialTags = []
+                    InitialFriends = []
+                }
+                Cmd.OfAsync.either
+                    Api.api.libraryAddMovie
+                    request
+                    (fun result -> TmdbItemAddResult (result, MediaType.Movie))
+                    (fun ex -> TmdbItemAddResult (Error ex.Message, MediaType.Movie))
+            | MediaType.Series ->
+                let request : AddSeriesRequest = {
+                    TmdbId = TmdbSeriesId item.TmdbId
+                    WhyAdded = None
+                    InitialTags = []
+                    InitialFriends = []
+                }
+                Cmd.OfAsync.either
+                    Api.api.libraryAddSeries
+                    request
+                    (fun result -> TmdbItemAddResult (result, MediaType.Series))
+                    (fun ex -> TmdbItemAddResult (Error ex.Message, MediaType.Series))
+        model, addCmd
 
-    | QuickAddModalMsg quickAddMsg ->
-        match model.Modal with
-        | QuickAddModal modalModel ->
-            let addApi : Components.QuickAddModal.State.AddApi = {
-                AddMovie = fun req -> Api.api.libraryAddMovie req
-                AddSeries = fun req -> Api.api.libraryAddSeries req
-                CreateFriend = fun req -> Api.api.friendsCreate req
-            }
-            let newModal, modalCmd, extMsg = Components.QuickAddModal.State.update addApi quickAddMsg modalModel
-            let model' = { model with Modal = QuickAddModal newModal }
-            let cmd = Cmd.map QuickAddModalMsg modalCmd
-            match extMsg with
-            | Components.QuickAddModal.Types.NoOp -> model', cmd
-            | Components.QuickAddModal.Types.Added entry ->
-                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (EntryAdded entry)]
-            | Components.QuickAddModal.Types.CloseRequested ->
-                { model' with Modal = NoModal }, cmd
-            | Components.QuickAddModal.Types.FriendCreatedInline friend ->
-                // Update global friends list
-                let updatedFriends =
-                    match model'.Friends with
-                    | Success friends -> Success (friend :: friends)
-                    | other -> other
-                { model' with Friends = updatedFriends }, cmd
-        | _ -> model, Cmd.none
+    | TmdbItemAddResult (Ok entry, mediaType) ->
+        // Navigate to the detail page
+        let page =
+            match mediaType with
+            | MediaType.Movie -> MovieDetailPage entry.Id
+            | MediaType.Series -> SeriesDetailPage entry.Id
+        // Clear library/home page caches so they reload with new entry
+        { model with LibraryPage = None; HomePage = None },
+        Cmd.batch [
+            Cmd.ofMsg (ShowNotification ("Added to library", true))
+            Cmd.ofMsg (NavigateTo page)
+        ]
+
+    | TmdbItemAddResult (Error err, _) ->
+        model, Cmd.ofMsg (ShowNotification (err, false))
 
     | OpenFriendModal friend ->
         let modalModel = Components.FriendModal.State.init friend

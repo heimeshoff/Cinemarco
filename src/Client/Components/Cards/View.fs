@@ -30,7 +30,8 @@ let getLocalBackdropUrl (path: string option) =
     | None -> ""
 
 /// Poster card component for search results (TMDB data)
-let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
+/// isInLibrary: when true, shows a gray overlay to indicate the item is already in library
+let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (isInLibrary: bool) =
     let year =
         item.ReleaseDate
         |> Option.map (fun d -> d.Year.ToString())
@@ -55,7 +56,7 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
                         Html.img [
                             prop.src (getTmdbPosterUrl "w342" item.PosterPath)
                             prop.alt item.Title
-                            prop.className "poster-image"
+                            prop.className (if isInLibrary then "poster-image grayscale opacity-60" else "poster-image")
                             prop.custom ("loading", "lazy")
                         ]
                     | None ->
@@ -73,6 +74,18 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
                     Html.div [
                         prop.className "poster-shine"
                     ]
+
+                    // "In Library" overlay for items already in library
+                    if isInLibrary then
+                        Html.div [
+                            prop.className "absolute inset-0 bg-base-300/70 flex items-center justify-center z-10"
+                            prop.children [
+                                Html.div [
+                                    prop.className "px-2 py-1 bg-base-100/90 rounded-md text-xs font-medium text-base-content/70"
+                                    prop.text "In Library"
+                                ]
+                            ]
+                        ]
 
                     // Media type badge (top right)
                     Html.div [
@@ -95,22 +108,23 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
                         ]
                     ]
 
-                    // Hover overlay
-                    Html.div [
-                        prop.className "poster-overlay flex items-center justify-center"
-                        prop.children [
-                            // Add button
-                            Html.div [
-                                prop.className "w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
-                                prop.children [
-                                    Html.span [
-                                        prop.className "w-6 h-6 text-white"
-                                        prop.children [ plus ]
+                    // Hover overlay (only show add button if not in library)
+                    if not isInLibrary then
+                        Html.div [
+                            prop.className "poster-overlay flex items-center justify-center"
+                            prop.children [
+                                // Add button
+                                Html.div [
+                                    prop.className "w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-6 h-6 text-white"
+                                            prop.children [ plus ]
+                                        ]
                                     ]
                                 ]
                             ]
                         ]
-                    ]
                 ]
             ]
 
@@ -119,7 +133,7 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) =
                 prop.className "mt-3 space-y-1"
                 prop.children [
                     Html.p [
-                        prop.className "font-medium text-sm truncate text-base-content/90"
+                        prop.className (if isInLibrary then "font-medium text-sm truncate text-base-content/50" else "font-medium text-sm truncate text-base-content/90")
                         prop.title item.Title
                         prop.text item.Title
                     ]

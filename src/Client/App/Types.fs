@@ -8,7 +8,6 @@ open Shared.Domain
 type ActiveModal =
     | NoModal
     | SearchModal of Components.SearchModal.Types.Model
-    | QuickAddModal of Components.QuickAddModal.Types.Model
     | FriendModal of Components.FriendModal.Types.Model
     | TagModal of Components.TagModal.Types.Model
     | AbandonModal of Components.AbandonModal.Types.Model
@@ -68,8 +67,8 @@ type Msg =
     | OpenSearchModal
     | CloseModal
     | SearchModalMsg of Components.SearchModal.Types.Msg
-    | OpenQuickAddModal of TmdbSearchResult
-    | QuickAddModalMsg of Components.QuickAddModal.Types.Msg
+    | AddTmdbItemDirectly of TmdbSearchResult
+    | TmdbItemAddResult of Result<LibraryEntry, string> * MediaType
     | OpenFriendModal of Friend option
     | FriendModalMsg of Components.FriendModal.Types.Msg
     | OpenTagModal of Tag option

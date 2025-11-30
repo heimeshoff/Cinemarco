@@ -2,9 +2,20 @@ module Components.SearchModal.View
 
 open Feliz
 open Common.Types
+open Shared.Domain
 open Types
+open State
 open Components.Icons
 open Components.Cards.View
+
+/// Find a library entry matching a TMDB search result (if it exists)
+let private findInLibrary (libraryEntries: LibraryEntry list) (item: TmdbSearchResult) =
+    libraryEntries |> List.tryFind (fun entry ->
+        match item.MediaType, entry.Media with
+        | MediaType.Movie, LibraryMovie m -> m.TmdbId = TmdbMovieId item.TmdbId
+        | MediaType.Series, LibrarySeries s -> s.TmdbId = TmdbSeriesId item.TmdbId
+        | _ -> false
+    )
 
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
@@ -55,65 +66,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "max-h-[60vh] overflow-y-auto"
                         prop.children [
-                            match model.Results with
-                            | Loading ->
-                                Html.div [
-                                    prop.className "p-12 flex flex-col items-center justify-center gap-3"
-                                    prop.children [
-                                        Html.span [ prop.className "loading loading-spinner loading-lg text-primary" ]
-                                        Html.span [ prop.className "text-sm text-base-content/50"; prop.text "Searching..." ]
-                                    ]
-                                ]
-                            | Success results when List.isEmpty results ->
-                                Html.div [
-                                    prop.className "p-12 text-center"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "text-4xl opacity-30 mb-3 block"
-                                            prop.children [ film ]
-                                        ]
-                                        Html.p [
-                                            prop.className "text-base-content/60"
-                                            prop.text "No results found"
-                                        ]
-                                        Html.p [
-                                            prop.className "text-sm text-base-content/40 mt-1"
-                                            prop.text "Try a different search term"
-                                        ]
-                                    ]
-                                ]
-                            | Success results ->
-                                Html.div [
-                                    prop.className "p-4"
-                                    prop.children [
-                                        Html.p [
-                                            prop.className "text-xs text-base-content/50 mb-3 px-1"
-                                            prop.text $"Found {List.length results} results"
-                                        ]
-                                        Html.div [
-                                            prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4"
-                                            prop.children [
-                                                for item in results |> List.truncate 15 do
-                                                    posterCard item (fun i -> dispatch (SelectItem i))
-                                            ]
-                                        ]
-                                    ]
-                                ]
-                            | Failure err ->
-                                Html.div [
-                                    prop.className "p-8 text-center"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "text-3xl mb-2 block"
-                                            prop.children [ error ]
-                                        ]
-                                        Html.p [
-                                            prop.className "text-error"
-                                            prop.text $"Error: {err}"
-                                        ]
-                                    ]
-                                ]
-                            | NotAsked ->
+                            let hasQuery = model.Query.Length >= 2
+                            let filteredLibrary =
+                                if hasQuery then filterLibraryEntries model.Query model.LibraryEntries
+                                else model.LibraryEntries |> List.truncate 5  // Show 5 most recent when no query
+
+                            if not hasQuery && List.isEmpty model.LibraryEntries then
+                                // No query and no library entries
                                 Html.div [
                                     prop.className "p-8 text-center text-base-content/40"
                                     prop.children [
@@ -122,6 +81,195 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                             prop.children [ search ]
                                         ]
                                         Html.p [ prop.text "Start typing to search" ]
+                                    ]
+                                ]
+                            else if not hasQuery then
+                                // No query but has library entries - show recent
+                                Html.div [
+                                    prop.className "p-4"
+                                    prop.children [
+                                        Html.h3 [
+                                            prop.className "text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-3"
+                                            prop.text "Recent from Library"
+                                        ]
+                                        Html.div [
+                                            prop.className "grid grid-cols-5 gap-3"
+                                            prop.children [
+                                                for entry in filteredLibrary do
+                                                    let mediaType =
+                                                        match entry.Media with
+                                                        | LibraryMovie _ -> MediaType.Movie
+                                                        | LibrarySeries _ -> MediaType.Series
+                                                    let posterPath =
+                                                        match entry.Media with
+                                                        | LibraryMovie m -> m.PosterPath
+                                                        | LibrarySeries s -> s.PosterPath
+                                                    let title =
+                                                        match entry.Media with
+                                                        | LibraryMovie m -> m.Title
+                                                        | LibrarySeries s -> s.Name
+                                                    Html.div [
+                                                        prop.className "poster-card cursor-pointer group"
+                                                        prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType)))
+                                                        prop.children [
+                                                            Html.div [
+                                                                prop.className "poster-image-container poster-shadow"
+                                                                prop.children [
+                                                                    match posterPath with
+                                                                    | Some path ->
+                                                                        Html.img [
+                                                                            prop.src $"https://image.tmdb.org/t/p/w185{path}"
+                                                                            prop.alt title
+                                                                            prop.className "poster-image"
+                                                                        ]
+                                                                    | None ->
+                                                                        Html.div [
+                                                                            prop.className "w-full h-full flex items-center justify-center text-base-content/30"
+                                                                            prop.children [ film ]
+                                                                        ]
+                                                                    // Shine effect
+                                                                    Html.div [
+                                                                        prop.className "poster-shine"
+                                                                    ]
+                                                                    // Hover overlay
+                                                                    Html.div [
+                                                                        prop.className "poster-overlay"
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                            Html.p [
+                                                                prop.className "text-xs mt-3 truncate text-base-content/70 group-hover:text-primary transition-colors"
+                                                                prop.text title
+                                                            ]
+                                                        ]
+                                                    ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            else
+                                Html.div [
+                                    prop.className "p-4 space-y-6"
+                                    prop.children [
+                                        // TMDB Results Section
+                                        Html.div [
+                                            prop.children [
+                                                Html.h3 [
+                                                    prop.className "text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-3"
+                                                    prop.text "TMDB Results"
+                                                ]
+                                                match model.Results with
+                                                | Loading ->
+                                                    Html.div [
+                                                        prop.className "flex items-center gap-2 text-base-content/50"
+                                                        prop.children [
+                                                            Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                                            Html.span [ prop.text "Searching..." ]
+                                                        ]
+                                                    ]
+                                                | Success results when List.isEmpty results ->
+                                                    Html.p [
+                                                        prop.className "text-sm text-base-content/40"
+                                                        prop.text "No results from TMDB"
+                                                    ]
+                                                | Success results ->
+                                                    Html.div [
+                                                        prop.className "grid grid-cols-5 gap-3"
+                                                        prop.children [
+                                                            for item in results |> List.truncate 5 do
+                                                                let libraryEntry = findInLibrary model.LibraryEntries item
+                                                                let clickHandler =
+                                                                    match libraryEntry with
+                                                                    | Some entry ->
+                                                                        // Navigate to library entry
+                                                                        fun _ -> dispatch (SelectLibraryItem (entry.Id, item.MediaType))
+                                                                    | None ->
+                                                                        // Add to library
+                                                                        fun i -> dispatch (SelectTmdbItem i)
+                                                                posterCard item clickHandler (Option.isSome libraryEntry)
+                                                        ]
+                                                    ]
+                                                | Failure err ->
+                                                    Html.p [
+                                                        prop.className "text-sm text-error"
+                                                        prop.text $"Error: {err}"
+                                                    ]
+                                                | NotAsked ->
+                                                    Html.p [
+                                                        prop.className "text-sm text-base-content/40"
+                                                        prop.text "Searching..."
+                                                    ]
+                                            ]
+                                        ]
+
+                                        // My Library Section
+                                        Html.div [
+                                            prop.children [
+                                                Html.h3 [
+                                                    prop.className "text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-3"
+                                                    prop.text "My Library"
+                                                ]
+                                                if List.isEmpty filteredLibrary then
+                                                    Html.p [
+                                                        prop.className "text-sm text-base-content/40"
+                                                        prop.text "No matches in your library"
+                                                    ]
+                                                else
+                                                    Html.div [
+                                                        prop.className "grid grid-cols-5 gap-3"
+                                                        prop.children [
+                                                            for entry in filteredLibrary do
+                                                                let mediaType =
+                                                                    match entry.Media with
+                                                                    | LibraryMovie _ -> MediaType.Movie
+                                                                    | LibrarySeries _ -> MediaType.Series
+                                                                let posterPath =
+                                                                    match entry.Media with
+                                                                    | LibraryMovie m -> m.PosterPath
+                                                                    | LibrarySeries s -> s.PosterPath
+                                                                let title =
+                                                                    match entry.Media with
+                                                                    | LibraryMovie m -> m.Title
+                                                                    | LibrarySeries s -> s.Name
+                                                                Html.div [
+                                                                    prop.className "poster-card cursor-pointer group"
+                                                                    prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType)))
+                                                                    prop.children [
+                                                                        Html.div [
+                                                                            prop.className "poster-image-container poster-shadow"
+                                                                            prop.children [
+                                                                                match posterPath with
+                                                                                | Some path ->
+                                                                                    Html.img [
+                                                                                        prop.src $"https://image.tmdb.org/t/p/w185{path}"
+                                                                                        prop.alt title
+                                                                                        prop.className "poster-image"
+                                                                                    ]
+                                                                                | None ->
+                                                                                    Html.div [
+                                                                                        prop.className "w-full h-full flex items-center justify-center text-base-content/30"
+                                                                                        prop.children [ film ]
+                                                                                    ]
+                                                                                // Shine effect
+                                                                                Html.div [
+                                                                                    prop.className "poster-shine"
+                                                                                ]
+                                                                                // Hover overlay
+                                                                                Html.div [
+                                                                                    prop.className "poster-overlay"
+                                                                                ]
+                                                                            ]
+                                                                        ]
+                                                                        Html.p [
+                                                                            prop.className "text-xs mt-3 truncate text-base-content/70 group-hover:text-primary transition-colors"
+                                                                            prop.text title
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                        ]
+                                                    ]
+                                            ]
+                                        ]
                                     ]
                                 ]
                         ]

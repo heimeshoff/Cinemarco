@@ -44,11 +44,6 @@
     <Compile Include="Components/AbandonModal/State.fs" />
     <Compile Include="Components/AbandonModal/View.fs" />
 
-    <!-- QuickAddModal Component -->
-    <Compile Include="Components/QuickAddModal/Types.fs" />
-    <Compile Include="Components/QuickAddModal/State.fs" />
-    <Compile Include="Components/QuickAddModal/View.fs" />
-
     <!-- WatchSessionModal Component -->
     <Compile Include="Components/WatchSessionModal/Types.fs" />
     <Compile Include="Components/WatchSessionModal/State.fs" />
