@@ -8,50 +8,128 @@ open Components.Icons
 open Components.Cards.View
 open Components.FriendSelector.View
 
-/// Watch status controls for movies
-let private watchControls (entry: LibraryEntry) (dispatch: Msg -> unit) =
+/// Glassmorphism action buttons overlayed on the poster (movies only - no abandon)
+let private posterActionButtons (entry: LibraryEntry) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "space-y-3"
+        prop.className "poster-actions-container"
         prop.children [
             match entry.WatchStatus with
             | NotStarted ->
-                Html.button [
-                    prop.className "btn btn-primary btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch MarkWatched)
-                    prop.text "Mark as Watched"
+                // Mark as Watched button (outlined check for unwatched)
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Mark as Watched")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-success"
+                            prop.onClick (fun _ -> dispatch MarkWatched)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
+                            ]
+                        ]
+                    ]
                 ]
-                Html.button [
-                    prop.className "btn btn-outline btn-error btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch OpenAbandonModal)
-                    prop.text "Abandon"
+                // Delete button
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Delete Entry")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-danger"
+                            prop.onClick (fun _ -> dispatch OpenDeleteModal)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ trash ] ]
+                            ]
+                        ]
+                    ]
                 ]
             | InProgress _ ->
-                Html.button [
-                    prop.className "btn btn-primary btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch MarkWatched)
-                    prop.text "Mark as Completed"
+                // Mark as Completed button (outlined check for not yet completed)
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Mark as Completed")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-success"
+                            prop.onClick (fun _ -> dispatch MarkWatched)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
+                            ]
+                        ]
+                    ]
                 ]
-                Html.button [
-                    prop.className "btn btn-outline btn-error btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch OpenAbandonModal)
-                    prop.text "Abandon"
+                // Delete button
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Delete Entry")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-danger"
+                            prop.onClick (fun _ -> dispatch OpenDeleteModal)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ trash ] ]
+                            ]
+                        ]
+                    ]
                 ]
             | Completed ->
-                Html.button [
-                    prop.className "btn btn-outline btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch MarkUnwatched)
-                    prop.text "Mark as Unwatched"
+                // Watched indicator (filled check for watched)
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Watched")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-success"
+                            prop.onClick (fun _ -> dispatch MarkUnwatched)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5 text-green-400"; prop.children [ checkCircleSolid ] ]
+                            ]
+                        ]
+                    ]
+                ]
+                // Delete button
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Delete Entry")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-danger"
+                            prop.onClick (fun _ -> dispatch OpenDeleteModal)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ trash ] ]
+                            ]
+                        ]
+                    ]
                 ]
             | Abandoned _ ->
-                Html.button [
-                    prop.className "btn btn-primary btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch ResumeEntry)
-                    prop.text "Resume"
+                // This state shouldn't occur for movies, but handle gracefully
+                // Mark as Completed button
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Mark as Completed")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-success"
+                            prop.onClick (fun _ -> dispatch MarkWatched)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
+                            ]
+                        ]
+                    ]
                 ]
-                Html.button [
-                    prop.className "btn btn-outline btn-sm w-full"
-                    prop.onClick (fun _ -> dispatch MarkWatched)
-                    prop.text "Mark as Completed"
+                // Delete button
+                Html.div [
+                    prop.className "tooltip tooltip-left"
+                    prop.custom ("data-tip", "Delete Entry")
+                    prop.children [
+                        Html.button [
+                            prop.className "poster-action-btn poster-action-btn-danger"
+                            prop.onClick (fun _ -> dispatch OpenDeleteModal)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ trash ] ]
+                            ]
+                        ]
+                    ]
                 ]
         ]
     ]
@@ -154,9 +232,9 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                     Html.div [
                         prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
                         prop.children [
-                            // Left column - Poster
+                            // Left column - Poster with action buttons
                             Html.div [
-                                prop.className "space-y-4"
+                                prop.className "relative"
                                 prop.children [
                                     Html.div [
                                         prop.className "poster-image-container poster-shadow poster-projector-glow"
@@ -176,10 +254,10 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                         Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ film ] ]
                                                     ]
                                                 ]
+                                            // Glassmorphism action buttons on poster
+                                            posterActionButtons entry dispatch
                                         ]
                                     ]
-                                    // Watch controls
-                                    watchControls entry dispatch
                                 ]
                             ]
 
@@ -324,21 +402,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             prop.value (entry.Notes |> Option.defaultValue "")
                                             prop.onChange (fun (e: string) -> dispatch (UpdateNotes e))
                                             prop.onBlur (fun _ -> dispatch SaveNotes)
-                                        ]
-                                    ]
-
-                                    // Delete button
-                                    Html.div [
-                                        prop.className "pt-4 border-t border-base-300"
-                                        prop.children [
-                                            Html.button [
-                                                prop.className "btn btn-error btn-outline btn-sm"
-                                                prop.onClick (fun _ -> dispatch OpenDeleteModal)
-                                                prop.children [
-                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ trash ] ]
-                                                    Html.span [ prop.text "Delete Entry" ]
-                                                ]
-                                            ]
                                         ]
                                     ]
                                 ]

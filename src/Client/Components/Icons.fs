@@ -197,6 +197,18 @@ let eye =
 let menu =
     icon [ roundPath "M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" ]
 
+/// Ban/slash icon (for abandon)
+let ban =
+    icon [ roundPath "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" ]
+
+/// Check circle icon (solid, for mark as watched)
+let checkCircleSolid =
+    iconSolid [ solidPath "M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" ]
+
+/// Undo/arrow-uturn-left icon (for resume or mark unwatched)
+let undo =
+    icon [ roundPath "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" ]
+
 /// Clapperboard/Cinemarco logo icon
 let clapperboard =
     Svg.svg [
