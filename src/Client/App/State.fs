@@ -192,10 +192,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | MediaType.Series -> SeriesDetailPage entry.Id
         // Clear library/home page caches so they reload with new entry
         { model with LibraryPage = None; HomePage = None },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Added to library", true))
-            Cmd.ofMsg (NavigateTo page)
-        ]
+        Cmd.ofMsg (NavigateTo page)
 
     | TmdbItemAddResult (Error err, _) ->
         model, Cmd.ofMsg (ShowNotification (err, false))
@@ -537,7 +534,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.CollectionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo CollectionsPage)]
             | Pages.CollectionDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
             | Pages.CollectionDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
-            | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) ->
+                if isSuccess then model', cmd
+                else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
         | None -> model, Cmd.none
 
     // Page messages - MovieDetail
@@ -573,10 +572,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
-            | Pages.MovieDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.MovieDetail.Types.ShowNotification (msg, isSuccess) ->
+                if isSuccess then model', cmd
+                else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
             | Pages.MovieDetail.Types.EntryUpdated entry ->
                 let model'' = syncEntryToPages entry model'
-                model'', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Updated successfully", true))]
+                model'', cmd
             | Pages.MovieDetail.Types.FriendCreatedInline friend ->
                 // Update global friends list
                 let updatedFriends =
@@ -626,10 +627,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
             | Pages.SeriesDetail.Types.RequestOpenNewSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenWatchSessionModal entryId)]
-            | Pages.SeriesDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.SeriesDetail.Types.ShowNotification (msg, isSuccess) ->
+                if isSuccess then model', cmd
+                else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
             | Pages.SeriesDetail.Types.EntryUpdated entry ->
                 let model'' = syncEntryToPages entry model'
-                model'', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Updated successfully", true))]
+                model'', cmd
         | None -> model, Cmd.none
 
     // Page messages - SessionDetail
@@ -654,7 +657,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SessionDetail.Types.NoOp -> model', cmd
             | Pages.SessionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
             | Pages.SessionDetail.Types.NavigateToSeries entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
-            | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) ->
+                if isSuccess then model', cmd
+                else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
             | Pages.SessionDetail.Types.SessionDeleted sessionId -> model', Cmd.batch [cmd; Cmd.ofMsg (SessionDeleted sessionId)]
             | Pages.SessionDetail.Types.FriendCreatedInline friend ->
                 // Update global friends list
@@ -677,19 +682,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     (friend :: friends) |> Success
             | other -> other
         { model with Friends = updatedFriends },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Friend saved", true))
-            Cmd.ofMsg (FriendsMsg Pages.Friends.Types.LoadFriends)
-        ]
+        Cmd.ofMsg (FriendsMsg Pages.Friends.Types.LoadFriends)
 
     | FriendDeleted friendId ->
         let updatedFriends =
             model.Friends |> RemoteData.map (List.filter (fun f -> f.Id <> friendId))
         { model with Friends = updatedFriends },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Friend deleted", true))
-            Cmd.ofMsg (FriendsMsg Pages.Friends.Types.LoadFriends)
-        ]
+        Cmd.ofMsg (FriendsMsg Pages.Friends.Types.LoadFriends)
 
     | TagSaved tag ->
         let updatedTags =
@@ -702,36 +701,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     (tag :: tags) |> Success
             | other -> other
         { model with Tags = updatedTags },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Tag saved", true))
-            Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
-        ]
+        Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
 
     | TagDeleted tagId ->
         let updatedTags =
             model.Tags |> RemoteData.map (List.filter (fun t -> t.Id <> tagId))
         { model with Tags = updatedTags },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Tag deleted", true))
-            Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
-        ]
+        Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
 
     | EntryAbandoned _ ->
-        model, Cmd.ofMsg (ShowNotification ("Entry abandoned", true))
+        model, Cmd.none
 
     | EntryDeleted _ ->
         // Clear the library page cache so it reloads fresh data
         { model with LibraryPage = None; HomePage = None },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Entry deleted", true))
-            Cmd.ofMsg (NavigateTo LibraryPage)
-        ]
+        Cmd.ofMsg (NavigateTo LibraryPage)
 
     | EntryAdded _ ->
-        model, Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Added to library", true))
-            Cmd.ofMsg (HomeMsg Pages.Home.Types.LoadLibrary)
-        ]
+        model, Cmd.ofMsg (HomeMsg Pages.Home.Types.LoadLibrary)
 
     | SessionCreated session ->
         // Reload sessions on the SeriesDetail page and select the new session
@@ -743,34 +730,22 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     Cmd.ofMsg (SeriesDetailMsg (Pages.SeriesDetail.Types.SelectSession session.Id))
                 ]
             | None -> Cmd.none
-        model, Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Watch session created", true))
-            reloadAndSelectCmd
-        ]
+        model, reloadAndSelectCmd
 
     | SessionDeleted _ ->
         { model with SessionDetailPage = None },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Session deleted", true))
-            Cmd.ofMsg (NavigateTo LibraryPage)
-        ]
+        Cmd.ofMsg (NavigateTo LibraryPage)
 
     | CollectionSaved _ ->
         { model with CollectionsPage = None },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Collection saved", true))
-            Cmd.ofMsg (NavigateTo CollectionsPage)
-        ]
+        Cmd.ofMsg (NavigateTo CollectionsPage)
 
     | CollectionDeleted _ ->
         { model with CollectionsPage = None },
-        Cmd.batch [
-            Cmd.ofMsg (ShowNotification ("Collection deleted", true))
-            Cmd.ofMsg (NavigateTo CollectionsPage)
-        ]
+        Cmd.ofMsg (NavigateTo CollectionsPage)
 
-    | AddedToCollection collection ->
-        model, Cmd.ofMsg (ShowNotification ($"Added to \"{collection.Name}\"", true))
+    | AddedToCollection _ ->
+        model, Cmd.none
 
     // Page messages - Cache
     | CacheMsg cacheMsg ->
@@ -787,5 +762,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map CacheMsg pageCmd
             match extMsg with
             | Pages.Cache.Types.NoOp -> model', cmd
-            | Pages.Cache.Types.ShowNotification (msg, isSuccess) -> model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+            | Pages.Cache.Types.ShowNotification (msg, isSuccess) ->
+                if isSuccess then model', cmd
+                else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
         | None -> model, Cmd.none
