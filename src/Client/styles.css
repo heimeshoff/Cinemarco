@@ -416,6 +416,73 @@ h1, h2, h3, .font-display {
   z-index: 10;
 }
 
+/* Detail page action buttons - square glassmorphism (matches mobile nav) */
+.detail-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: rgba(28, 25, 23, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  color: var(--color-base-content);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.08),
+    0 8px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+.detail-action-btn:hover {
+  background: rgba(28, 25, 23, 0.92);
+  border-color: rgba(212, 165, 116, 0.25);
+  transform: scale(1.05);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.12),
+    0 12px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.detail-action-btn:active {
+  transform: scale(0.95);
+}
+
+/* Success variant - for watch/complete actions */
+.detail-action-btn-success {
+  color: rgba(134, 239, 172, 0.8);
+}
+
+.detail-action-btn-success:hover {
+  background: rgba(20, 83, 45, 0.75);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+/* Success active variant - for watched state */
+.detail-action-btn-success-active {
+  background: rgba(20, 83, 45, 0.7);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.detail-action-btn-success-active:hover {
+  background: rgba(20, 83, 45, 0.8);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+/* Danger variant - for delete actions */
+.detail-action-btn-danger {
+  color: rgba(252, 165, 165, 0.8);
+}
+
+.detail-action-btn-danger:hover {
+  background: rgba(127, 29, 29, 0.75);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #fca5a5;
+}
+
 /* ============================================
    CARD HOVER EFFECTS
    ============================================ */
