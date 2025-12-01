@@ -27,11 +27,11 @@ let private getPageIcon (page: Page) =
     | CachePage -> cache
     | NotFoundPage -> warning
 
-/// Get icon color class for a page - Cinema-inspired color palette
+/// Get icon color class for a page - Velvet Cinema color palette
 let private getIconColor (page: Page) =
     match page with
-    | HomePage -> "text-nav-home"           // Amber - theater marquee
-    | LibraryPage -> "text-nav-library"     // Blue - film archives
+    | HomePage -> "text-nav-home"           // Gold - theater marquee
+    | LibraryPage -> "text-nav-library"     // Champagne - film archives
     | MovieDetailPage _ -> "text-nav-library"
     | SeriesDetailPage _ -> "text-nav-library"
     | SessionDetailPage _ -> "text-nav-library"
@@ -79,7 +79,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
         prop.children [
             // Logo section
             Html.div [
-                prop.className "p-6 border-b border-white/5"
+                prop.className "p-6 border-b border-[#d4a574]/10"
                 prop.children [
                     Html.div [
                         prop.className "flex items-center gap-3"
@@ -134,21 +134,21 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             ]
 
                             // Divider
-                            Html.li [ prop.className "my-4 border-t border-white/5" ]
+                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
 
                             navItem FriendsPage currentPage onNavigate
                             navItem TagsPage currentPage onNavigate
                             navItem CollectionsPage currentPage onNavigate
 
                             // Divider
-                            Html.li [ prop.className "my-4 border-t border-white/5" ]
+                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
 
                             navItem StatsPage currentPage onNavigate
                             navItem TimelinePage currentPage onNavigate
                             navItem GraphPage currentPage onNavigate
 
                             // Divider
-                            Html.li [ prop.className "my-4 border-t border-white/5" ]
+                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
 
                             navItem ImportPage currentPage onNavigate
                             navItem CachePage currentPage onNavigate
@@ -159,7 +159,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
 
             // Status footer
             Html.div [
-                prop.className "p-4 border-t border-white/5"
+                prop.className "p-4 border-t border-[#d4a574]/10"
                 prop.children [
                     match model.HealthCheck with
                     | Success health ->
