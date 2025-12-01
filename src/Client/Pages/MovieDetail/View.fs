@@ -8,8 +8,83 @@ open Components.Icons
 open Components.Cards.View
 open Components.FriendSelector.View
 
+/// Rating labels, descriptions and icons
+let private ratingOptions = [
+    (0, "Unrated", "No rating yet", questionCircle, "text-base-content/50")
+    (1, "Waste", "Waste of time", thumbsDown, "text-red-400")
+    (2, "Meh", "Didn't click, uninspiring", minusCircle, "text-orange-400")
+    (3, "Decent", "Watchable, even if not life-changing", handOkay, "text-yellow-400")
+    (4, "Entertaining", "Strong craft, enjoyable", thumbsUp, "text-lime-400")
+    (5, "Outstanding", "Absolutely brilliant, stays with you", trophy, "text-amber-400")
+]
+
+/// Get rating icon and color for current rating
+let private getRatingDisplay (rating: int option) =
+    let r = rating |> Option.defaultValue 0
+    ratingOptions |> List.find (fun (n, _, _, _, _) -> n = r)
+
+/// Rating button with dropdown
+let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> unit) =
+    let (_, label, _, icon, colorClass) = getRatingDisplay current
+    let btnClass = "detail-action-btn " + colorClass
+    Html.div [
+        prop.className "relative"
+        prop.children [
+            // Main button
+            Html.div [
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", label)
+                prop.children [
+                    Html.button [
+                        prop.className btnClass
+                        prop.onClick (fun _ -> dispatch ToggleRatingDropdown)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ icon ] ]
+                        ]
+                    ]
+                ]
+            ]
+            // Dropdown
+            if isOpen then
+                Html.div [
+                    prop.className "absolute top-full left-0 mt-2 z-50 rating-dropdown"
+                    prop.children [
+                        for (value, name, description, ratingIcon, ratingColor) in ratingOptions do
+                            if value > 0 then // Skip "Unrated" in options, show "Clear" instead
+                                let isActive = current = Some value
+                                let itemClass = if isActive then "rating-dropdown-item rating-dropdown-item-active" else "rating-dropdown-item"
+                                let iconClass = "w-5 h-5 " + ratingColor
+                                Html.button [
+                                    prop.className itemClass
+                                    prop.onClick (fun _ -> dispatch (SetRating value))
+                                    prop.children [
+                                        Html.span [ prop.className iconClass; prop.children [ ratingIcon ] ]
+                                        Html.div [
+                                            prop.className "flex flex-col items-start"
+                                            prop.children [
+                                                Html.span [ prop.className "font-medium"; prop.text name ]
+                                                Html.span [ prop.className "text-xs text-base-content/50"; prop.text description ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                        // Clear option if rated
+                        if current.IsSome && current.Value > 0 then
+                            Html.button [
+                                prop.className "rating-dropdown-item rating-dropdown-item-clear"
+                                prop.onClick (fun _ -> dispatch (SetRating 0))
+                                prop.children [
+                                    Html.span [ prop.className "w-5 h-5 text-base-content/40"; prop.children [ questionCircle ] ]
+                                    Html.span [ prop.className "font-medium text-base-content/60"; prop.text "Clear rating" ]
+                                ]
+                            ]
+                    ]
+                ]
+        ]
+    ]
+
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
-let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "flex items-center gap-3 mt-4"
         prop.children [
@@ -17,7 +92,7 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
             match entry.WatchStatus with
             | NotStarted ->
                 Html.div [
-                    prop.className "tooltip tooltip-top before:bg-base-300 before:text-base-content"
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
                     prop.custom ("data-tip", "Mark as Watched")
                     prop.children [
                         Html.button [
@@ -31,7 +106,7 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
                 ]
             | InProgress _ ->
                 Html.div [
-                    prop.className "tooltip tooltip-top before:bg-base-300 before:text-base-content"
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
                     prop.custom ("data-tip", "Mark as Completed")
                     prop.children [
                         Html.button [
@@ -45,7 +120,7 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
                 ]
             | Completed ->
                 Html.div [
-                    prop.className "tooltip tooltip-top before:bg-base-300 before:text-base-content"
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
                     prop.custom ("data-tip", "Mark as Unwatched")
                     prop.children [
                         Html.button [
@@ -59,7 +134,7 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
                 ]
             | Abandoned _ ->
                 Html.div [
-                    prop.className "tooltip tooltip-top before:bg-base-300 before:text-base-content"
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
                     prop.custom ("data-tip", "Mark as Completed")
                     prop.children [
                         Html.button [
@@ -71,9 +146,11 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
                         ]
                     ]
                 ]
+            // Rating button
+            ratingButton (entry.PersonalRating |> Option.map PersonalRating.toInt) isRatingOpen dispatch
             // Delete button
             Html.div [
-                prop.className "tooltip tooltip-top before:bg-base-300 before:text-base-content"
+                prop.className "tooltip tooltip-bottom detail-tooltip"
                 prop.custom ("data-tip", "Delete Entry")
                 prop.children [
                     Html.button [
@@ -85,75 +162,6 @@ let private actionButtonsRow (entry: LibraryEntry) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
-        ]
-    ]
-
-/// Rating labels and descriptions
-let private ratingInfo = [
-    (1, "Waste", "Waste of time")
-    (2, "Meh", "Didn't click, uninspiring")
-    (3, "Decent", "Watchable, even if not life-changing")
-    (4, "Entertaining", "Strong craft, enjoyable, recommendable")
-    (5, "Outstanding", "Absolutely brilliant, stays with you")
-]
-
-/// Rating selector component with tooltips
-let private ratingSelector (current: int option) (dispatch: Msg -> unit) =
-    let currentRating = current |> Option.defaultValue 0
-    Html.div [
-        prop.className "space-y-2"
-        prop.children [
-            // Stars row
-            Html.div [
-                prop.className "flex items-center gap-1"
-                prop.children [
-                    for i in 1..5 do
-                        let isFilled = i <= currentRating
-                        let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = i)
-                        Html.div [
-                            prop.className "tooltip tooltip-top"
-                            prop.custom ("data-tip", $"{label}: {description}")
-                            prop.children [
-                                Html.button [
-                                    prop.className (
-                                        "w-8 h-8 transition-all hover:scale-110 " +
-                                        if isFilled then "text-yellow-400" else "text-base-content/20 hover:text-yellow-400/50"
-                                    )
-                                    prop.onClick (fun _ ->
-                                        // Click on current rating clears it
-                                        if i = currentRating then
-                                            dispatch (SetRating 0)
-                                        else
-                                            dispatch (SetRating i))
-                                    prop.children [ starSolid ]
-                                ]
-                            ]
-                        ]
-                    // Clear button when rating is set
-                    if currentRating > 0 then
-                        Html.button [
-                            prop.className "ml-2 text-xs text-base-content/40 hover:text-base-content/60 transition-colors"
-                            prop.onClick (fun _ -> dispatch (SetRating 0))
-                            prop.text "Clear"
-                        ]
-                ]
-            ]
-            // Current rating description
-            match current with
-            | Some r when r > 0 ->
-                let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = r)
-                Html.p [
-                    prop.className "text-sm text-base-content/60"
-                    prop.children [
-                        Html.span [ prop.className "font-medium text-base-content/80"; prop.text label ]
-                        Html.span [ prop.text $" - {description}" ]
-                    ]
-                ]
-            | _ ->
-                Html.p [
-                    prop.className "text-sm text-base-content/40"
-                    prop.text "Click a star to rate"
-                ]
         ]
     ]
 
@@ -245,7 +253,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             ]
                                         ]
                                         // Action buttons row
-                                        actionButtonsRow entry dispatch
+                                        actionButtonsRow entry model.IsRatingOpen dispatch
                                     ]
 
                                     // Overview
@@ -256,12 +264,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             Html.p [ prop.className "text-base-content/70"; prop.text overview ]
                                         ]
                                     | _ -> Html.none
-
-                                    // Rating
-                                    Html.div [
-                                        Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Your Rating" ]
-                                        ratingSelector (entry.PersonalRating |> Option.map PersonalRating.toInt) dispatch
-                                    ]
 
                                     // Favorite toggle and Add to Collection
                                     Html.div [

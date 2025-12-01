@@ -8,6 +8,7 @@ type Model = {
     Entry: RemoteData<LibraryEntry>
     Collections: RemoteData<Collection list>
     IsAddingFriend: bool
+    IsRatingOpen: bool
 }
 
 type Msg =
@@ -20,6 +21,7 @@ type Msg =
     | OpenAbandonModal
     | ResumeEntry
     | ToggleFavorite
+    | ToggleRatingDropdown
     | SetRating of int
     | UpdateNotes of string
     | SaveNotes
@@ -43,4 +45,4 @@ type ExternalMsg =
     | FriendCreatedInline of Friend
 
 module Model =
-    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; IsAddingFriend = false }
+    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; IsAddingFriend = false; IsRatingOpen = false }

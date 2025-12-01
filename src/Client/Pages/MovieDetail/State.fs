@@ -96,6 +96,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
 
+    | ToggleRatingDropdown ->
+        { model with IsRatingOpen = not model.IsRatingOpen }, Cmd.none, NoOp
+
     | SetRating rating ->
         // Rating of 0 means clear the rating
         let ratingValue = if rating = 0 then None else Some rating
@@ -105,7 +108,7 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (model.EntryId, ratingValue)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+        { model with IsRatingOpen = false }, cmd, NoOp
 
     | UpdateNotes notes ->
         // Just update local state, will save on SaveNotes

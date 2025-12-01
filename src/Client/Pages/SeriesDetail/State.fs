@@ -217,6 +217,9 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
 
+    | ToggleRatingDropdown ->
+        { model with IsRatingOpen = not model.IsRatingOpen }, Cmd.none, NoOp
+
     | SetRating rating ->
         // Rating of 0 means clear the rating
         let ratingValue = if rating = 0 then None else Some rating
@@ -226,7 +229,7 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (model.EntryId, ratingValue)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+        { model with IsRatingOpen = false }, cmd, NoOp
 
     | UpdateNotes notes ->
         match model.Entry with

@@ -12,6 +12,7 @@ type Model = {
     EpisodeProgress: EpisodeProgress list
     SeasonDetails: Map<int, TmdbSeasonDetails>
     LoadingSeasons: Set<int>
+    IsRatingOpen: bool
 }
 
 type Msg =
@@ -33,6 +34,7 @@ type Msg =
     | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
     | ToggleFavorite
+    | ToggleRatingDropdown
     | SetRating of int
     | UpdateNotes of string
     | SaveNotes
@@ -67,4 +69,5 @@ module Model =
         EpisodeProgress = []
         SeasonDetails = Map.empty
         LoadingSeasons = Set.empty
+        IsRatingOpen = false
     }

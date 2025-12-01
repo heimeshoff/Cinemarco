@@ -121,72 +121,134 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
 let private episodeCheckbox seasonNum epNum isWatched dispatch =
     renderEpisodeCheckbox seasonNum epNum isWatched false (fun _ -> ()) dispatch
 
-/// Rating labels and descriptions
-let private ratingInfo = [
-    (1, "Waste", "Waste of time")
-    (2, "Meh", "Didn't click, uninspiring")
-    (3, "Decent", "Watchable, even if not life-changing")
-    (4, "Entertaining", "Strong craft, enjoyable, recommendable")
-    (5, "Outstanding", "Absolutely brilliant, stays with you")
+/// Rating labels, descriptions and icons
+let private ratingOptions = [
+    (0, "Unrated", "No rating yet", questionCircle, "text-base-content/50")
+    (1, "Waste", "Waste of time", thumbsDown, "text-red-400")
+    (2, "Meh", "Didn't click, uninspiring", minusCircle, "text-orange-400")
+    (3, "Decent", "Watchable, even if not life-changing", handOkay, "text-yellow-400")
+    (4, "Entertaining", "Strong craft, enjoyable", thumbsUp, "text-lime-400")
+    (5, "Outstanding", "Absolutely brilliant, stays with you", trophy, "text-amber-400")
 ]
 
-/// Rating selector component with tooltips
-let private ratingSelector (current: int option) (dispatch: Msg -> unit) =
-    let currentRating = current |> Option.defaultValue 0
+/// Get rating icon and color for current rating
+let private getRatingDisplay (rating: int option) =
+    let r = rating |> Option.defaultValue 0
+    ratingOptions |> List.find (fun (n, _, _, _, _) -> n = r)
+
+/// Rating button with dropdown
+let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> unit) =
+    let (_, label, _, icon, colorClass) = getRatingDisplay current
+    let btnClass = "detail-action-btn " + colorClass
     Html.div [
-        prop.className "space-y-2"
+        prop.className "relative"
         prop.children [
-            // Stars row
+            // Main button
             Html.div [
-                prop.className "flex items-center gap-1"
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", label)
                 prop.children [
-                    for i in 1..5 do
-                        let isFilled = i <= currentRating
-                        let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = i)
-                        Html.div [
-                            prop.className "tooltip tooltip-top"
-                            prop.custom ("data-tip", $"{label}: {description}")
-                            prop.children [
-                                Html.button [
-                                    prop.className (
-                                        "w-8 h-8 transition-all hover:scale-110 " +
-                                        if isFilled then "text-yellow-400" else "text-base-content/20 hover:text-yellow-400/50"
-                                    )
-                                    prop.onClick (fun _ ->
-                                        // Click on current rating clears it
-                                        if i = currentRating then
-                                            dispatch (SetRating 0)
-                                        else
-                                            dispatch (SetRating i))
-                                    prop.children [ starSolid ]
-                                ]
-                            ]
+                    Html.button [
+                        prop.className btnClass
+                        prop.onClick (fun _ -> dispatch ToggleRatingDropdown)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ icon ] ]
                         ]
-                    // Clear button when rating is set
-                    if currentRating > 0 then
-                        Html.button [
-                            prop.className "ml-2 text-xs text-base-content/40 hover:text-base-content/60 transition-colors"
-                            prop.onClick (fun _ -> dispatch (SetRating 0))
-                            prop.text "Clear"
-                        ]
-                ]
-            ]
-            // Current rating description
-            match current with
-            | Some r when r > 0 ->
-                let (_, label, description) = ratingInfo |> List.find (fun (n, _, _) -> n = r)
-                Html.p [
-                    prop.className "text-sm text-base-content/60"
-                    prop.children [
-                        Html.span [ prop.className "font-medium text-base-content/80"; prop.text label ]
-                        Html.span [ prop.text $" - {description}" ]
                     ]
                 ]
-            | _ ->
-                Html.p [
-                    prop.className "text-sm text-base-content/40"
-                    prop.text "Click a star to rate"
+            ]
+            // Dropdown
+            if isOpen then
+                Html.div [
+                    prop.className "absolute top-full left-0 mt-2 z-50 rating-dropdown"
+                    prop.children [
+                        for (value, name, description, ratingIcon, ratingColor) in ratingOptions do
+                            if value > 0 then
+                                let isActive = current = Some value
+                                let itemClass = if isActive then "rating-dropdown-item rating-dropdown-item-active" else "rating-dropdown-item"
+                                let iconClass = "w-5 h-5 " + ratingColor
+                                Html.button [
+                                    prop.className itemClass
+                                    prop.onClick (fun _ -> dispatch (SetRating value))
+                                    prop.children [
+                                        Html.span [ prop.className iconClass; prop.children [ ratingIcon ] ]
+                                        Html.div [
+                                            prop.className "flex flex-col items-start"
+                                            prop.children [
+                                                Html.span [ prop.className "font-medium"; prop.text name ]
+                                                Html.span [ prop.className "text-xs text-base-content/50"; prop.text description ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                        // Clear option if rated
+                        if current.IsSome && current.Value > 0 then
+                            Html.button [
+                                prop.className "rating-dropdown-item rating-dropdown-item-clear"
+                                prop.onClick (fun _ -> dispatch (SetRating 0))
+                                prop.children [
+                                    Html.span [ prop.className "w-5 h-5 text-base-content/40"; prop.children [ questionCircle ] ]
+                                    Html.span [ prop.className "font-medium text-base-content/60"; prop.text "Clear rating" ]
+                                ]
+                            ]
+                    ]
                 ]
+        ]
+    ]
+
+/// Action buttons row for series (rating, abandon/resume, delete)
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "flex items-center gap-3 mt-4"
+        prop.children [
+            // Rating button
+            ratingButton (entry.PersonalRating |> Option.map PersonalRating.toInt) isRatingOpen dispatch
+            // Abandon/Resume button
+            match entry.WatchStatus with
+            | NotStarted | InProgress _ ->
+                Html.div [
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
+                    prop.custom ("data-tip", "Abandon Series")
+                    prop.children [
+                        Html.button [
+                            prop.className "detail-action-btn text-warning/70"
+                            prop.onClick (fun _ -> dispatch OpenAbandonModal)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ ban ] ]
+                            ]
+                        ]
+                    ]
+                ]
+            | Completed ->
+                Html.none
+            | Abandoned _ ->
+                Html.div [
+                    prop.className "tooltip tooltip-bottom detail-tooltip"
+                    prop.custom ("data-tip", "Resume Watching")
+                    prop.children [
+                        Html.button [
+                            prop.className "detail-action-btn detail-action-btn-success"
+                            prop.onClick (fun _ -> dispatch ResumeEntry)
+                            prop.children [
+                                Html.span [ prop.className "w-5 h-5"; prop.children [ undo ] ]
+                            ]
+                        ]
+                    ]
+                ]
+            // Delete button
+            Html.div [
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", "Delete Entry")
+                prop.children [
+                    Html.button [
+                        prop.className "detail-action-btn detail-action-btn-danger"
+                        prop.onClick (fun _ -> dispatch OpenDeleteModal)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ trash ] ]
+                        ]
+                    ]
+                ]
+            ]
         ]
     ]
 
@@ -275,31 +337,20 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                     // Progress
                                     progressBar watchedCount series.NumberOfEpisodes
 
-                                    // Watch controls
+                                    // Mark as completed button (when all episodes watched)
                                     match entry.WatchStatus with
-                                    | NotStarted | InProgress _ ->
-                                        if watchedCount >= series.NumberOfEpisodes then
-                                            Html.button [
-                                                prop.className "btn btn-primary btn-sm w-full"
-                                                prop.onClick (fun _ -> dispatch MarkSeriesCompleted)
-                                                prop.text "Mark as Completed"
-                                            ]
+                                    | NotStarted | InProgress _ when watchedCount >= series.NumberOfEpisodes ->
                                         Html.button [
-                                            prop.className "btn btn-outline btn-error btn-sm w-full"
-                                            prop.onClick (fun _ -> dispatch OpenAbandonModal)
-                                            prop.text "Abandon"
+                                            prop.className "btn btn-primary btn-sm w-full"
+                                            prop.onClick (fun _ -> dispatch MarkSeriesCompleted)
+                                            prop.text "Mark as Completed"
                                         ]
                                     | Completed ->
                                         Html.div [
                                             prop.className "text-center text-success text-sm"
                                             prop.text "Series Completed"
                                         ]
-                                    | Abandoned _ ->
-                                        Html.button [
-                                            prop.className "btn btn-primary btn-sm w-full"
-                                            prop.onClick (fun _ -> dispatch ResumeEntry)
-                                            prop.text "Resume Watching"
-                                        ]
+                                    | _ -> Html.none
                                 ]
                             ]
 
@@ -307,22 +358,32 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                             Html.div [
                                 prop.className "md:col-span-2 space-y-6"
                                 prop.children [
-                                    // Title and meta
+                                    // Title, meta, and action buttons
                                     Html.div [
                                         Html.h1 [
                                             prop.className "text-3xl font-bold"
                                             prop.text series.Name
                                         ]
                                         Html.div [
-                                            prop.className "flex items-center gap-4 mt-2 text-base-content/60"
+                                            prop.className "flex items-center gap-2 mt-2 text-base-content/60 flex-wrap"
                                             prop.children [
+                                                // Genres
+                                                if not (List.isEmpty series.Genres) then
+                                                    Html.span [ prop.text (series.Genres |> String.concat ", ") ]
+                                                    Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
+                                                // Year
                                                 match series.FirstAirDate with
-                                                | Some d -> Html.span [ prop.text (d.Year.ToString()) ]
+                                                | Some d ->
+                                                    Html.span [ prop.text (d.Year.ToString()) ]
+                                                    Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
                                                 | None -> Html.none
                                                 Html.span [ prop.text $"{series.NumberOfSeasons} Seasons" ]
+                                                Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
                                                 Html.span [ prop.text $"{series.NumberOfEpisodes} Episodes" ]
                                             ]
                                         ]
+                                        // Action buttons row
+                                        actionButtonsRow entry model.IsRatingOpen dispatch
                                     ]
 
                                     // Overview
@@ -478,12 +539,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                         ]
                                     ]
 
-                                    // Rating
-                                    Html.div [
-                                        Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Your Rating" ]
-                                        ratingSelector (entry.PersonalRating |> Option.map PersonalRating.toInt) dispatch
-                                    ]
-
                                     // Favorite toggle and Add to Collection
                                     Html.div [
                                         prop.className "flex items-center gap-2 flex-wrap"
@@ -530,21 +585,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             ]
                                         ]
                                     | _ -> Html.none
-
-                                    // Delete button
-                                    Html.div [
-                                        prop.className "pt-4 border-t border-base-300"
-                                        prop.children [
-                                            Html.button [
-                                                prop.className "btn btn-error btn-outline btn-sm"
-                                                prop.onClick (fun _ -> dispatch OpenDeleteModal)
-                                                prop.children [
-                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ trash ] ]
-                                                    Html.span [ prop.text "Delete Entry" ]
-                                                ]
-                                            ]
-                                        ]
-                                    ]
                                 ]
                             ]
                         ]

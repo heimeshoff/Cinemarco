@@ -424,25 +424,25 @@ h1, h2, h3, .font-display {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 0.75rem;
-  background: rgba(28, 25, 23, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 165, 116, 0.15);
-  color: var(--color-base-content);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid transparent;
+  /* color inherited from parent or set via utility classes */
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 245, 235, 0.08),
-    0 8px 32px -8px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s ease;
+  box-shadow: none;
 }
 
 .detail-action-btn:hover {
-  background: rgba(28, 25, 23, 0.92);
-  border-color: rgba(212, 165, 116, 0.25);
+  background: rgba(28, 25, 23, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-color: rgba(212, 165, 116, 0.15);
   transform: scale(1.05);
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 245, 235, 0.12),
-    0 12px 40px -8px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.08),
+    0 8px 32px -8px rgba(0, 0, 0, 0.5);
 }
 
 .detail-action-btn:active {
@@ -462,8 +462,6 @@ h1, h2, h3, .font-display {
 
 /* Success active variant - for watched state */
 .detail-action-btn-success-active {
-  background: rgba(20, 83, 45, 0.7);
-  border-color: rgba(34, 197, 94, 0.3);
   color: #86efac;
 }
 
@@ -481,6 +479,113 @@ h1, h2, h3, .font-display {
   background: rgba(127, 29, 29, 0.75);
   border-color: rgba(220, 38, 38, 0.35);
   color: #fca5a5;
+}
+
+/* Mobile: always show glassmorphism */
+@media (max-width: 1023px) {
+  .detail-action-btn {
+    background: rgba(28, 25, 23, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(212, 165, 116, 0.15);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 245, 235, 0.08),
+      0 8px 32px -8px rgba(0, 0, 0, 0.5);
+  }
+
+  .detail-action-btn-success-active {
+    background: rgba(20, 83, 45, 0.7);
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+}
+
+/* Detail action button tooltips - glassmorphism effect */
+.detail-tooltip {
+  --tooltip-color: transparent;
+}
+
+.detail-tooltip::before {
+  background: linear-gradient(
+    135deg,
+    rgba(28, 25, 23, 0.75) 0%,
+    rgba(40, 35, 32, 0.7) 100%
+  ) !important;
+  color: rgba(250, 245, 240, 0.95) !important;
+  border: 1px solid rgba(212, 165, 116, 0.2) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.8rem;
+  font-weight: 500;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.1),
+    0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.detail-tooltip::after {
+  border-bottom-color: rgba(28, 25, 23, 0.75) !important;
+}
+
+/* Rating dropdown - glassmorphism */
+.rating-dropdown {
+  background: rgba(28, 25, 23, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  min-width: 220px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.08),
+    0 12px 40px -8px rgba(0, 0, 0, 0.6);
+  animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rating-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--color-base-content);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.rating-dropdown-item:hover {
+  background: rgba(212, 165, 116, 0.1);
+}
+
+.rating-dropdown-item-active {
+  background: rgba(212, 165, 116, 0.15);
+  border: 1px solid rgba(212, 165, 116, 0.2);
+}
+
+.rating-dropdown-item-clear {
+  margin-top: 0.25rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid rgba(212, 165, 116, 0.1);
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.rating-dropdown-item-clear:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* ============================================
@@ -1081,12 +1186,12 @@ h1, h2, h3, .font-display {
   background: conic-gradient(
     from 200deg at 95% 5%,
     transparent 0deg,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.035) 15deg,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.09) 25deg,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.14) 35deg,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.09) 45deg,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.035) 55deg,
-    transparent 70deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 12deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.18) 22deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.28) 35deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.18) 48deg,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 58deg,
+    transparent 75deg,
     transparent 360deg
   );
   transform-origin: 95% 5%;
@@ -1097,7 +1202,7 @@ h1, h2, h3, .font-display {
 
 .projector-beam-focused {
   transform: rotate(15deg);
-  opacity: 1.2;
+  opacity: 1.3;
 }
 
 /* Secondary diffused golden glow */
@@ -1105,24 +1210,24 @@ h1, h2, h3, .font-display {
   position: absolute;
   top: -20%;
   right: -20%;
-  width: 80%;
-  height: 80%;
+  width: 90%;
+  height: 90%;
   background: radial-gradient(
     ellipse at 100% 0%,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.18) 0%,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.1) 30%,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.04) 50%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.35) 0%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.2) 25%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.1) 45%,
     transparent 70%
   );
-  filter: blur(50px);
+  filter: blur(60px);
   transform: translate(0, 0) scale(1);
   animation: glow-pulse 14s ease-in-out infinite;
   transition: transform 1.2s var(--ease-cinema), opacity 1.2s var(--ease-cinema);
 }
 
 .projector-glow-focused {
-  transform: translate(5%, 5%) scale(1.1);
-  opacity: 1.3;
+  transform: translate(5%, 5%) scale(1.15);
+  opacity: 1.4;
 }
 
 /* Ambient warm light bounce from floor */
@@ -1131,10 +1236,11 @@ h1, h2, h3, .font-display {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 45%;
+  height: 50%;
   background: linear-gradient(
     to top,
-    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.025) 0%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.06) 0%,
+    rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.02) 40%,
     transparent 100%
   );
   pointer-events: none;
@@ -1330,11 +1436,11 @@ h1, h2, h3, .font-display {
   }
 
   .projector-beam {
-    opacity: 0.75;
+    opacity: 0.85;
   }
 
   .projector-glow {
-    opacity: 0.65;
+    opacity: 0.8;
   }
 
   .dust {
