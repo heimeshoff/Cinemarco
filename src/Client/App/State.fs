@@ -554,7 +554,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
-                ToggleFavorite = fun entryId -> Api.api.libraryToggleFavorite entryId
                 SetRating = fun (entryId, ratingInt) ->
                     let rating = ratingInt |> Option.bind PersonalRating.fromInt
                     Api.api.librarySetRating (entryId, rating)
@@ -604,7 +603,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
                 MarkCompleted = fun entryId -> Api.api.libraryMarkSeriesCompleted entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
-                ToggleFavorite = fun entryId -> Api.api.libraryToggleFavorite entryId
                 SetRating = fun (entryId, ratingInt) ->
                     let rating = ratingInt |> Option.bind PersonalRating.fromInt
                     Api.api.librarySetRating (entryId, rating)

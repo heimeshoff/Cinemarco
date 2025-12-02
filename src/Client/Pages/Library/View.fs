@@ -181,29 +181,28 @@ let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg 
                                 prop.onClick (fun _ -> dispatch (SetMinRatingFilter None))
                                 prop.text "Any"
                             ]
-                            // Rating stars filter buttons
-                            for rating in [1..5] do
+                            // Rating icon filter buttons
+                            let ratingFilters = [
+                                (1, "1+", thumbsDown, "text-red-400", "bg-red-500/20", "border-red-500/30")
+                                (2, "2+", minusCircle, "text-orange-400", "bg-orange-500/20", "border-orange-500/30")
+                                (3, "3+", handOkay, "text-yellow-400", "bg-yellow-500/20", "border-yellow-500/30")
+                                (4, "4+", thumbsUp, "text-lime-400", "bg-lime-500/20", "border-lime-500/30")
+                                (5, "5", trophy, "text-amber-400", "bg-amber-500/20", "border-amber-500/30")
+                            ]
+                            for (rating, label, icon, textColor, bgColor, borderColor) in ratingFilters do
                                 let isSelected = filters.MinRating = Some rating
-                                let label =
-                                    match rating with
-                                    | 1 -> "1+"
-                                    | 2 -> "2+"
-                                    | 3 -> "3+"
-                                    | 4 -> "4+"
-                                    | 5 -> "5"
-                                    | _ -> ""
                                 Html.button [
                                     prop.type' "button"
                                     prop.className (
                                         "px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1 " +
-                                        if isSelected then "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                        if isSelected then $"{bgColor} {textColor} border {borderColor}"
                                         else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
                                     )
                                     prop.onClick (fun _ -> dispatch (SetMinRatingFilter (Some rating)))
                                     prop.children [
                                         Html.span [
-                                            prop.className "w-3 h-3"
-                                            prop.children [ star ]
+                                            prop.className ("w-3 h-3 " + if isSelected then textColor else "")
+                                            prop.children [ icon ]
                                         ]
                                         Html.span [ prop.text label ]
                                     ]

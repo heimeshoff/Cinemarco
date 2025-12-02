@@ -13,7 +13,6 @@ type SeriesApi = {
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
     MarkCompleted: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
-    ToggleFavorite: EntryId -> Async<Result<LibraryEntry, string>>
     SetRating: EntryId * int option -> Async<Result<LibraryEntry, string>>
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
     ToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
@@ -207,15 +206,6 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                     (fun ex -> Error ex.Message |> EpisodeActionResult)
             model, cmd, NoOp
         | None -> model, Cmd.none, NoOp
-
-    | ToggleFavorite ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.ToggleFavorite
-                model.EntryId
-                ActionResult
-                (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
 
     | ToggleRatingDropdown ->
         { model with IsRatingOpen = not model.IsRatingOpen }, Cmd.none, NoOp

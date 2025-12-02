@@ -33,7 +33,6 @@ type Msg =
     | ToggleEpisodeWatched of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
-    | ToggleFavorite
     | ToggleRatingDropdown
     | SetRating of int
     | UpdateNotes of string

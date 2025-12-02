@@ -172,25 +172,21 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (is
 
 /// Library entry card component (for library items)
 let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> unit) =
-    let (title, posterPath, year, isMovie) =
+    let (title, posterPath, isMovie) =
         match entry.Media with
-        | LibraryMovie m ->
-            let y = m.ReleaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-            (m.Title, m.PosterPath, y, true)
-        | LibrarySeries s ->
-            let y = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-            (s.Name, s.PosterPath, y, false)
+        | LibraryMovie m -> (m.Title, m.PosterPath, true)
+        | LibrarySeries s -> (s.Name, s.PosterPath, false)
 
-    let watchStatusInfo =
-        match entry.WatchStatus with
-        | NotStarted -> None
-        | InProgress _ -> Some ("Watching", "from-info/80 to-info/40", "text-info")
-        | Completed -> Some ("Watched", "from-success/80 to-success/40", "text-success")
-        | Abandoned _ -> Some ("Dropped", "from-warning/80 to-warning/40", "text-warning")
-
-    let ratingStars =
+    let ratingInfo =
         entry.PersonalRating
-        |> Option.map (fun r -> PersonalRating.toInt r)
+        |> Option.map (fun r ->
+            match r with
+            | Outstanding -> (trophy, "text-amber-400", "Outstanding")
+            | Entertaining -> (thumbsUp, "text-lime-400", "Entertaining")
+            | Decent -> (handOkay, "text-yellow-400", "Decent")
+            | Meh -> (minusCircle, "text-orange-400", "Meh")
+            | Waste -> (thumbsDown, "text-red-400", "Waste")
+        )
 
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
@@ -222,77 +218,30 @@ let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> uni
                             ]
                         ]
 
-                    // Watch status badge (top left)
-                    match watchStatusInfo with
-                    | Some (label, gradient, _) ->
+                    // Rating badge (top left, appears on hover)
+                    match ratingInfo with
+                    | Some (icon, colorClass, label) ->
                         Html.div [
-                            prop.className $"absolute top-2 left-2 px-2 py-0.5 rounded-md text-xs font-medium bg-gradient-to-r {gradient} backdrop-blur-sm"
-                            prop.text label
-                        ]
-                    | None -> Html.none
-
-                    // Favorite indicator (top right)
-                    if entry.IsFavorite then
-                        Html.div [
-                            prop.className "absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                            prop.className "absolute top-2 left-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                             prop.children [
                                 Html.span [
-                                    prop.className "w-4 h-4 text-yellow-400"
-                                    prop.children [ heartSolid ]
+                                    prop.className ("w-4 h-4 flex-shrink-0 flex items-center justify-center " + colorClass)
+                                    prop.children [ icon ]
+                                ]
+                                Html.span [
+                                    prop.className ("text-xs font-medium leading-none " + colorClass)
+                                    prop.text label
                                 ]
                             ]
                         ]
+                    | None -> Html.none
 
                     // Shine effect
                     Html.div [
                         prop.className "poster-shine"
                     ]
-
-                    // Hover overlay
-                    Html.div [
-                        prop.className "poster-overlay"
-                    ]
                 ]
             ]
 
-            // Title and meta info
-            Html.div [
-                prop.className "mt-3 space-y-1"
-                prop.children [
-                    Html.p [
-                        prop.className "font-medium text-sm truncate text-base-content/90"
-                        prop.title title
-                        prop.text title
-                    ]
-                    Html.div [
-                        prop.className "flex justify-between items-center"
-                        prop.children [
-                            // Year
-                            Html.span [
-                                prop.className "text-xs text-base-content/50"
-                                prop.text (if year <> "" then year else "-")
-                            ]
-
-                            // Rating stars
-                            match ratingStars with
-                            | Some stars ->
-                                Html.div [
-                                    prop.className "flex gap-0.5"
-                                    prop.children [
-                                        for i in 1..5 do
-                                            Html.span [
-                                                prop.className (
-                                                    "w-3 h-3 " +
-                                                    if i <= stars then "text-yellow-400" else "text-base-content/20"
-                                                )
-                                                prop.children [ starSolid ]
-                                            ]
-                                    ]
-                                ]
-                            | None -> Html.none
-                        ]
-                    ]
-                ]
-            ]
         ]
     ]

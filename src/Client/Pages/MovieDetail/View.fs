@@ -265,29 +265,13 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                         ]
                                     | _ -> Html.none
 
-                                    // Favorite toggle and Add to Collection
-                                    Html.div [
-                                        prop.className "flex items-center gap-2 flex-wrap"
+                                    // Add to Collection
+                                    Html.button [
+                                        prop.className "btn btn-sm btn-ghost"
+                                        prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
                                         prop.children [
-                                            Html.button [
-                                                prop.className (
-                                                    "btn btn-sm " +
-                                                    if entry.IsFavorite then "btn-secondary" else "btn-ghost"
-                                                )
-                                                prop.onClick (fun _ -> dispatch ToggleFavorite)
-                                                prop.children [
-                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ if entry.IsFavorite then heartSolid else heart ] ]
-                                                    Html.span [ prop.text (if entry.IsFavorite then "Favorited" else "Add to Favorites") ]
-                                                ]
-                                            ]
-                                            Html.button [
-                                                prop.className "btn btn-sm btn-ghost"
-                                                prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
-                                                prop.children [
-                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
-                                                    Html.span [ prop.text "Add to Collection" ]
-                                                ]
-                                            ]
+                                            Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
+                                            Html.span [ prop.text "Add to Collection" ]
                                         ]
                                     ]
 

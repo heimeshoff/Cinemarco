@@ -20,7 +20,6 @@ type Msg =
     | MarkUnwatched
     | OpenAbandonModal
     | ResumeEntry
-    | ToggleFavorite
     | ToggleRatingDropdown
     | SetRating of int
     | UpdateNotes of string
