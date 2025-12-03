@@ -9,6 +9,7 @@ type Model = {
     Collections: RemoteData<Collection list>
     IsAddingFriend: bool
     IsRatingOpen: bool
+    IsFriendSelectorOpen: bool
 }
 
 type Msg =
@@ -27,6 +28,7 @@ type Msg =
     | OpenDeleteModal
     | OpenAddToCollectionModal
     | ToggleTag of TagId
+    | ToggleFriendSelector
     | ToggleFriend of FriendId
     | AddNewFriend of string
     | FriendCreated of Result<Friend, string>
@@ -44,4 +46,4 @@ type ExternalMsg =
     | FriendCreatedInline of Friend
 
 module Model =
-    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; IsAddingFriend = false; IsRatingOpen = false }
+    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; IsAddingFriend = false; IsRatingOpen = false; IsFriendSelectorOpen = false }

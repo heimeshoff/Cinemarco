@@ -84,7 +84,7 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
     ]
 
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
-let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatch: Msg -> unit) =
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (isFriendSelectorOpen: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "flex items-center gap-3 mt-4"
         prop.children [
@@ -148,6 +148,20 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
                 ]
             // Rating button
             ratingButton (entry.PersonalRating |> Option.map PersonalRating.toInt) isRatingOpen dispatch
+            // Add friend button
+            Html.div [
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", "Add Friends")
+                prop.children [
+                    Html.button [
+                        prop.className "detail-action-btn detail-action-btn-primary"
+                        prop.onClick (fun _ -> dispatch ToggleFriendSelector)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ userPlus ] ]
+                        ]
+                    ]
+                ]
+            ]
             // Delete button
             Html.div [
                 prop.className "tooltip tooltip-bottom detail-tooltip"
@@ -162,6 +176,57 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
                     ]
                 ]
             ]
+        ]
+    ]
+
+/// Friend pills and selector section below action buttons
+let private friendsSection (entry: LibraryEntry) (allFriends: Friend list) (isFriendSelectorOpen: bool) (isAddingFriend: bool) (dispatch: Msg -> unit) =
+    let selectedFriendsList =
+        entry.Friends
+        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+
+    Html.div [
+        prop.className "mt-3"
+        prop.children [
+            if isFriendSelectorOpen then
+                // Friend selector input (when open)
+                Html.div [
+                    prop.children [
+                        FriendSelector {
+                            AllFriends = allFriends
+                            SelectedFriends = entry.Friends
+                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                            OnAddNew = fun name -> dispatch (AddNewFriend name)
+                            OnSubmit = Some (fun () -> dispatch ToggleFriendSelector)
+                            IsDisabled = isAddingFriend
+                            Placeholder = "Search or add friends..."
+                            IsRequired = false
+                            AutoFocus = true
+                        }
+                        if isAddingFriend then
+                            Html.div [
+                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
+                                prop.children [
+                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                    Html.span [ prop.text "Adding friend..." ]
+                                ]
+                            ]
+                    ]
+                ]
+            else
+                // Friend pills (when closed)
+                if not (List.isEmpty selectedFriendsList) then
+                    Html.div [
+                        prop.className "flex flex-wrap items-center gap-2"
+                        prop.children [
+                            for friend in selectedFriendsList do
+                                Html.span [
+                                    prop.key (FriendId.value friend.Id |> string)
+                                    prop.className "friend-pill"
+                                    prop.text friend.Name
+                                ]
+                        ]
+                    ]
         ]
     ]
 
@@ -253,7 +318,9 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             ]
                                         ]
                                         // Action buttons row
-                                        actionButtonsRow entry model.IsRatingOpen dispatch
+                                        actionButtonsRow entry model.IsRatingOpen model.IsFriendSelectorOpen dispatch
+                                        // Friends section (pills and selector)
+                                        friendsSection entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch
                                     ]
 
                                     // Overview
@@ -318,30 +385,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                 ]
                                             ]
                                         ]
-
-                                    // Friends - using FriendSelector component
-                                    Html.div [
-                                        Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
-                                        FriendSelector {
-                                            AllFriends = friends
-                                            SelectedFriends = entry.Friends
-                                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
-                                            OnAddNew = fun name -> dispatch (AddNewFriend name)
-                                            OnSubmit = None
-                                            IsDisabled = model.IsAddingFriend
-                                            Placeholder = "Search or add friends..."
-                                            IsRequired = false
-                                            AutoFocus = false
-                                        }
-                                        if model.IsAddingFriend then
-                                            Html.div [
-                                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
-                                                prop.children [
-                                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                                    Html.span [ prop.text "Adding friend..." ]
-                                                ]
-                                            ]
-                                    ]
 
                                     // Notes
                                     Html.div [

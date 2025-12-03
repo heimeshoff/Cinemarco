@@ -142,6 +142,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
 
+    | ToggleFriendSelector ->
+        { model with IsFriendSelectorOpen = not model.IsFriendSelectorOpen }, Cmd.none, NoOp
+
     | ToggleFriend friendId ->
         let cmd =
             Cmd.OfAsync.either
@@ -149,7 +152,7 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 (model.EntryId, friendId)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+        { model with IsFriendSelectorOpen = false }, cmd, NoOp
 
     | AddNewFriend name ->
         let request : CreateFriendRequest = {
@@ -163,7 +166,7 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 request
                 FriendCreated
                 (fun ex -> Error ex.Message |> FriendCreated)
-        { model with IsAddingFriend = true }, cmd, NoOp
+        { model with IsAddingFriend = true; IsFriendSelectorOpen = false }, cmd, NoOp
 
     | FriendCreated (Ok friend) ->
         // Toggle the friend on this entry (to add them) and notify the app
