@@ -19,7 +19,7 @@ let private progressBar (progress: CollectionProgress) =
                     ]
                     Html.span [
                         prop.className "text-sm text-base-content/60"
-                        prop.text $"{progress.CompletionPercentage:F0}%%"
+                        prop.text $"{int progress.CompletionPercentage}%%"
                     ]
                 ]
             ]

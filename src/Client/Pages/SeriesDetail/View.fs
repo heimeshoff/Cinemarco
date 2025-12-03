@@ -17,7 +17,7 @@ let private progressBar (current: int) (total: int) =
                 prop.className "flex justify-between text-sm mb-1"
                 prop.children [
                     Html.span [ prop.text $"{current} / {total}" ]
-                    Html.span [ prop.text $"{percentage:F0}%%" ]
+                    Html.span [ prop.text $"{int percentage}%%" ]
                 ]
             ]
             Html.div [
