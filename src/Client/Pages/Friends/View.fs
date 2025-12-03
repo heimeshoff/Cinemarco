@@ -49,74 +49,50 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
             | Success friendList ->
-                Html.div [
-                    prop.className "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                let sortedFriends = friendList |> List.sortBy (fun f -> f.Name.ToLowerInvariant())
+                Html.ul [
+                    prop.className "space-y-2"
                     prop.children [
-                        for friend in friendList do
-                            Html.div [
-                                prop.className "card bg-base-200 hover:shadow-lg transition-shadow cursor-pointer"
+                        for friend in sortedFriends do
+                            Html.li [
+                                prop.className "flex items-center justify-between px-4 py-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors cursor-pointer"
                                 prop.onClick (fun _ -> dispatch (ViewFriendDetail friend.Id))
                                 prop.children [
+                                    // Left side: Name
                                     Html.div [
-                                        prop.className "card-body"
                                         prop.children [
-                                            Html.div [
-                                                prop.className "flex items-center gap-3"
-                                                prop.children [
-                                                    // Avatar placeholder
-                                                    Html.div [
-                                                        prop.className "avatar placeholder"
-                                                        prop.children [
-                                                            Html.div [
-                                                                prop.className "bg-primary text-primary-content rounded-full w-12"
-                                                                prop.children [
-                                                                    Html.span [
-                                                                        prop.className "text-xl"
-                                                                        prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
-                                                                    ]
-                                                                ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                                    Html.div [
-                                                        prop.className "flex-1"
-                                                        prop.children [
-                                                            Html.h3 [
-                                                                prop.className "font-bold"
-                                                                prop.text friend.Name
-                                                            ]
-                                                            match friend.Nickname with
-                                                            | Some nick ->
-                                                                Html.p [
-                                                                    prop.className "text-sm text-base-content/60"
-                                                                    prop.text nick
-                                                                ]
-                                                            | None -> Html.none
-                                                        ]
-                                                    ]
-                                                ]
+                                            Html.span [
+                                                prop.className "font-medium"
+                                                prop.text friend.Name
                                             ]
-                                            // Action buttons
-                                            Html.div [
-                                                prop.className "card-actions justify-end mt-2"
-                                                prop.children [
-                                                    Html.button [
-                                                        prop.className "btn btn-ghost btn-xs"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            dispatch (OpenEditFriendModal friend)
-                                                        )
-                                                        prop.text "Edit"
-                                                    ]
-                                                    Html.button [
-                                                        prop.className "btn btn-ghost btn-xs text-error"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            dispatch (OpenDeleteFriendModal friend)
-                                                        )
-                                                        prop.text "Delete"
-                                                    ]
+                                            match friend.Nickname with
+                                            | Some nick ->
+                                                Html.span [
+                                                    prop.className "text-sm text-base-content/60 ml-2"
+                                                    prop.text $"({nick})"
                                                 ]
+                                            | None -> Html.none
+                                        ]
+                                    ]
+                                    // Right side: Action buttons
+                                    Html.div [
+                                        prop.className "flex gap-2"
+                                        prop.children [
+                                            Html.button [
+                                                prop.className "btn btn-ghost btn-sm"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch (OpenEditFriendModal friend)
+                                                )
+                                                prop.text "Edit"
+                                            ]
+                                            Html.button [
+                                                prop.className "btn btn-ghost btn-sm text-error"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch (OpenDeleteFriendModal friend)
+                                                )
+                                                prop.text "Delete"
                                             ]
                                         ]
                                     ]
