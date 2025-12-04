@@ -6,8 +6,6 @@ open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
-open Browser.Types
-open Fable.Core.JsInterop
 
 module SectionHeader = Common.Components.SectionHeader.View
 module GlassPanel = Common.Components.GlassPanel.View
@@ -204,8 +202,6 @@ let private workCard (work: TmdbWork) (isInLibrary: bool) (entryId: EntryId opti
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
         prop.onClick handleClick
-        prop.onMouseMove handlePosterMouseMove
-        prop.onMouseLeave handlePosterMouseLeave
         prop.children [
             // Poster container
             Html.div [

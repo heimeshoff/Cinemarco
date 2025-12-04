@@ -5,15 +5,19 @@ open Types
 
 module GlassPanel = Common.Components.GlassPanel.View
 
-/// Render a tab bar with glassmorphism styling
+/// Render a tab bar
 let tabBar (tabs: Tab list) (activeId: string) (onSelect: string -> unit) =
     Html.div [
-        prop.className "tabs tabs-boxed glass mb-4"
+        prop.className "flex gap-1"
         prop.children [
             for tab in tabs do
+                let isActive = tab.Id = activeId
                 Html.a [
                     prop.key tab.Id
-                    prop.className ("tab gap-2 " + if tab.Id = activeId then "tab-active" else "")
+                    prop.className (
+                        "tab-button px-4 py-2 rounded-t-lg flex items-center gap-2 cursor-pointer transition-all " +
+                        if isActive then "tab-button-active" else ""
+                    )
                     prop.onClick (fun _ -> onSelect tab.Id)
                     prop.children [
                         match tab.Icon with
@@ -30,7 +34,7 @@ let view (tabs: Tab list) (activeId: string) (onSelect: string -> unit) (content
     Html.div [
         prop.children [
             tabBar tabs activeId onSelect
-            GlassPanel.standard [ content ]
+            GlassPanel.standardWith "tab-content-panel" [ content ]
         ]
     ]
 

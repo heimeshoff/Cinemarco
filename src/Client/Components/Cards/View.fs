@@ -3,30 +3,10 @@ module Components.Cards.View
 open Feliz
 open Shared.Domain
 open Components.Icons
-open Browser.Types
-open Fable.Core.JsInterop
 
 /// TMDB image base URL (for search results)
 let private tmdbImageBase = "https://image.tmdb.org/t/p"
 
-/// Handle mouse move for shine effect
-let handlePosterMouseMove (e: MouseEvent) =
-    let target = e.currentTarget :?> HTMLElement
-    let shine = target.querySelector(".poster-shine") :?> HTMLElement
-
-    // Move shine based on mouse position
-    if not (isNull shine) then
-        let rect = target.getBoundingClientRect()
-        let x = (e.clientX - rect.left) / rect.width
-        let y = (e.clientY - rect.top) / rect.height
-        let shineX = x * 100.0
-        let shineY = y * 100.0
-        shine?style?setProperty("--shine-x", $"{shineX}%%")
-        shine?style?setProperty("--shine-y", $"{shineY}%%")
-
-/// Handle mouse leave - no action needed, CSS handles the hover state
-let handlePosterMouseLeave (e: MouseEvent) =
-    ()
 
 /// Get poster URL from TMDB CDN (for search results)
 let getTmdbPosterUrl (size: string) (path: string option) =
@@ -66,8 +46,6 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (is
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
         prop.onClick (fun _ -> onSelect item)
-        prop.onMouseMove handlePosterMouseMove
-        prop.onMouseLeave handlePosterMouseLeave
         prop.children [
             // Poster container
             Html.div [
@@ -191,8 +169,6 @@ let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> uni
     Html.div [
         prop.className "poster-card group relative cursor-pointer"
         prop.onClick (fun _ -> onViewDetail entry.Id isMovie)
-        prop.onMouseMove handlePosterMouseMove
-        prop.onMouseLeave handlePosterMouseLeave
         prop.children [
             // Poster container
             Html.div [

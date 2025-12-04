@@ -169,7 +169,7 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
     ]
 
 /// Overview tab content: overview, collections, tags, notes
-let private overviewTab (movie: LibraryMovie) (entry: LibraryEntry) (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
+let private overviewTab (movie: Movie) (entry: LibraryEntry) (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -450,7 +450,7 @@ let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriend
 /// Get the tab definitions
 let private movieTabs : Common.Components.Tabs.Types.Tab list = [
     { Id = "overview"; Label = "Overview"; Icon = Some info }
-    { Id = "cast-crew"; Label = "Cast & Crew"; Icon = Some users }
+    { Id = "cast-crew"; Label = "Cast & Crew"; Icon = Some friends }
     { Id = "friends"; Label = "Friends"; Icon = Some userPlus }
 ]
 
@@ -496,7 +496,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                     Html.div [
                         prop.className "space-y-6"
                         prop.children [
-                            // Header: Poster + Title/Meta + Actions
+                            // Header: Poster + Title/Meta + Actions + Tabs (on md+)
                             Html.div [
                                 prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
                                 prop.children [
@@ -527,9 +527,9 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                         ]
                                     ]
 
-                                    // Right column - Title, meta, and actions
+                                    // Right column - Title, meta, actions, and tabs (on md+)
                                     Html.div [
-                                        prop.className "md:col-span-2"
+                                        prop.className "md:col-span-2 flex flex-col"
                                         prop.children [
                                             Html.h1 [
                                                 prop.className "text-3xl font-bold"
@@ -558,20 +558,40 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                             ]
                                             // Action buttons row
                                             actionButtonsRow entry model.IsRatingOpen dispatch
+
+                                            // Tab bar and content (hidden on mobile, shown on md+)
+                                            Html.div [
+                                                prop.className "hidden md:block mt-6"
+                                                prop.children [
+                                                    Tabs.view
+                                                        movieTabs
+                                                        (tabToId model.ActiveTab)
+                                                        (fun id -> dispatch (SetActiveTab (idToTab id)))
+                                                        (match model.ActiveTab with
+                                                         | Overview -> overviewTab movie entry model tags dispatch
+                                                         | CastCrew -> castCrewTab model dispatch
+                                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                                ]
+                                            ]
                                         ]
                                     ]
                                 ]
                             ]
 
-                            // Tab bar and content
-                            Tabs.view
-                                movieTabs
-                                (tabToId model.ActiveTab)
-                                (fun id -> dispatch (SetActiveTab (idToTab id)))
-                                (match model.ActiveTab with
-                                 | Overview -> overviewTab movie entry model tags dispatch
-                                 | CastCrew -> castCrewTab model dispatch
-                                 | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                            // Tab bar and content (shown on mobile only, hidden on md+)
+                            Html.div [
+                                prop.className "md:hidden"
+                                prop.children [
+                                    Tabs.view
+                                        movieTabs
+                                        (tabToId model.ActiveTab)
+                                        (fun id -> dispatch (SetActiveTab (idToTab id)))
+                                        (match model.ActiveTab with
+                                         | Overview -> overviewTab movie entry model tags dispatch
+                                         | CastCrew -> castCrewTab model dispatch
+                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                ]
+                            ]
                         ]
                     ]
                 | LibrarySeries _ ->

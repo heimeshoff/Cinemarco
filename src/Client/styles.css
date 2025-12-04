@@ -226,13 +226,13 @@ h1, h2, h3, .font-display {
    ============================================ */
 
 .glass {
-  background: rgba(28, 25, 23, 0.7);
+  background: rgba(28, 25, 23, 0.4);
   backdrop-filter: blur(var(--backdrop-blur));
   -webkit-backdrop-filter: blur(var(--backdrop-blur));
-  border: 1px solid rgba(212, 165, 116, 0.1);
+  border: 1px solid rgba(212, 165, 116, 0.12);
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 245, 235, 0.05),
-    0 4px 24px -4px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 0 rgba(255, 245, 235, 0.06),
+    0 4px 24px -4px rgba(0, 0, 0, 0.3);
 }
 
 .glass-strong {
@@ -250,6 +250,65 @@ h1, h2, h3, .font-display {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(212, 165, 116, 0.06);
+}
+
+/* Override DaisyUI tabs-boxed with glass effect */
+.tabs.tabs-boxed.glass {
+  background: rgba(28, 25, 23, 0.6) !important;
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid rgba(212, 165, 116, 0.1);
+  padding: 0.5rem;
+}
+
+.tabs.tabs-boxed.glass .tab {
+  background: transparent;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.tabs.tabs-boxed.glass .tab:hover {
+  background: rgba(212, 165, 116, 0.1);
+}
+
+.tabs.tabs-boxed.glass .tab-active {
+  background: rgba(212, 165, 116, 0.2) !important;
+  color: var(--color-primary) !important;
+}
+
+/* Tab buttons for detail views - seamless with content card */
+.tab-button {
+  background: transparent;
+  color: rgba(250, 245, 240, 0.5);
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-button:hover:not(.tab-button-active) {
+  background: rgba(28, 25, 23, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(212, 165, 116, 0.08);
+  color: rgba(250, 245, 240, 0.75);
+}
+
+.tab-button-active {
+  background: rgba(28, 25, 23, 0.4);
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid rgba(212, 165, 116, 0.12);
+  border-bottom-color: transparent;
+  color: rgba(250, 245, 240, 0.95);
+  box-shadow: inset 0 1px 0 0 rgba(255, 245, 235, 0.06);
+}
+
+/* Content panel when used with tabs - no top-left radius */
+.tab-content-panel {
+  border-top-left-radius: 0 !important;
 }
 
 /* ============================================
@@ -279,16 +338,23 @@ h1, h2, h3, .font-display {
   object-fit: cover;
 }
 
-/* Light shine from top-left corner */
+/* Light shine from top-left corner with shadow in bottom-right */
 .poster-shine {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse farthest-corner at var(--shine-x, 0%) var(--shine-y, 0%),
-    rgba(255, 250, 240, 0.25) 0%,
-    rgba(212, 165, 116, 0.1) 40%,
-    transparent 100%
-  );
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 250, 240, 0.4) 0%,
+      rgba(212, 165, 116, 0.15) 25%,
+      transparent 55%
+    ),
+    linear-gradient(
+      315deg,
+      rgba(0, 0, 0, 0.4) 0%,
+      rgba(0, 0, 0, 0.2) 30%,
+      transparent 60%
+    );
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease-out;
