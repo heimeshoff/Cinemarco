@@ -98,6 +98,240 @@ Use this for all async operations in frontend state.
 - Validate at API boundary before any processing
 - Return clear error messages
 
+## UI Component Requirements (MANDATORY)
+
+When implementing any frontend UI, you MUST use the common components. Do NOT write raw HTML/CSS when a component exists.
+
+### Import Pattern
+Always import common components using module aliases at the top of View files:
+```fsharp
+module GlassPanel = Common.Components.GlassPanel.View
+module GlassButton = Common.Components.GlassButton.View
+module SectionHeader = Common.Components.SectionHeader.View
+module FilterChip = Common.Components.FilterChip.View
+module RemoteDataView = Common.Components.RemoteDataView.View
+module EmptyState = Common.Components.EmptyState.View
+module ErrorState = Common.Components.ErrorState.View
+module PosterGrid = Common.Components.PosterGrid.View
+```
+
+### GlassPanel - For ALL Content Sections
+Use GlassPanel to wrap any distinct content area. NEVER use plain `Html.div` with manual glass styling.
+
+```fsharp
+// CORRECT - Use GlassPanel
+GlassPanel.standard [
+    Html.h3 [ prop.text "Section Title" ]
+    Html.p [ prop.text "Content here" ]
+]
+
+// Variants available:
+GlassPanel.standard children   // Most common - subtle glass effect
+GlassPanel.strong children     // Emphasized sections
+GlassPanel.subtle children     // Minimal glass effect
+GlassPanel.standardWith "mt-4" children  // With extra classes
+
+// WRONG - Never do this
+Html.div [
+    prop.className "glass rounded-lg p-4"
+    prop.children [ ... ]
+]
+```
+
+### GlassButton - For ALL Icon Action Buttons
+Use GlassButton for icon-based action buttons (watch, rate, delete, etc.). NEVER write manual button styling for actions.
+
+```fsharp
+// CORRECT - Use GlassButton variants
+GlassButton.button checkIcon "Mark as watched" (fun () -> dispatch MarkWatched)
+GlassButton.success checkIcon "Watched" (fun () -> dispatch MarkWatched)
+GlassButton.successActive checkIcon "Watched" (fun () -> dispatch MarkUnwatched)
+GlassButton.danger trashIcon "Delete" (fun () -> dispatch Delete)
+GlassButton.primary starIcon "Rate" (fun () -> dispatch OpenRating)
+GlassButton.primaryActive starIcon "Rated" (fun () -> dispatch OpenRating)
+GlassButton.disabled lockIcon "Locked"
+
+// WRONG - Never manually style action buttons
+Html.button [
+    prop.className "btn btn-ghost ..."
+    prop.onClick (fun _ -> dispatch MarkWatched)
+    prop.children [ checkIcon ]
+]
+```
+
+### SectionHeader - For ALL Section Titles
+Use SectionHeader for titled sections with optional actions. NEVER use plain h2/h3 for section headers.
+
+```fsharp
+// CORRECT - Use SectionHeader
+SectionHeader.title "Recently Watched"
+SectionHeader.titleLarge "Library"
+SectionHeader.titleSmall "Tags"
+SectionHeader.withLink "Friends" "See all" (Some arrowRight) (fun () -> dispatch GoToFriends)
+SectionHeader.withButton "Collections" "Add" (Some plus) (fun () -> dispatch AddCollection)
+
+// WRONG - Never do this
+Html.h3 [
+    prop.className "text-xl font-bold"
+    prop.text "Section Title"
+]
+```
+
+### FilterChip - For ALL Filter/Toggle Pills
+Use FilterChip for filter toggles and category pills. NEVER manually style filter buttons.
+
+```fsharp
+// CORRECT - Use FilterChip
+FilterChip.chip "Movies" (filter = Movies) (fun () -> dispatch (SetFilter Movies))
+FilterChip.chipWithIcon filmIcon "Movies" (filter = Movies) (fun () -> dispatch (SetFilter Movies))
+
+// WRONG - Never do this
+Html.button [
+    prop.className (if active then "filter-chip-active" else "filter-chip")
+    prop.text "Movies"
+]
+```
+
+### RemoteDataView - For ALL Async Data Display
+Use RemoteDataView when displaying RemoteData. NEVER manually match on RemoteData in views.
+
+```fsharp
+// CORRECT - Use RemoteDataView
+RemoteDataView.withSpinner model.Entries (fun entries ->
+    Html.div [
+        for entry in entries do
+            renderEntry entry
+    ]
+)
+
+// With poster skeleton loading:
+RemoteDataView.withSkeleton 6 model.Movies (fun movies -> renderMovieGrid movies)
+
+// With error context:
+RemoteDataView.withContext "loading your library" model.Library (fun lib -> renderLibrary lib)
+
+// WRONG - Never manually match RemoteData in view
+match model.Entries with
+| Loading -> Html.span [ prop.className "loading loading-spinner" ]
+| Success entries -> ...
+| Failure err -> Html.div [ prop.text err ]
+```
+
+### EmptyState - For Empty Lists/No Results
+Use EmptyState when a list or search has no results.
+
+```fsharp
+// CORRECT
+EmptyState.view {
+    Title = "No movies yet"
+    Description = "Add your first movie to get started"
+    Icon = Some filmIcon
+    Action = Some ("Add Movie", fun () -> dispatch OpenAddMovie)
+}
+```
+
+### ErrorState - For Error Display
+Use ErrorState for error messages with context.
+
+```fsharp
+// CORRECT
+ErrorState.view {
+    Message = "Failed to load"
+    Context = Some "while fetching your library"
+}
+```
+
+### DaisyUI Components - Use These Classes
+
+For elements NOT covered by common components, use DaisyUI classes:
+
+#### Buttons (when not using GlassButton)
+```fsharp
+// Text buttons
+Html.button [ prop.className "btn btn-primary"; prop.text "Save" ]
+Html.button [ prop.className "btn btn-ghost"; prop.text "Cancel" ]
+Html.button [ prop.className "btn btn-error"; prop.text "Delete" ]
+Html.button [ prop.className "btn btn-sm btn-ghost"; prop.text "Small" ]
+```
+
+#### Badges
+```fsharp
+Html.span [ prop.className "badge badge-primary"; prop.text "New" ]
+Html.span [ prop.className "badge badge-outline"; prop.text "Tag" ]
+Html.span [ prop.className "badge badge-success"; prop.text "Watched" ]
+```
+
+#### Tabs (use DaisyUI tabs)
+```fsharp
+Html.div [
+    prop.className "tabs tabs-boxed"
+    prop.children [
+        Html.a [ prop.className "tab tab-active"; prop.text "Overview" ]
+        Html.a [ prop.className "tab"; prop.text "Cast" ]
+    ]
+]
+```
+
+#### Loading States
+```fsharp
+Html.span [ prop.className "loading loading-spinner loading-sm" ]
+Html.span [ prop.className "loading loading-spinner loading-lg" ]
+```
+
+#### Alerts
+```fsharp
+Html.div [ prop.className "alert alert-error"; prop.text "Error message" ]
+Html.div [ prop.className "alert alert-success"; prop.text "Success!" ]
+```
+
+#### Dropdowns
+```fsharp
+Html.div [
+    prop.className "dropdown dropdown-end"
+    prop.children [
+        Html.label [ prop.className "btn btn-ghost"; prop.tabIndex 0; prop.text "Menu" ]
+        Html.ul [
+            prop.className "dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52"
+            prop.tabIndex 0
+            prop.children [ ... ]
+        ]
+    ]
+]
+```
+
+### Poster Cards - Use poster-card Classes
+For movie/series poster displays, use the established poster card pattern:
+
+```fsharp
+Html.div [
+    prop.className "poster-card group"
+    prop.children [
+        Html.div [
+            prop.className "poster-image-container poster-shadow"
+            prop.children [
+                Html.img [ prop.className "poster-image"; prop.src posterUrl ]
+                Html.div [ prop.className "poster-shine" ]  // Always include shine effect
+                Html.div [ prop.className "poster-overlay"; ... ]  // Hover overlay
+            ]
+        ]
+    ]
+]
+```
+
+### CSS Classes Reference
+
+| Class | Usage |
+|-------|-------|
+| `glass` | Standard glassmorphism panel |
+| `glass-strong` | Emphasized glass panel |
+| `glass-subtle` | Minimal glass panel |
+| `detail-action-btn` | Icon action button base |
+| `poster-card` | Poster card container |
+| `poster-shine` | Poster hover shine effect |
+| `poster-overlay` | Poster hover overlay |
+| `filter-chip` | Filter pill button |
+| `filter-chip-active` | Active filter pill |
+
 ## Code Patterns
 
 ### Backend API Implementation
@@ -145,11 +379,22 @@ let update msg model =
 
 ## Anti-Patterns to Avoid
 
+### Domain & Architecture
 - **I/O in Domain.fs** - Keep domain logic pure
 - **Ignoring Result types** - Always handle errors explicitly
 - **Classes for domain types** - Use records and unions
 - **Skipping validation** - Validate at API boundary
 - **Not reading documentation** - Check guides before implementing
+
+### UI Components (CRITICAL)
+- **Raw glass styling** - Use GlassPanel component instead
+- **Manual button styling** - Use GlassButton for icon actions
+- **Plain h2/h3 headers** - Use SectionHeader component
+- **Manual filter buttons** - Use FilterChip component
+- **Matching RemoteData in views** - Use RemoteDataView component
+- **Custom loading spinners** - Use DaisyUI `loading loading-spinner`
+- **Custom badge styling** - Use DaisyUI `badge` classes
+- **Missing poster-shine** - Always include shine effect on poster cards
 
 ## Quick Commands
 
@@ -168,14 +413,25 @@ docker-compose up -d                # Deploy with Tailscale
 
 Before marking a feature complete:
 
+### Backend
 - [ ] Types defined in `src/Shared/Domain.fs`
 - [ ] API contract in `src/Shared/Api.fs`
 - [ ] Validation in `src/Server/Validation.fs`
 - [ ] Domain logic is pure (no I/O) in `src/Server/Domain.fs`
 - [ ] Persistence in `src/Server/Persistence.fs`
 - [ ] API implementation in `src/Server/Api.fs`
+
+### Frontend
 - [ ] Frontend state in `src/Client/State.fs`
 - [ ] Frontend view in `src/Client/View.fs`
+- [ ] **Uses GlassPanel for content sections**
+- [ ] **Uses GlassButton for icon actions**
+- [ ] **Uses SectionHeader for section titles**
+- [ ] **Uses RemoteDataView for async data**
+- [ ] **Uses DaisyUI classes for buttons, badges, alerts**
+- [ ] **Poster cards include poster-shine effect**
+
+### Quality
 - [ ] Tests written (at minimum: domain + validation)
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes

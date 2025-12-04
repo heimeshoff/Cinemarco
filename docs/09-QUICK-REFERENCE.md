@@ -358,6 +358,188 @@ let domainTests =
     ]
 ```
 
+## UI Component Snippets
+
+Copy-paste these snippets for common UI patterns. **Always use these components instead of raw HTML/CSS**.
+
+### Component Imports
+```fsharp
+// Add at top of View files
+module GlassPanel = Common.Components.GlassPanel.View
+module GlassButton = Common.Components.GlassButton.View
+module SectionHeader = Common.Components.SectionHeader.View
+module FilterChip = Common.Components.FilterChip.View
+module RemoteDataView = Common.Components.RemoteDataView.View
+module EmptyState = Common.Components.EmptyState.View
+module ErrorState = Common.Components.ErrorState.View
+module PosterGrid = Common.Components.PosterGrid.View
+```
+
+### GlassPanel Card
+```fsharp
+GlassPanel.standard [
+    SectionHeader.title "Section Title"
+    Html.div [
+        prop.className "space-y-4"
+        prop.children [
+            Html.p [ prop.text "Content goes here" ]
+        ]
+    ]
+]
+```
+
+### GlassButton Action Bar
+```fsharp
+Html.div [
+    prop.className "flex gap-2"
+    prop.children [
+        GlassButton.success Icons.check "Watched" (fun () -> dispatch MarkWatched)
+        GlassButton.primary Icons.star "Rate" (fun () -> dispatch OpenRating)
+        GlassButton.danger Icons.trash "Delete" (fun () -> dispatch Delete)
+    ]
+]
+```
+
+### SectionHeader with Action
+```fsharp
+GlassPanel.standard [
+    SectionHeader.withLink "Recent Movies" "See all" (Some Icons.arrowRight) (fun () ->
+        dispatch (NavigateTo LibraryPage)
+    )
+    // Content below header...
+]
+```
+
+### FilterChip Row
+```fsharp
+Html.div [
+    prop.className "flex flex-wrap gap-2 mb-4"
+    prop.children [
+        FilterChip.chip "All" (model.Filter = All) (fun () -> dispatch (SetFilter All))
+        FilterChip.chipWithIcon Icons.film "Movies" (model.Filter = Movies) (fun () -> dispatch (SetFilter Movies))
+        FilterChip.chipWithIcon Icons.tv "Series" (model.Filter = Series) (fun () -> dispatch (SetFilter Series))
+    ]
+]
+```
+
+### RemoteDataView with Poster Grid
+```fsharp
+RemoteDataView.withSkeleton 6 model.Library (fun entries ->
+    if List.isEmpty entries then
+        EmptyState.view {
+            Title = "No movies yet"
+            Description = "Add your first movie to get started"
+            Icon = Some Icons.film
+            Action = Some ("Add Movie", fun () -> dispatch OpenSearch)
+        }
+    else
+        Html.div [
+            prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            prop.children [
+                for entry in entries do
+                    PosterCard.view entry (fun () -> dispatch (SelectEntry entry.Id))
+            ]
+        ]
+)
+```
+
+### Complete Page Template
+```fsharp
+module MyPage.View
+
+open Feliz
+open App.Types
+
+// Import common components
+module GlassPanel = Common.Components.GlassPanel.View
+module GlassButton = Common.Components.GlassButton.View
+module SectionHeader = Common.Components.SectionHeader.View
+module FilterChip = Common.Components.FilterChip.View
+module RemoteDataView = Common.Components.RemoteDataView.View
+module EmptyState = Common.Components.EmptyState.View
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            // Page header
+            SectionHeader.titleLarge "My Page"
+
+            // Filters
+            Html.div [
+                prop.className "flex flex-wrap gap-2"
+                prop.children [
+                    FilterChip.chip "All" (model.Filter = All) (fun () -> dispatch (SetFilter All))
+                    FilterChip.chip "Active" (model.Filter = Active) (fun () -> dispatch (SetFilter Active))
+                ]
+            ]
+
+            // Main content
+            GlassPanel.standard [
+                RemoteDataView.withSpinner model.Items (fun items ->
+                    if List.isEmpty items then
+                        EmptyState.view {
+                            Title = "No items"
+                            Description = "Nothing to show"
+                            Icon = None
+                            Action = None
+                        }
+                    else
+                        Html.div [
+                            prop.className "space-y-4"
+                            prop.children [
+                                for item in items do
+                                    renderItem item dispatch
+                            ]
+                        ]
+                )
+            ]
+        ]
+    ]
+```
+
+### Poster Card with Shine Effect
+```fsharp
+Html.div [
+    prop.className "poster-card group cursor-pointer"
+    prop.onClick (fun _ -> dispatch (SelectEntry entry.Id))
+    prop.children [
+        Html.div [
+            prop.className "poster-image-container poster-shadow"
+            prop.children [
+                Html.img [
+                    prop.className "poster-image"
+                    prop.src (Tmdb.posterUrl entry.PosterPath)
+                    prop.alt entry.Title
+                ]
+                Html.div [ prop.className "poster-shine" ]  // Always include!
+                Html.div [
+                    prop.className "poster-overlay"
+                    prop.children [
+                        // Overlay content on hover
+                        Html.div [
+                            prop.className "flex gap-1"
+                            prop.children [
+                                GlassButton.button Icons.info "Details" (fun () -> ())
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        Html.div [
+            prop.className "mt-2"
+            prop.children [
+                Html.h3 [ prop.className "font-medium text-sm truncate"; prop.text entry.Title ]
+                Html.p [ prop.className "text-xs text-base-content/60"; prop.text (string entry.Year) ]
+            ]
+        ]
+    ]
+]
+```
+
+---
+
 ## Tailwind Class Patterns
 
 ```fsharp

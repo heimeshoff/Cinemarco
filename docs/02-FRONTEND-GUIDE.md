@@ -496,6 +496,203 @@ let view (model: Model) (dispatch: Msg -> unit) =
     ]
 ```
 
+## Common Components
+
+Cinemarco provides a set of reusable components that ensure UI consistency. **Always use these components instead of writing raw HTML/CSS**.
+
+### Import Pattern
+
+At the top of each View file, import the components you need:
+
+```fsharp
+module GlassPanel = Common.Components.GlassPanel.View
+module GlassButton = Common.Components.GlassButton.View
+module SectionHeader = Common.Components.SectionHeader.View
+module FilterChip = Common.Components.FilterChip.View
+module RemoteDataView = Common.Components.RemoteDataView.View
+module EmptyState = Common.Components.EmptyState.View
+module ErrorState = Common.Components.ErrorState.View
+module PosterGrid = Common.Components.PosterGrid.View
+```
+
+### Component Decision Tree
+
+```
+What are you building?
+│
+├─ Content panel/section → GlassPanel
+│   ├─ Emphasized? → GlassPanel.strong
+│   ├─ Subtle background? → GlassPanel.subtle
+│   └─ Standard content → GlassPanel.standard
+│
+├─ Action button with icon → GlassButton
+│   ├─ Success action? → GlassButton.success / .successActive
+│   ├─ Danger action? → GlassButton.danger
+│   ├─ Primary action? → GlassButton.primary / .primaryActive
+│   └─ Default action → GlassButton.button
+│
+├─ Section title → SectionHeader
+│   ├─ With action link? → SectionHeader.withLink
+│   ├─ With action button? → SectionHeader.withButton
+│   └─ Title only → SectionHeader.title / .titleLarge / .titleSmall
+│
+├─ Filter/toggle pills → FilterChip
+│   ├─ With icon? → FilterChip.chipWithIcon
+│   └─ Text only → FilterChip.chip
+│
+├─ Async data display → RemoteDataView
+│   ├─ Poster grid loading? → RemoteDataView.withSkeleton
+│   ├─ Need error context? → RemoteDataView.withContext
+│   └─ Simple spinner → RemoteDataView.withSpinner
+│
+├─ Empty list/no results → EmptyState.view
+│
+└─ Error message → ErrorState.view
+```
+
+### GlassPanel
+
+Wraps content in a glassmorphism panel. Use for all distinct content areas.
+
+```fsharp
+// Standard panel (most common)
+GlassPanel.standard [
+    Html.h3 [ prop.text "Section Title" ]
+    Html.p [ prop.text "Content here" ]
+]
+
+// Strong emphasis
+GlassPanel.strong [
+    Html.h2 [ prop.text "Important Section" ]
+]
+
+// Subtle background
+GlassPanel.subtle [
+    Html.p [ prop.text "Supporting content" ]
+]
+
+// With additional CSS classes
+GlassPanel.standardWith "mt-4 mb-2" [
+    Html.div [ prop.text "Spaced content" ]
+]
+```
+
+### GlassButton
+
+Icon-based action buttons with consistent hover states.
+
+```fsharp
+// Default button
+GlassButton.button Icons.check "Mark as watched" (fun () -> dispatch MarkWatched)
+
+// Success state (green)
+GlassButton.success Icons.check "Watched" (fun () -> dispatch MarkWatched)
+
+// Success active (filled green)
+GlassButton.successActive Icons.check "Watched" (fun () -> dispatch MarkUnwatched)
+
+// Danger state (red)
+GlassButton.danger Icons.trash "Delete" (fun () -> dispatch Delete)
+
+// Primary state (purple)
+GlassButton.primary Icons.star "Rate" (fun () -> dispatch OpenRating)
+
+// Primary active (filled purple)
+GlassButton.primaryActive Icons.star "Rated" (fun () -> dispatch OpenRating)
+
+// Disabled
+GlassButton.disabled Icons.lock "Locked"
+```
+
+### SectionHeader
+
+Section titles with optional actions.
+
+```fsharp
+// Title only
+SectionHeader.title "Recently Watched"
+SectionHeader.titleLarge "Library"
+SectionHeader.titleSmall "Tags"
+
+// With link action
+SectionHeader.withLink "Friends" "See all" (Some Icons.arrowRight) (fun () -> dispatch GoToFriends)
+
+// With button action
+SectionHeader.withButton "Collections" "Add" (Some Icons.plus) (fun () -> dispatch AddCollection)
+```
+
+### FilterChip
+
+Filter toggles and category pills.
+
+```fsharp
+// Basic chip
+FilterChip.chip "Movies" (model.Filter = Movies) (fun () -> dispatch (SetFilter Movies))
+
+// Chip with icon
+FilterChip.chipWithIcon Icons.film "Movies" (model.Filter = Movies) (fun () -> dispatch (SetFilter Movies))
+```
+
+### RemoteDataView
+
+Handles all states of async data: NotAsked, Loading, Success, Failure.
+
+```fsharp
+// With spinner for loading
+RemoteDataView.withSpinner model.Movies (fun movies ->
+    Html.div [
+        for movie in movies do
+            renderMovieCard movie
+    ]
+)
+
+// With skeleton loading (for poster grids)
+RemoteDataView.withSkeleton 6 model.Movies (fun movies ->
+    PosterGrid.view movies
+)
+
+// With error context
+RemoteDataView.withContext "loading your library" model.Library (fun lib ->
+    renderLibrary lib
+)
+```
+
+### EmptyState
+
+Display when a list or search has no results.
+
+```fsharp
+EmptyState.view {
+    Title = "No movies yet"
+    Description = "Add your first movie to get started"
+    Icon = Some Icons.film
+    Action = Some ("Add Movie", fun () -> dispatch OpenAddMovie)
+}
+```
+
+### ErrorState
+
+Display error messages with optional context.
+
+```fsharp
+ErrorState.view {
+    Message = "Failed to load library"
+    Context = Some "while fetching from the database"
+}
+```
+
+### PosterGrid
+
+Grid layout for movie/series poster cards.
+
+```fsharp
+PosterGrid.view model.Movies (fun movie -> dispatch (SelectMovie movie.Id))
+```
+
+For more details, see `CLAUDE.md` UI Component Requirements section.
+
+---
+
 ## Routing with Feliz.Router
 
 ### Types.fs - Page Definition

@@ -63,6 +63,150 @@ This document specifies the user interface design, components, and interactions 
 
 ---
 
+## Common Components
+
+### Component Hierarchy
+
+```
+Page
+├── SectionHeader (page title)
+├── FilterChip row (filters)
+└── GlassPanel (content sections)
+    ├── SectionHeader (section title)
+    ├── RemoteDataView (async data)
+    │   ├── Loading → Skeleton/Spinner
+    │   ├── Success → Content
+    │   │   ├── EmptyState (if empty)
+    │   │   └── Data display
+    │   └── Failure → ErrorState
+    └── GlassButton row (actions)
+```
+
+### Glass Variants - When to Use
+
+| Variant | CSS Class | Usage |
+|---------|-----------|-------|
+| `GlassPanel.standard` | `glass` | Most content sections, cards, panels |
+| `GlassPanel.strong` | `glass-strong` | Important/highlighted sections, hero areas, modals |
+| `GlassPanel.subtle` | `glass-subtle` | Background panels, secondary content, nested panels |
+
+**Decision Guide:**
+- **Standard**: Default choice for any distinct content area
+- **Strong**: Use when the section needs visual emphasis (featured content, primary action areas)
+- **Subtle**: Use for supporting content or when nesting panels inside other glass containers
+
+### GlassButton Variants - When to Use
+
+| Variant | Visual | Usage |
+|---------|--------|-------|
+| `GlassButton.button` | Gray hover | Default action, neutral state |
+| `GlassButton.success` | Green hover | Positive action (mark watched, add) |
+| `GlassButton.successActive` | Green filled | Active success state (is watched) |
+| `GlassButton.danger` | Red hover | Destructive action (delete, remove) |
+| `GlassButton.primary` | Purple hover | Primary action (rate, favorite) |
+| `GlassButton.primaryActive` | Purple filled | Active primary state (is rated) |
+| `GlassButton.disabled` | Muted | Non-interactive state |
+
+### Color Usage with DaisyUI
+
+Use DaisyUI theme colors consistently:
+
+| Purpose | DaisyUI Class | Example |
+|---------|---------------|---------|
+| Primary actions | `btn-primary`, `text-primary` | Save, Submit |
+| Success states | `badge-success`, `alert-success` | Watched, Completed |
+| Danger/warnings | `btn-error`, `alert-error` | Delete, Error |
+| Info messages | `badge-info`, `alert-info` | In Progress |
+| Neutral/ghost | `btn-ghost`, `text-base-content` | Cancel, secondary text |
+
+**Rating Colors** (use CSS variables):
+```css
+--rating-outstanding: #fbbf24;   /* Gold */
+--rating-entertaining: #22c55e;  /* Green */
+--rating-decent: #3b82f6;        /* Blue */
+--rating-meh: #9ca3af;           /* Gray */
+--rating-waste: #ef4444;         /* Red */
+```
+
+### Animation Guidelines
+
+**Transition Durations:**
+- Hover effects: `150ms-200ms`
+- Content changes: `200ms-300ms`
+- Page transitions: `200ms-400ms`
+- Progress bars: `500ms`
+
+**Standard Transitions:**
+```css
+/* Hover effects */
+transition: all 150ms ease-out;
+
+/* Content fade */
+transition: opacity 200ms ease-out;
+
+/* Transform effects */
+transition: transform 200ms ease-out, box-shadow 200ms ease-out;
+
+/* Progress bars */
+transition: width 500ms ease-out;
+```
+
+**Animation Patterns:**
+
+1. **Hover lift** (cards, buttons):
+```css
+transform: translateY(-2px);
+box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.3);
+```
+
+2. **Poster shine** (always include on poster cards):
+```css
+.poster-shine {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.15) 45%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 300ms;
+}
+.poster-card:hover .poster-shine {
+  opacity: 1;
+}
+```
+
+3. **Skeleton loading**:
+```css
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+```
+
+4. **Page enter/exit**:
+```css
+/* Enter */
+opacity: 0 → 1
+transform: translateY(10px) → translateY(0)
+
+/* Exit */
+opacity: 1 → 0
+```
+
+**Accessibility Note:**
+Always respect `prefers-reduced-motion`:
+```css
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+---
+
 ## Typography
 
 ```css
