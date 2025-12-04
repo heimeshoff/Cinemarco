@@ -641,6 +641,30 @@ let cinemarcoApi : ICinemarcoApi = {
     cacheClearExpired = fun () -> Persistence.clearExpiredCacheWithStats()
 
     cacheClearAll = fun () -> Persistence.clearAllCache()
+
+    // =====================================
+    // Tracked Contributors Operations
+    // =====================================
+
+    contributorsGetAll = fun () -> Persistence.getAllTrackedContributors()
+
+    contributorsGetById = fun trackedId -> async {
+        let! result = Persistence.getTrackedContributorById trackedId
+        match result with
+        | Some tc -> return Ok tc
+        | None -> return Error "Tracked contributor not found"
+    }
+
+    contributorsTrack = fun request -> Persistence.trackContributor request
+
+    contributorsUntrack = fun trackedId -> Persistence.untrackContributor trackedId
+
+    contributorsUpdateNotes = fun (trackedId, notes) ->
+        Persistence.updateTrackedContributorNotes trackedId notes
+
+    contributorsIsTracked = fun tmdbPersonId -> Persistence.isContributorTracked tmdbPersonId
+
+    contributorsGetByTmdbId = fun tmdbPersonId -> Persistence.getTrackedContributorByTmdbId tmdbPersonId
 }
 
 // =====================================

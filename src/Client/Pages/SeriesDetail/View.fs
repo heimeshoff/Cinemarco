@@ -580,25 +580,45 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                         prop.className "flex flex-wrap gap-2"
                                                         prop.children [
                                                             for castMember in credits.Cast |> List.take (min 12 (List.length credits.Cast)) do
+                                                                let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
                                                                 Html.button [
                                                                     prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
-                                                                    prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                                                    prop.className (
+                                                                        if isTracked then
+                                                                            "flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors cursor-pointer"
+                                                                        else
+                                                                            "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                                                    )
                                                                     prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
                                                                     prop.children [
-                                                                        match castMember.ProfilePath with
-                                                                        | Some path ->
-                                                                            Html.img [
-                                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
-                                                                                prop.className "w-8 h-8 rounded-full object-cover"
-                                                                                prop.alt castMember.Name
+                                                                        // Profile image with tracked indicator
+                                                                        Html.div [
+                                                                            prop.className "relative"
+                                                                            prop.children [
+                                                                                match castMember.ProfilePath with
+                                                                                | Some path ->
+                                                                                    Html.img [
+                                                                                        prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                                                                                        prop.className "w-8 h-8 rounded-full object-cover"
+                                                                                        prop.alt castMember.Name
+                                                                                    ]
+                                                                                | None ->
+                                                                                    Html.div [
+                                                                                        prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                                                                                        prop.children [
+                                                                                            Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                                                                                        ]
+                                                                                    ]
+                                                                                // Tracked indicator badge
+                                                                                if isTracked then
+                                                                                    Html.div [
+                                                                                        prop.className "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                                                                                        prop.children [
+                                                                                            Html.span [ prop.className "w-2.5 h-2.5 text-primary-content"; prop.children [ heart ] ]
+                                                                                        ]
+                                                                                    ]
                                                                             ]
-                                                                        | None ->
-                                                                            Html.div [
-                                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
-                                                                                prop.children [
-                                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
-                                                                                ]
-                                                                            ]
+                                                                        ]
                                                                         Html.div [
                                                                             prop.className "text-left"
                                                                             prop.children [

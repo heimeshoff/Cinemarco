@@ -39,6 +39,9 @@ type SessionId = SessionId of int
 /// Unique identifier for contributors (actors, directors, etc.)
 type ContributorId = ContributorId of int
 
+/// Unique identifier for tracked contributors
+type TrackedContributorId = TrackedContributorId of string
+
 // =====================================
 // ID Module Helpers
 // =====================================
@@ -86,6 +89,10 @@ module SessionId =
 module ContributorId =
     let create id = ContributorId id
     let value (ContributorId id) = id
+
+module TrackedContributorId =
+    let create id = TrackedContributorId id
+    let value (TrackedContributorId id) = id
 
 // =====================================
 // Enums & Discriminated Unions
@@ -298,6 +305,17 @@ type MediaContributor = {
     SeriesId: SeriesId option
     Role: ContributorRole
     Order: int option
+}
+
+/// A tracked contributor (actor, director, etc.) from the user's personal list
+type TrackedContributor = {
+    Id: TrackedContributorId
+    TmdbPersonId: TmdbPersonId
+    Name: string
+    ProfilePath: string option
+    KnownForDepartment: string option
+    CreatedAt: DateTime
+    Notes: string option
 }
 
 // =====================================
@@ -690,6 +708,21 @@ type UpdateSessionRequest = {
     Id: SessionId
     Notes: string option
     Status: SessionStatus option
+}
+
+/// Request to track a contributor
+type TrackContributorRequest = {
+    TmdbPersonId: TmdbPersonId
+    Name: string
+    ProfilePath: string option
+    KnownForDepartment: string option
+    Notes: string option
+}
+
+/// Request to update a tracked contributor's notes
+type UpdateTrackedContributorRequest = {
+    Id: TrackedContributorId
+    Notes: string option
 }
 
 // =====================================

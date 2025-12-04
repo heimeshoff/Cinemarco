@@ -64,6 +64,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | FriendDetailPage friendId when model.FriendDetailPage.IsNone || model.FriendDetailPage |> Option.map (fun m -> m.FriendId <> friendId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.FriendDetail.State.init friendId
             { model' with FriendDetailPage = Some pageModel }, Cmd.map FriendDetailMsg pageCmd
+        | ContributorsPage ->
+            // Always reload contributors to get fresh data after tracking/untracking
+            let pageModel, pageCmd = Pages.Contributors.State.init ()
+            { model' with ContributorsPage = Some pageModel }, Cmd.map ContributorsMsg pageCmd
         | TagDetailPage tagId when model.TagDetailPage.IsNone || model.TagDetailPage |> Option.map (fun m -> m.TagId <> tagId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.TagDetail.State.init tagId
             { model' with TagDetailPage = Some pageModel }, Cmd.map TagDetailMsg pageCmd
@@ -457,6 +461,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.FriendDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
         | None -> model, Cmd.none
 
+    // Page messages - Contributors
+    | ContributorsMsg contributorsMsg ->
+        match model.ContributorsPage with
+        | Some pageModel ->
+            let contributorsApi : Pages.Contributors.State.ContributorsApi = {
+                GetAll = fun () -> Api.api.contributorsGetAll ()
+                Untrack = fun trackedId -> Api.api.contributorsUntrack trackedId
+            }
+            let newPage, pageCmd, extMsg = Pages.Contributors.State.update contributorsApi contributorsMsg pageModel
+            let model' = { model with ContributorsPage = Some newPage }
+            let cmd = Cmd.map ContributorsMsg pageCmd
+            match extMsg with
+            | Pages.Contributors.Types.NoOp -> model', cmd
+            | Pages.Contributors.Types.NavigateToContributorDetail personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
+            | Pages.Contributors.Types.ShowNotification (msg, isSuccess) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none
+
     // Page messages - Tags
     | TagsMsg tagsMsg ->
         match model.TagsPage with
@@ -555,6 +577,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 }
                 GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
                 GetCredits = fun tmdbId -> Api.api.tmdbGetMovieCredits tmdbId
+                GetTrackedContributors = fun () -> Api.api.contributorsGetAll ()
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
@@ -604,6 +627,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 }
                 GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
                 GetCredits = fun tmdbId -> Api.api.tmdbGetSeriesCredits tmdbId
+                GetTrackedContributors = fun () -> Api.api.contributorsGetAll ()
                 GetSessions = fun entryId -> Api.api.sessionsGetForEntry entryId
                 GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
@@ -762,6 +786,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetLibrary = fun () -> Api.api.libraryGetAll ()
                 AddMovie = fun req -> Api.api.libraryAddMovie req
                 AddSeries = fun req -> Api.api.libraryAddSeries req
+                GetTrackedByTmdbId = fun personId -> Api.api.contributorsGetByTmdbId personId
+                Track = fun req -> Api.api.contributorsTrack req
+                Untrack = fun trackedId -> Api.api.contributorsUntrack trackedId
             }
             let newPage, pageCmd, extMsg = Pages.ContributorDetail.State.update contributorApi contributorMsg pageModel
             let model' = { model with ContributorDetailPage = Some newPage }

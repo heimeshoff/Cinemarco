@@ -469,6 +469,26 @@ DELETE FROM episode_progress WHERE session_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_default ON watch_sessions(is_default);
 """
     }
+
+    // Migration 7: Tracked contributors table
+    {
+        Version = 7
+        Name = "Add tracked_contributors table"
+        Up = """
+-- Tracked contributors table for personal contributor tracking
+CREATE TABLE IF NOT EXISTS tracked_contributors (
+    id TEXT PRIMARY KEY,
+    tmdb_person_id INTEGER NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    profile_path TEXT,
+    known_for_department TEXT,
+    created_at TEXT NOT NULL,
+    notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tracked_contributors_tmdb_id ON tracked_contributors(tmdb_person_id);
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

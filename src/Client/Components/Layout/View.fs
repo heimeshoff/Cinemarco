@@ -16,11 +16,12 @@ let private getPageIcon (page: Page) =
     | SessionDetailPage _ -> tv
     | FriendsPage -> friends
     | FriendDetailPage _ -> friends
+    | ContributorsPage -> userPlus
+    | ContributorDetailPage _ -> userPlus
     | TagsPage -> tags
     | TagDetailPage _ -> tags
     | CollectionsPage -> collections
     | CollectionDetailPage _ -> collections
-    | ContributorDetailPage _ -> userPlus
     | StatsPage -> stats
     | TimelinePage -> timeline
     | GraphPage -> graph
@@ -38,11 +39,12 @@ let private getIconColor (page: Page) =
     | SessionDetailPage _ -> "text-nav-library"
     | FriendsPage -> "text-nav-friends"     // Emerald - social
     | FriendDetailPage _ -> "text-nav-friends"
+    | ContributorsPage -> "text-nav-contributors" // Violet/Purple - people you follow
+    | ContributorDetailPage _ -> "text-nav-contributors"
     | TagsPage -> "text-nav-tags"           // Teal - organization
     | TagDetailPage _ -> "text-nav-tags"
     | CollectionsPage -> "text-nav-collections" // Pink - curated
     | CollectionDetailPage _ -> "text-nav-collections"
-    | ContributorDetailPage _ -> "text-nav-library" // Contributor - same as library
     | StatsPage -> "text-nav-stats"         // Orange - metrics
     | TimelinePage -> "text-nav-timeline"   // Sky - time
     | GraphPage -> "text-nav-graph"         // Violet - connections
@@ -139,6 +141,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
 
                             navItem FriendsPage currentPage onNavigate
+                            navItem ContributorsPage currentPage onNavigate
                             navItem TagsPage currentPage onNavigate
                             navItem CollectionsPage currentPage onNavigate
 
@@ -319,7 +322,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                     prop.className "space-y-1"
                                     prop.children [
                                         // Primary navigation
-                                        for page in [ FriendsPage; TagsPage; CollectionsPage ] do
+                                        for page in [ FriendsPage; ContributorsPage; TagsPage; CollectionsPage ] do
                                             let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [

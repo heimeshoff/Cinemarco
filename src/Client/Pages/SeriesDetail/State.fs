@@ -9,6 +9,7 @@ type SeriesApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
     GetCollections: EntryId -> Async<Collection list>
     GetCredits: TmdbSeriesId -> Async<Result<TmdbCredits, string>>
+    GetTrackedContributors: unit -> Async<TrackedContributor list>
     GetSessions: EntryId -> Async<WatchSession list>
     GetSessionProgress: SessionId -> Async<EpisodeProgress list>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
@@ -24,7 +25,7 @@ type SeriesApi = {
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadSessions ]
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadSessions; Cmd.ofMsg LoadTrackedContributors ]
 
 let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -86,6 +87,21 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | CreditsLoaded (Error _) ->
         { model with Credits = Failure "Could not load credits" }, Cmd.none, NoOp
+
+    | LoadTrackedContributors ->
+        let cmd =
+            Cmd.OfAsync.perform
+                api.GetTrackedContributors
+                ()
+                TrackedContributorsLoaded
+        model, cmd, NoOp
+
+    | TrackedContributorsLoaded trackedContributors ->
+        let trackedIds =
+            trackedContributors
+            |> List.map (fun tc -> tc.TmdbPersonId)
+            |> Set.ofList
+        { model with TrackedPersonIds = trackedIds }, Cmd.none, NoOp
 
     | LoadSeasonDetails seasonNum ->
         match model.Entry with

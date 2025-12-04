@@ -9,6 +9,7 @@ type MovieApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
     GetCollections: EntryId -> Async<Collection list>
     GetCredits: TmdbMovieId -> Async<Result<TmdbCredits, string>>
+    GetTrackedContributors: unit -> Async<TrackedContributor list>
     MarkWatched: EntryId -> Async<Result<LibraryEntry, string>>
     MarkUnwatched: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
@@ -20,7 +21,7 @@ type MovieApi = {
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections ]
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadTrackedContributors ]
 
 let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -76,6 +77,21 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CreditsLoaded (Error _) ->
         { model with Credits = Failure "Could not load credits" }, Cmd.none, NoOp
+
+    | LoadTrackedContributors ->
+        let cmd =
+            Cmd.OfAsync.perform
+                api.GetTrackedContributors
+                ()
+                TrackedContributorsLoaded
+        model, cmd, NoOp
+
+    | TrackedContributorsLoaded trackedContributors ->
+        let trackedIds =
+            trackedContributors
+            |> List.map (fun tc -> tc.TmdbPersonId)
+            |> Set.ofList
+        { model with TrackedPersonIds = trackedIds }, Cmd.none, NoOp
 
     | MarkWatched ->
         let cmd =

@@ -63,6 +63,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | ContributorsPage ->
+        match model.ContributorsPage with
+        | Some pageModel ->
+            Pages.Contributors.View.view pageModel (ContributorsMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | TagsPage ->
         match model.TagsPage with
         | Some pageModel ->

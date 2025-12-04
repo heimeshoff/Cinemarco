@@ -181,6 +181,17 @@ type ContributorRecord = {
 }
 
 [<CLIMutable>]
+type TrackedContributorRecord = {
+    id: string
+    tmdb_person_id: int
+    name: string
+    profile_path: string
+    known_for_department: string
+    created_at: string
+    notes: string
+}
+
+[<CLIMutable>]
 type LibraryEntryRecord = {
     id: int
     media_type: string
@@ -2396,4 +2407,126 @@ let getCollectionsForEntry (entryId: EntryId) : Async<Collection list> = async {
            ORDER BY c.name""",
         {| entryId = entryIdVal |}) |> Async.AwaitTask
     return records |> Seq.map recordToCollection |> Seq.toList
+}
+
+// =====================================
+// Tracked Contributors CRUD
+// =====================================
+
+let private recordToTrackedContributor (r: TrackedContributorRecord) : TrackedContributor = {
+    Id = TrackedContributorId r.id
+    TmdbPersonId = TmdbPersonId r.tmdb_person_id
+    Name = r.name
+    ProfilePath = if String.IsNullOrEmpty(r.profile_path) then None else Some r.profile_path
+    KnownForDepartment = if String.IsNullOrEmpty(r.known_for_department) then None else Some r.known_for_department
+    CreatedAt = DateTime.Parse(r.created_at)
+    Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
+}
+
+/// Get all tracked contributors
+let getAllTrackedContributors () : Async<TrackedContributor list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<TrackedContributorRecord>("SELECT * FROM tracked_contributors ORDER BY name")
+        |> Async.AwaitTask
+    return records |> Seq.map recordToTrackedContributor |> Seq.toList
+}
+
+/// Get a tracked contributor by ID
+let getTrackedContributorById (TrackedContributorId id) : Async<TrackedContributor option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<TrackedContributorRecord>(
+            "SELECT * FROM tracked_contributors WHERE id = @Id",
+            {| Id = id |}
+        ) |> Async.AwaitTask
+    return if isNull (box record) then None else Some (recordToTrackedContributor record)
+}
+
+/// Get a tracked contributor by TMDB person ID
+let getTrackedContributorByTmdbId (TmdbPersonId tmdbId) : Async<TrackedContributor option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<TrackedContributorRecord>(
+            "SELECT * FROM tracked_contributors WHERE tmdb_person_id = @TmdbId",
+            {| TmdbId = tmdbId |}
+        ) |> Async.AwaitTask
+    return if isNull (box record) then None else Some (recordToTrackedContributor record)
+}
+
+/// Check if a TMDB person is tracked
+let isContributorTracked (TmdbPersonId tmdbId) : Async<bool> = async {
+    use conn = getConnection()
+    let! count =
+        conn.ExecuteScalarAsync<int64>(
+            "SELECT COUNT(*) FROM tracked_contributors WHERE tmdb_person_id = @TmdbId",
+            {| TmdbId = tmdbId |}
+        ) |> Async.AwaitTask
+    return count > 0L
+}
+
+/// Track a new contributor
+let trackContributor (request: TrackContributorRequest) : Async<Result<TrackedContributor, string>> = async {
+    try
+        // Check if already tracked
+        let! existing = getTrackedContributorByTmdbId request.TmdbPersonId
+        match existing with
+        | Some tc -> return Ok tc
+        | None ->
+            use conn = getConnection()
+            let now = DateTime.UtcNow.ToString("o")
+            let id = Guid.NewGuid().ToString()
+            let param = {|
+                Id = id
+                TmdbPersonId = TmdbPersonId.value request.TmdbPersonId
+                Name = request.Name
+                ProfilePath = request.ProfilePath |> Option.toObj
+                KnownForDepartment = request.KnownForDepartment |> Option.toObj
+                CreatedAt = now
+                Notes = request.Notes |> Option.toObj
+            |}
+            do! conn.ExecuteAsync("""
+                INSERT INTO tracked_contributors (id, tmdb_person_id, name, profile_path, known_for_department, created_at, notes)
+                VALUES (@Id, @TmdbPersonId, @Name, @ProfilePath, @KnownForDepartment, @CreatedAt, @Notes)
+            """, param) |> Async.AwaitTask |> Async.Ignore
+            let! inserted = getTrackedContributorById (TrackedContributorId id)
+            match inserted with
+            | Some tc -> return Ok tc
+            | None -> return Error "Failed to retrieve tracked contributor after insert"
+    with
+    | ex -> return Error $"Failed to track contributor: {ex.Message}"
+}
+
+/// Untrack a contributor
+let untrackContributor (TrackedContributorId id) : Async<Result<unit, string>> = async {
+    try
+        use conn = getConnection()
+        let! rowsAffected =
+            conn.ExecuteAsync(
+                "DELETE FROM tracked_contributors WHERE id = @Id",
+                {| Id = id |}
+            ) |> Async.AwaitTask
+        if rowsAffected > 0 then return Ok ()
+        else return Error "Tracked contributor not found"
+    with
+    | ex -> return Error $"Failed to untrack contributor: {ex.Message}"
+}
+
+/// Update notes for a tracked contributor
+let updateTrackedContributorNotes (TrackedContributorId id) (notes: string option) : Async<Result<TrackedContributor, string>> = async {
+    try
+        use conn = getConnection()
+        let! rowsAffected =
+            conn.ExecuteAsync(
+                "UPDATE tracked_contributors SET notes = @Notes WHERE id = @Id",
+                {| Id = id; Notes = notes |> Option.toObj |}
+            ) |> Async.AwaitTask
+        if rowsAffected > 0 then
+            let! updated = getTrackedContributorById (TrackedContributorId id)
+            match updated with
+            | Some tc -> return Ok tc
+            | None -> return Error "Tracked contributor not found after update"
+        else return Error "Tracked contributor not found"
+    with
+    | ex -> return Error $"Failed to update notes: {ex.Message}"
 }

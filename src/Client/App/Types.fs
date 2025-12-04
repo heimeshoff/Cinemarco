@@ -42,11 +42,12 @@ type Model = {
     SessionDetailPage: Pages.SessionDetail.Types.Model option
     FriendsPage: Pages.Friends.Types.Model option
     FriendDetailPage: Pages.FriendDetail.Types.Model option
+    ContributorsPage: Pages.Contributors.Types.Model option
+    ContributorDetailPage: Pages.ContributorDetail.Types.Model option
     TagsPage: Pages.Tags.Types.Model option
     TagDetailPage: Pages.TagDetail.Types.Model option
     CollectionsPage: Pages.Collections.Types.Model option
     CollectionDetailPage: Pages.CollectionDetail.Types.Model option
-    ContributorDetailPage: Pages.ContributorDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
 }
 
@@ -97,11 +98,12 @@ type Msg =
     | SessionDetailMsg of Pages.SessionDetail.Types.Msg
     | FriendsMsg of Pages.Friends.Types.Msg
     | FriendDetailMsg of Pages.FriendDetail.Types.Msg
+    | ContributorsMsg of Pages.Contributors.Types.Msg
+    | ContributorDetailMsg of Pages.ContributorDetail.Types.Msg
     | TagsMsg of Pages.Tags.Types.Msg
     | TagDetailMsg of Pages.TagDetail.Types.Msg
     | CollectionsMsg of Pages.Collections.Types.Msg
     | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
-    | ContributorDetailMsg of Pages.ContributorDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
 
     // API result handlers
@@ -133,10 +135,11 @@ module Model =
         SessionDetailPage = None
         FriendsPage = None
         FriendDetailPage = None
+        ContributorsPage = None
+        ContributorDetailPage = None
         TagsPage = None
         TagDetailPage = None
         CollectionsPage = None
         CollectionDetailPage = None
-        ContributorDetailPage = None
         CachePage = None
     }

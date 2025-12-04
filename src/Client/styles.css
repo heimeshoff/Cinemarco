@@ -33,6 +33,7 @@
   --color-nav-library: #d4a574;
   --color-nav-search: #be123c;
   --color-nav-friends: #22c55e;
+  --color-nav-contributors: #a855f7;
   --color-nav-tags: #0d9488;
   --color-nav-collections: #f472b6;
   --color-nav-stats: #f97316;
@@ -687,6 +688,7 @@ h1, h2, h3, .font-display {
 .text-nav-library { color: #d4a574; }
 .text-nav-search { color: #be123c; }
 .text-nav-friends { color: #22c55e; }
+.text-nav-contributors { color: #a855f7; }
 .text-nav-tags { color: #0d9488; }
 .text-nav-collections { color: #f472b6; }
 .text-nav-stats { color: #f97316; }

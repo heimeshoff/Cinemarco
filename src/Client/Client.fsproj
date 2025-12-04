@@ -143,6 +143,11 @@
     <Compile Include="Pages/FriendDetail/State.fs" />
     <Compile Include="Pages/FriendDetail/View.fs" />
 
+    <!-- Contributors Page -->
+    <Compile Include="Pages/Contributors/Types.fs" />
+    <Compile Include="Pages/Contributors/State.fs" />
+    <Compile Include="Pages/Contributors/View.fs" />
+
     <!-- Tags Page -->
     <Compile Include="Pages/Tags/Types.fs" />
     <Compile Include="Pages/Tags/State.fs" />

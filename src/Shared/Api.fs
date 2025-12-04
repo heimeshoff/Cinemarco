@@ -262,4 +262,29 @@ type ICinemarcoApi = {
 
     /// Clear all cache entries
     cacheClearAll: unit -> Async<ClearCacheResult>
+
+    // =====================================
+    // Tracked Contributors Operations
+    // =====================================
+
+    /// Get all tracked contributors
+    contributorsGetAll: unit -> Async<TrackedContributor list>
+
+    /// Get a tracked contributor by ID
+    contributorsGetById: TrackedContributorId -> Async<Result<TrackedContributor, string>>
+
+    /// Track a new contributor
+    contributorsTrack: TrackContributorRequest -> Async<Result<TrackedContributor, string>>
+
+    /// Untrack a contributor
+    contributorsUntrack: TrackedContributorId -> Async<Result<unit, string>>
+
+    /// Update notes for a tracked contributor
+    contributorsUpdateNotes: TrackedContributorId * string option -> Async<Result<TrackedContributor, string>>
+
+    /// Check if a TMDB person is tracked
+    contributorsIsTracked: TmdbPersonId -> Async<bool>
+
+    /// Get a tracked contributor by TMDB person ID (returns None if not tracked)
+    contributorsGetByTmdbId: TmdbPersonId -> Async<TrackedContributor option>
 }

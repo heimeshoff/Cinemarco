@@ -29,6 +29,8 @@ type Model = {
     FilmographyFilter: FilmographyFilter
     MediaTypeFilter: MediaTypeFilter
     RoleFilter: RoleFilter
+    IsTracked: bool
+    TrackedContributorId: TrackedContributorId option
 }
 
 type Msg =
@@ -45,6 +47,12 @@ type Msg =
     | ViewMovieDetail of EntryId
     | ViewSeriesDetail of EntryId
     | GoBack
+    | CheckIsTracked
+    | TrackedStatusLoaded of TrackedContributor option
+    | TrackContributor
+    | TrackContributorResult of Result<TrackedContributor, string>
+    | UntrackContributor
+    | UntrackContributorResult of Result<unit, string>
 
 type ExternalMsg =
     | NoOp
@@ -62,4 +70,6 @@ module Model =
         FilmographyFilter = AllWorks
         MediaTypeFilter = AllMedia
         RoleFilter = AllRoles
+        IsTracked = false
+        TrackedContributorId = None
     }

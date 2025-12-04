@@ -11,11 +11,12 @@ type Page =
     | SessionDetailPage of SessionId
     | FriendsPage
     | FriendDetailPage of FriendId
+    | ContributorsPage
+    | ContributorDetailPage of TmdbPersonId
     | TagsPage
     | TagDetailPage of TagId
     | CollectionsPage
     | CollectionDetailPage of CollectionId
-    | ContributorDetailPage of TmdbPersonId
     | StatsPage
     | TimelinePage
     | GraphPage
@@ -32,11 +33,12 @@ module Page =
         | SessionDetailPage (SessionId id) -> $"/session/{id}"
         | FriendsPage -> "/friends"
         | FriendDetailPage (FriendId id) -> $"/friend/{id}"
+        | ContributorsPage -> "/contributors"
+        | ContributorDetailPage (TmdbPersonId id) -> $"/contributor/{id}"
         | TagsPage -> "/tags"
         | TagDetailPage (TagId id) -> $"/tag/{id}"
         | CollectionsPage -> "/collections"
         | CollectionDetailPage (CollectionId id) -> $"/collection/{id}"
-        | ContributorDetailPage (TmdbPersonId id) -> $"/contributor/{id}"
         | StatsPage -> "/stats"
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
@@ -52,11 +54,12 @@ module Page =
         | SessionDetailPage _ -> "Session"
         | FriendsPage -> "Friends"
         | FriendDetailPage _ -> "Friend"
+        | ContributorsPage -> "Contributors"
+        | ContributorDetailPage _ -> "Contributor"
         | TagsPage -> "Tags"
         | TagDetailPage _ -> "Tag"
         | CollectionsPage -> "Collections"
         | CollectionDetailPage _ -> "Collection"
-        | ContributorDetailPage _ -> "Contributor"
         | StatsPage -> "Stats"
         | TimelinePage -> "Timeline"
         | GraphPage -> "Graph"

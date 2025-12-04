@@ -8,6 +8,7 @@ type Model = {
     Entry: RemoteData<LibraryEntry>
     Collections: RemoteData<Collection list>
     Credits: RemoteData<TmdbCredits>
+    TrackedPersonIds: Set<TmdbPersonId>
     IsAddingFriend: bool
     IsRatingOpen: bool
     IsFriendSelectorOpen: bool
@@ -20,6 +21,8 @@ type Msg =
     | CollectionsLoaded of Result<Collection list, string>
     | LoadCredits of TmdbMovieId
     | CreditsLoaded of Result<TmdbCredits, string>
+    | LoadTrackedContributors
+    | TrackedContributorsLoaded of TrackedContributor list
     | MarkWatched
     | MarkUnwatched
     | OpenAbandonModal
@@ -51,4 +54,13 @@ type ExternalMsg =
     | FriendCreatedInline of Friend
 
 module Model =
-    let create entryId = { EntryId = entryId; Entry = NotAsked; Collections = NotAsked; Credits = NotAsked; IsAddingFriend = false; IsRatingOpen = false; IsFriendSelectorOpen = false }
+    let create entryId = {
+        EntryId = entryId
+        Entry = NotAsked
+        Collections = NotAsked
+        Credits = NotAsked
+        TrackedPersonIds = Set.empty
+        IsAddingFriend = false
+        IsRatingOpen = false
+        IsFriendSelectorOpen = false
+    }

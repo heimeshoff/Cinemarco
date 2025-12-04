@@ -12,6 +12,7 @@ open Fable.Core.JsInterop
 module SectionHeader = Common.Components.SectionHeader.View
 module GlassPanel = Common.Components.GlassPanel.View
 module FilterChip = Common.Components.FilterChip.View
+module GlassButton = Common.Components.GlassButton.View
 
 /// Format a date nicely
 let private formatDate (d: System.DateTime) =
@@ -35,7 +36,7 @@ let private getPosterUrl (path: string option) =
 /// Progress bar component
 let private progressBar (seen: int) (total: int) =
     let percentage = if total > 0 then (float seen / float total) * 100.0 else 0.0
-    let percentText = $"{percentage:F0}%%"
+    let percentText = $"{int (System.Math.Round(percentage))}%%"
 
     Html.div [
         prop.className "space-y-2"
@@ -346,7 +347,7 @@ let private filmographyGrid (model: Model) (filmography: TmdbFilmography) (dispa
         ]
 
 /// Person header section
-let private personHeader (details: TmdbPersonDetails) (filmography: TmdbFilmography) (model: Model) =
+let private personHeader (details: TmdbPersonDetails) (filmography: TmdbFilmography) (model: Model) (dispatch: Msg -> unit) =
     let allWorks =
         (filmography.CastCredits @ filmography.CrewCredits)
         |> List.distinctBy (fun w -> (w.TmdbId, w.MediaType))
@@ -388,9 +389,21 @@ let private personHeader (details: TmdbPersonDetails) (filmography: TmdbFilmogra
             Html.div [
                 prop.className "flex-1 space-y-4"
                 prop.children [
-                    Html.h1 [
-                        prop.className "text-3xl font-bold"
-                        prop.text details.Name
+                    // Name and track button row
+                    Html.div [
+                        prop.className "flex items-start justify-between gap-4"
+                        prop.children [
+                            Html.h1 [
+                                prop.className "text-3xl font-bold"
+                                prop.text details.Name
+                            ]
+
+                            // Track/Untrack button
+                            if model.IsTracked then
+                                GlassButton.primaryActive heart "Tracking" (fun () -> dispatch UntrackContributor)
+                            else
+                                GlassButton.button heart "Track" (fun () -> dispatch TrackContributor)
+                        ]
                     ]
 
                     // Known for department
@@ -481,7 +494,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             | Success details, Success filmography ->
                 // Person header with progress
-                personHeader details filmography model
+                personHeader details filmography model dispatch
 
                 // Filters
                 Html.div [

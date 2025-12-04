@@ -11,6 +11,9 @@ type ContributorApi = {
     GetLibrary: unit -> Async<LibraryEntry list>
     AddMovie: AddMovieRequest -> Async<Result<LibraryEntry, string>>
     AddSeries: AddSeriesRequest -> Async<Result<LibraryEntry, string>>
+    GetTrackedByTmdbId: TmdbPersonId -> Async<TrackedContributor option>
+    Track: TrackContributorRequest -> Async<Result<TrackedContributor, string>>
+    Untrack: TrackedContributorId -> Async<Result<unit, string>>
 }
 
 let init (personId: TmdbPersonId) : Model * Cmd<Msg> =
@@ -18,6 +21,7 @@ let init (personId: TmdbPersonId) : Model * Cmd<Msg> =
     let cmds = Cmd.batch [
         Cmd.ofMsg LoadPersonDetails
         Cmd.ofMsg LoadFilmography
+        Cmd.ofMsg CheckIsTracked
     ]
     model, cmds
 
@@ -134,3 +138,67 @@ let update (api: ContributorApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
 
     | GoBack ->
         model, Cmd.none, NavigateBack
+
+    | CheckIsTracked ->
+        let cmd =
+            Cmd.OfAsync.perform
+                api.GetTrackedByTmdbId
+                model.TmdbPersonId
+                TrackedStatusLoaded
+        model, cmd, NoOp
+
+    | TrackedStatusLoaded trackedOpt ->
+        match trackedOpt with
+        | Some tracked ->
+            { model with IsTracked = true; TrackedContributorId = Some tracked.Id }, Cmd.none, NoOp
+        | None ->
+            { model with IsTracked = false; TrackedContributorId = None }, Cmd.none, NoOp
+
+    | TrackContributor ->
+        match model.PersonDetails with
+        | Success details ->
+            let request : TrackContributorRequest = {
+                TmdbPersonId = model.TmdbPersonId
+                Name = details.Name
+                ProfilePath = details.ProfilePath
+                KnownForDepartment = details.KnownForDepartment
+                Notes = None
+            }
+            let cmd =
+                Cmd.OfAsync.either
+                    api.Track
+                    request
+                    TrackContributorResult
+                    (fun ex -> Error ex.Message |> TrackContributorResult)
+            model, cmd, NoOp
+        | _ ->
+            model, Cmd.none, ShowNotification ("Cannot track - details not loaded", false)
+
+    | TrackContributorResult (Ok trackedContributor) ->
+        { model with IsTracked = true; TrackedContributorId = Some trackedContributor.Id },
+        Cmd.none,
+        ShowNotification ($"Now tracking {trackedContributor.Name}", true)
+
+    | TrackContributorResult (Error err) ->
+        model, Cmd.none, ShowNotification (err, false)
+
+    | UntrackContributor ->
+        match model.TrackedContributorId with
+        | Some trackedId ->
+            let cmd =
+                Cmd.OfAsync.either
+                    api.Untrack
+                    trackedId
+                    UntrackContributorResult
+                    (fun ex -> Error ex.Message |> UntrackContributorResult)
+            model, cmd, NoOp
+        | None ->
+            model, Cmd.none, ShowNotification ("Not currently tracked", false)
+
+    | UntrackContributorResult (Ok ()) ->
+        { model with IsTracked = false; TrackedContributorId = None },
+        Cmd.none,
+        ShowNotification ("Contributor untracked", true)
+
+    | UntrackContributorResult (Error err) ->
+        model, Cmd.none, ShowNotification (err, false)

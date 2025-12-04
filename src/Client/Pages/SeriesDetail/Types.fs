@@ -8,6 +8,7 @@ type Model = {
     Entry: RemoteData<LibraryEntry>
     Collections: RemoteData<Collection list>
     Credits: RemoteData<TmdbCredits>
+    TrackedPersonIds: Set<TmdbPersonId>
     Sessions: RemoteData<WatchSession list>
     SelectedSessionId: SessionId option
     EpisodeProgress: EpisodeProgress list
@@ -23,6 +24,8 @@ type Msg =
     | CollectionsLoaded of Result<Collection list, string>
     | LoadCredits of TmdbSeriesId
     | CreditsLoaded of Result<TmdbCredits, string>
+    | LoadTrackedContributors
+    | TrackedContributorsLoaded of TrackedContributor list
     | LoadSessions
     | SessionsLoaded of Result<WatchSession list, string>
     | SelectSession of SessionId
@@ -69,6 +72,7 @@ module Model =
         Entry = NotAsked
         Collections = NotAsked
         Credits = NotAsked
+        TrackedPersonIds = Set.empty
         Sessions = NotAsked
         SelectedSessionId = None
         EpisodeProgress = []
