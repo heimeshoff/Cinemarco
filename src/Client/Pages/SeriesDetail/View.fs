@@ -6,6 +6,10 @@ open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
+open Components.FriendSelector.View
+
+module GlassPanel = Common.Components.GlassPanel.View
+module Tabs = Common.Components.Tabs.View
 
 /// Progress bar component
 let private progressBar (current: int) (total: int) =
@@ -33,20 +37,18 @@ let private progressBar (current: int) (total: int) =
     ]
 
 /// Episode checkbox component with Ctrl+click support
-/// Uses subtle colors: unwatched = dark gray, watched = subtle muted green
 let private renderEpisodeCheckbox (seasonNum: int) (epNum: int) (isWatched: bool) (isHovered: bool) (onHover: int option -> unit) (dispatch: Msg -> unit) =
-    // Subtle color scheme matching dark theme
     let bgColor =
         if isWatched then
-            if isHovered then "#243324" else "#1a2e1a"  // subtle muted green
+            if isHovered then "#243324" else "#1a2e1a"
         else
-            if isHovered then "#242424" else "#1a1a1a"  // dark gray
+            if isHovered then "#242424" else "#1a1a1a"
 
     let borderColor =
         if isWatched then
-            if isHovered then "#3d5c3d" else "#2d4a2d"  // subtle green border
-        elif isHovered then "#3d3d3d"  // lighter gray on hover
-        else "#2a2a2a"  // dark border
+            if isHovered then "#3d5c3d" else "#2d4a2d"
+        elif isHovered then "#3d3d3d"
+        else "#2a2a2a"
 
     Html.div [
         prop.className "cursor-pointer p-2 rounded border transition-all duration-150 select-none"
@@ -60,10 +62,8 @@ let private renderEpisodeCheckbox (seasonNum: int) (epNum: int) (isWatched: bool
             e.preventDefault()
             let newWatchedState = not isWatched
             if e.ctrlKey then
-                // Ctrl+click: mark all episodes from 1 to this one
                 dispatch (MarkEpisodesUpTo (seasonNum, epNum, newWatchedState))
             else
-                // Normal click: toggle single episode
                 dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
         prop.children [
             Html.span [
@@ -79,7 +79,6 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
     let (hoveredEp, setHoveredEp) = React.useState<int option> None
     let (ctrlPressed, setCtrlPressed) = React.useState false
 
-    // Track Ctrl key state - detect specifically when Control key is pressed/released
     React.useEffect (fun () ->
         let onKeyDown (e: Browser.Types.Event) =
             let ke = e :?> Browser.Types.KeyboardEvent
@@ -87,7 +86,6 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
         let onKeyUp (e: Browser.Types.Event) =
             let ke = e :?> Browser.Types.KeyboardEvent
             if ke.key = "Control" then setCtrlPressed false
-        // Also handle window blur to reset Ctrl state
         let onBlur _ = setCtrlPressed false
 
         Browser.Dom.window.addEventListener("keydown", onKeyDown)
@@ -107,7 +105,6 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
         prop.children [
             for ep in episodes |> List.sortBy (fun e -> e.EpisodeNumber) do
                 let isWatched = Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes
-                // Show hover state if: directly hovered, OR (Ctrl pressed AND episode <= hovered episode)
                 let isInCtrlRange =
                     ctrlPressed &&
                     hoveredEp.IsSome &&
@@ -116,10 +113,6 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
                 renderEpisodeCheckbox seasonNum ep.EpisodeNumber isWatched showHover setHoveredEp dispatch
         ]
     ]
-
-/// Wrapper for backward compatibility
-let private episodeCheckbox seasonNum epNum isWatched dispatch =
-    renderEpisodeCheckbox seasonNum epNum isWatched false (fun _ -> ()) dispatch
 
 /// Rating labels, descriptions and icons
 let private ratingOptions = [
@@ -143,7 +136,6 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
     Html.div [
         prop.className "relative"
         prop.children [
-            // Main button
             Html.div [
                 prop.className "tooltip tooltip-bottom detail-tooltip"
                 prop.custom ("data-tip", label)
@@ -157,7 +149,6 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
                     ]
                 ]
             ]
-            // Dropdown
             if isOpen then
                 Html.div [
                     prop.className "absolute top-full left-0 mt-2 z-50 rating-dropdown"
@@ -181,7 +172,6 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
                                         ]
                                     ]
                                 ]
-                        // Clear option if rated
                         if current.IsSome && current.Value > 0 then
                             Html.button [
                                 prop.className "rating-dropdown-item rating-dropdown-item-clear"
@@ -252,14 +242,6 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
         ]
     ]
 
-/// Group episode progress by season
-let private groupBySeasons (progress: EpisodeProgress list) : Map<int, int list> =
-    progress
-    |> List.filter (fun p -> p.IsWatched)
-    |> List.groupBy (fun p -> p.SeasonNumber)
-    |> List.map (fun (season, eps) -> season, eps |> List.map (fun e -> e.EpisodeNumber))
-    |> Map.ofList
-
 /// Generate a display name for a session based on its friends
 let private sessionDisplayName (session: WatchSession) (allFriends: Friend list) =
     if session.IsDefault then
@@ -276,6 +258,448 @@ let private sessionDisplayName (session: WatchSession) (allFriends: Friend list)
             let allButLast = names |> List.take (names.Length - 1) |> String.concat ", "
             let last = List.last names
             $"with {allButLast} and {last}"
+
+/// Overview tab content
+let private overviewTab (series: LibrarySeries) (entry: LibraryEntry) (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            // Overview
+            match series.Overview with
+            | Some overview when overview <> "" ->
+                Html.div [
+                    Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Overview" ]
+                    Html.p [ prop.className "text-base-content/70"; prop.text overview ]
+                ]
+            | _ -> Html.none
+
+            // Add to Collection button
+            Html.button [
+                prop.className "btn btn-sm btn-ghost"
+                prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
+                prop.children [
+                    Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
+                    Html.span [ prop.text "Add to Collection" ]
+                ]
+            ]
+
+            // Collections this entry belongs to
+            match model.Collections with
+            | Success collectionsList when not (List.isEmpty collectionsList) ->
+                Html.div [
+                    Html.h3 [ prop.className "font-semibold mb-2"; prop.text "In Collections" ]
+                    Html.div [
+                        prop.className "flex flex-wrap gap-2"
+                        prop.children [
+                            for collection in collectionsList do
+                                Html.span [
+                                    prop.className "badge badge-outline"
+                                    prop.text collection.Name
+                                ]
+                        ]
+                    ]
+                ]
+            | _ -> Html.none
+
+            // Tags
+            if not (List.isEmpty tags) then
+                Html.div [
+                    Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Tags" ]
+                    Html.div [
+                        prop.className "flex flex-wrap gap-2"
+                        prop.children [
+                            for tag in tags do
+                                let isSelected = List.contains tag.Id entry.Tags
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className (
+                                        "px-3 py-1 rounded-full text-sm transition-all " +
+                                        if isSelected then "bg-secondary text-secondary-content"
+                                        else "bg-base-200 text-base-content/60 hover:bg-base-300"
+                                    )
+                                    prop.onClick (fun _ -> dispatch (ToggleTag tag.Id))
+                                    prop.text tag.Name
+                                ]
+                        ]
+                    ]
+                ]
+
+            // Notes
+            Html.div [
+                Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Notes" ]
+                Html.textarea [
+                    prop.className "textarea textarea-bordered w-full h-24"
+                    prop.placeholder "Add your notes..."
+                    prop.value (entry.Notes |> Option.defaultValue "")
+                    prop.onChange (fun (e: string) -> dispatch (UpdateNotes e))
+                    prop.onBlur (fun _ -> dispatch SaveNotes)
+                ]
+            ]
+        ]
+    ]
+
+/// Cast & Crew tab content
+let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            match model.Credits with
+            | Success credits ->
+                // Cast section
+                if not (List.isEmpty credits.Cast) then
+                    Html.div [
+                        prop.children [
+                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
+                            Html.div [
+                                prop.className "flex flex-wrap gap-2"
+                                prop.children [
+                                    for castMember in credits.Cast do
+                                        let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
+                                        Html.button [
+                                            prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
+                                            prop.className (
+                                                if isTracked then
+                                                    "flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors cursor-pointer"
+                                                else
+                                                    "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                            )
+                                            prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
+                                            prop.children [
+                                                Html.div [
+                                                    prop.className "relative"
+                                                    prop.children [
+                                                        match castMember.ProfilePath with
+                                                        | Some path ->
+                                                            Html.img [
+                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                                                                prop.className "w-8 h-8 rounded-full object-cover"
+                                                                prop.alt castMember.Name
+                                                            ]
+                                                        | None ->
+                                                            Html.div [
+                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                                                                prop.children [
+                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                                                                ]
+                                                            ]
+                                                        if isTracked then
+                                                            Html.div [
+                                                                prop.className "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                                                                prop.children [
+                                                                    Html.span [ prop.className "w-2.5 h-2.5 text-primary-content"; prop.children [ heart ] ]
+                                                                ]
+                                                            ]
+                                                    ]
+                                                ]
+                                                Html.div [
+                                                    prop.className "text-left"
+                                                    prop.children [
+                                                        Html.span [ prop.className "text-sm font-medium block"; prop.text castMember.Name ]
+                                                        match castMember.Character with
+                                                        | Some char ->
+                                                            Html.span [ prop.className "text-xs text-base-content/60"; prop.text char ]
+                                                        | None -> Html.none
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                ]
+                            ]
+                        ]
+                    ]
+
+                // Crew section
+                let keyCrewRoles = ["Director"; "Screenplay"; "Writer"; "Executive Producer"; "Creator"]
+                let keyCrew = credits.Crew |> List.filter (fun c -> List.contains c.Job keyCrewRoles)
+                if not (List.isEmpty keyCrew) then
+                    Html.div [
+                        prop.className "mt-4"
+                        prop.children [
+                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Crew" ]
+                            Html.div [
+                                prop.className "flex flex-wrap gap-2"
+                                prop.children [
+                                    for crewMember in keyCrew |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId) do
+                                        Html.button [
+                                            prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
+                                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                            prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
+                                            prop.children [
+                                                match crewMember.ProfilePath with
+                                                | Some path ->
+                                                    Html.img [
+                                                        prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                                                        prop.className "w-8 h-8 rounded-full object-cover"
+                                                        prop.alt crewMember.Name
+                                                    ]
+                                                | None ->
+                                                    Html.div [
+                                                        prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                                                        prop.children [
+                                                            Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                                                        ]
+                                                    ]
+                                                Html.div [
+                                                    prop.className "text-left"
+                                                    prop.children [
+                                                        Html.span [ prop.className "text-sm font-medium block"; prop.text crewMember.Name ]
+                                                        Html.span [ prop.className "text-xs text-base-content/60"; prop.text crewMember.Job ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                ]
+                            ]
+                        ]
+                    ]
+            | Loading ->
+                Html.div [
+                    prop.className "flex justify-center py-8"
+                    prop.children [
+                        Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                    ]
+                ]
+            | Failure _ ->
+                Html.div [
+                    prop.className "text-center py-8 text-base-content/60"
+                    prop.text "Could not load cast and crew"
+                ]
+            | NotAsked -> Html.none
+        ]
+    ]
+
+/// Episodes tab content
+let private episodesTab (series: LibrarySeries) (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-4"
+        prop.children [
+            // Session tabs
+            Html.div [
+                prop.className "flex flex-wrap items-center gap-2 mb-4"
+                prop.children [
+                    match model.Sessions with
+                    | Success sessions ->
+                        let sortedSessions =
+                            sessions
+                            |> List.sortBy (fun s ->
+                                if s.IsDefault then (0, System.DateTime.MinValue)
+                                else (1, s.StartDate |> Option.defaultValue System.DateTime.MaxValue))
+                        for session in sortedSessions do
+                            let isSelected = model.SelectedSessionId = Some session.Id
+                            Html.div [
+                                prop.className "flex items-center gap-0.5"
+                                prop.children [
+                                    Html.button [
+                                        prop.className (
+                                            "btn btn-sm " +
+                                            if isSelected then "btn-primary" else "btn-ghost"
+                                        )
+                                        prop.onClick (fun _ -> dispatch (SelectSession session.Id))
+                                        prop.text (sessionDisplayName session friends)
+                                    ]
+                                    if not session.IsDefault then
+                                        Html.button [
+                                            prop.className "btn btn-ghost btn-xs text-base-content/40 hover:text-error px-1"
+                                            prop.onClick (fun e ->
+                                                e.stopPropagation()
+                                                dispatch (DeleteSession session.Id))
+                                            prop.children [
+                                                Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ]
+                                            ]
+                                        ]
+                                ]
+                            ]
+                        // New session button
+                        Html.button [
+                            prop.className "btn btn-sm btn-ghost gap-1"
+                            prop.onClick (fun _ -> dispatch OpenNewSessionModal)
+                            prop.children [
+                                Html.span [ prop.className "w-4 h-4"; prop.children [ plus ] ]
+                                Html.span [ prop.text "New" ]
+                            ]
+                        ]
+                    | Loading ->
+                        Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                    | Failure _ | NotAsked -> Html.none
+                ]
+            ]
+
+            // Seasons
+            Html.div [
+                prop.className "space-y-4"
+                prop.children [
+                    let watchedEpisodes =
+                        model.EpisodeProgress
+                        |> List.filter (fun p -> p.IsWatched)
+                        |> List.map (fun p -> (p.SeasonNumber, p.EpisodeNumber))
+                        |> Set.ofList
+
+                    for seasonNum in 1 .. series.NumberOfSeasons do
+                        let seasonDetailsOpt = Map.tryFind seasonNum model.SeasonDetails
+                        let isLoading = Set.contains seasonNum model.LoadingSeasons
+
+                        Html.div [
+                            prop.className "card bg-base-200"
+                            prop.children [
+                                Html.div [
+                                    prop.className "card-body p-4"
+                                    prop.children [
+                                        match seasonDetailsOpt with
+                                        | Some seasonDetails ->
+                                            let totalInSeason = seasonDetails.Episodes.Length
+                                            let watchedInSeason =
+                                                seasonDetails.Episodes
+                                                |> List.filter (fun ep -> Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes)
+                                                |> List.length
+
+                                            Html.div [
+                                                prop.className "flex justify-between items-center mb-3"
+                                                prop.children [
+                                                    Html.h4 [
+                                                        prop.className "font-semibold"
+                                                        prop.text $"Season {seasonNum}"
+                                                    ]
+                                                    Html.div [
+                                                        prop.className "flex items-center gap-2"
+                                                        prop.children [
+                                                            Html.span [
+                                                                prop.className "text-sm text-base-content/60"
+                                                                prop.text $"{watchedInSeason}/{totalInSeason}"
+                                                            ]
+                                                            Html.button [
+                                                                prop.className "btn btn-xs btn-ghost"
+                                                                prop.onClick (fun _ -> dispatch (MarkSeasonWatched seasonNum))
+                                                                prop.text "Mark All"
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                            SeasonEpisodesGrid seasonNum seasonDetails.Episodes watchedEpisodes dispatch
+                                        | None when isLoading ->
+                                            Html.div [
+                                                prop.className "flex items-center gap-2"
+                                                prop.children [
+                                                    Html.h4 [
+                                                        prop.className "font-semibold"
+                                                        prop.text $"Season {seasonNum}"
+                                                    ]
+                                                    Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                                ]
+                                            ]
+                                        | None ->
+                                            Html.div [
+                                                prop.className "flex items-center gap-2"
+                                                prop.children [
+                                                    Html.h4 [
+                                                        prop.className "font-semibold"
+                                                        prop.text $"Season {seasonNum}"
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-xs btn-ghost"
+                                                        prop.onClick (fun _ -> dispatch (LoadSeasonDetails seasonNum))
+                                                        prop.text "Load episodes"
+                                                    ]
+                                                ]
+                                            ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                ]
+            ]
+        ]
+    ]
+
+/// Friends tab content
+let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriendSelectorOpen: bool) (isAddingFriend: bool) (dispatch: Msg -> unit) =
+    let selectedFriendsList =
+        entry.Friends
+        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+
+    Html.div [
+        prop.className "space-y-4"
+        prop.children [
+            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
+
+            // Toggle button to open/close friend selector
+            Html.button [
+                prop.className "btn btn-sm btn-ghost gap-2"
+                prop.onClick (fun _ -> dispatch ToggleFriendSelector)
+                prop.children [
+                    Html.span [ prop.className "w-4 h-4"; prop.children [ userPlus ] ]
+                    Html.span [ prop.text (if isFriendSelectorOpen then "Close" else "Add Friends") ]
+                ]
+            ]
+
+            if isFriendSelectorOpen then
+                Html.div [
+                    prop.children [
+                        FriendSelector {
+                            AllFriends = allFriends
+                            SelectedFriends = entry.Friends
+                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
+                            OnAddNew = fun name -> dispatch (AddNewFriend name)
+                            OnSubmit = Some (fun () -> dispatch ToggleFriendSelector)
+                            IsDisabled = isAddingFriend
+                            Placeholder = "Search or add friends..."
+                            IsRequired = false
+                            AutoFocus = true
+                        }
+                        if isAddingFriend then
+                            Html.div [
+                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
+                                prop.children [
+                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                    Html.span [ prop.text "Adding friend..." ]
+                                ]
+                            ]
+                    ]
+                ]
+
+            // Friend pills
+            if not (List.isEmpty selectedFriendsList) then
+                Html.div [
+                    prop.className "flex flex-wrap items-center gap-2 mt-4"
+                    prop.children [
+                        for friend in selectedFriendsList do
+                            Html.span [
+                                prop.key (FriendId.value friend.Id |> string)
+                                prop.className "friend-pill"
+                                prop.text friend.Name
+                            ]
+                    ]
+                ]
+            elif not isFriendSelectorOpen then
+                Html.p [
+                    prop.className "text-base-content/60 text-sm"
+                    prop.text "No friends added yet. Click 'Add Friends' to track who you watched with."
+                ]
+        ]
+    ]
+
+/// Get the tab definitions
+let private seriesTabs : Common.Components.Tabs.Types.Tab list = [
+    { Id = "overview"; Label = "Overview"; Icon = Some info }
+    { Id = "cast-crew"; Label = "Cast & Crew"; Icon = Some users }
+    { Id = "episodes"; Label = "Episodes"; Icon = Some tv }
+    { Id = "friends"; Label = "Friends"; Icon = Some userPlus }
+]
+
+/// Map SeriesTab to string ID
+let private tabToId = function
+    | Overview -> "overview"
+    | CastCrew -> "cast-crew"
+    | Episodes -> "episodes"
+    | Friends -> "friends"
+
+/// Map string ID to SeriesTab
+let private idToTab = function
+    | "overview" -> Overview
+    | "cast-crew" -> CastCrew
+    | "episodes" -> Episodes
+    | "friends" -> Friends
+    | _ -> Overview
 
 let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
@@ -308,389 +732,99 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                         |> List.length
 
                     Html.div [
-                        prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
+                        prop.className "space-y-6"
                         prop.children [
-                            // Left column - Poster
+                            // Header: Poster + Title/Meta + Actions
                             Html.div [
-                                prop.className "space-y-4"
+                                prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
                                 prop.children [
+                                    // Left column - Poster + Progress
                                     Html.div [
-                                        prop.className "poster-image-container poster-shadow poster-projector-glow"
+                                        prop.className "space-y-4"
                                         prop.children [
-                                            match series.PosterPath with
-                                            | Some _ ->
-                                                Html.img [
-                                                    prop.src (getLocalPosterUrl series.PosterPath)
-                                                    prop.alt series.Name
-                                                    prop.className "poster-image"
-                                                    prop.custom ("crossorigin", "anonymous")
-                                                ]
-                                            | None ->
-                                                Html.div [
-                                                    prop.className "w-full h-full flex items-center justify-center bg-base-200"
-                                                    prop.children [
-                                                        Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ tv ] ]
-                                                    ]
-                                                ]
-                                        ]
-                                    ]
-                                    // Progress
-                                    progressBar watchedCount series.NumberOfEpisodes
-
-                                    // Mark as completed button (when all episodes watched)
-                                    match entry.WatchStatus with
-                                    | NotStarted | InProgress _ when watchedCount >= series.NumberOfEpisodes ->
-                                        Html.button [
-                                            prop.className "btn btn-primary btn-sm w-full"
-                                            prop.onClick (fun _ -> dispatch MarkSeriesCompleted)
-                                            prop.text "Mark as Completed"
-                                        ]
-                                    | Completed ->
-                                        Html.div [
-                                            prop.className "text-center text-success text-sm"
-                                            prop.text "Series Completed"
-                                        ]
-                                    | _ -> Html.none
-                                ]
-                            ]
-
-                            // Right column - Details
-                            Html.div [
-                                prop.className "md:col-span-2 space-y-6"
-                                prop.children [
-                                    // Title, meta, and action buttons
-                                    Html.div [
-                                        Html.h1 [
-                                            prop.className "text-3xl font-bold"
-                                            prop.text series.Name
-                                        ]
-                                        Html.div [
-                                            prop.className "flex items-center gap-2 mt-2 text-base-content/60 flex-wrap"
-                                            prop.children [
-                                                // Genres
-                                                if not (List.isEmpty series.Genres) then
-                                                    Html.span [ prop.text (series.Genres |> String.concat ", ") ]
-                                                    Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
-                                                // Year
-                                                match series.FirstAirDate with
-                                                | Some d ->
-                                                    Html.span [ prop.text (d.Year.ToString()) ]
-                                                    Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
-                                                | None -> Html.none
-                                                Html.span [ prop.text $"{series.NumberOfSeasons} Seasons" ]
-                                                Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
-                                                Html.span [ prop.text $"{series.NumberOfEpisodes} Episodes" ]
-                                            ]
-                                        ]
-                                        // Action buttons row
-                                        actionButtonsRow entry model.IsRatingOpen dispatch
-                                    ]
-
-                                    // Overview
-                                    match series.Overview with
-                                    | Some overview when overview <> "" ->
-                                        Html.div [
-                                            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Overview" ]
-                                            Html.p [ prop.className "text-base-content/70"; prop.text overview ]
-                                        ]
-                                    | _ -> Html.none
-
-                                    // Episode progress by season with session tabs
-                                    Html.div [
-                                        Html.h3 [ prop.className "font-semibold mb-4"; prop.text "Episodes" ]
-
-                                        // Session tabs
-                                        Html.div [
-                                            prop.className "flex flex-wrap items-center gap-2 mb-4"
-                                            prop.children [
-                                                match model.Sessions with
-                                                | Success sessions ->
-                                                    // Session tabs - default first, then by start date (oldest to newest)
-                                                    let sortedSessions =
-                                                        sessions
-                                                        |> List.sortBy (fun s ->
-                                                            if s.IsDefault then (0, System.DateTime.MinValue)
-                                                            else (1, s.StartDate |> Option.defaultValue System.DateTime.MaxValue))
-                                                    for session in sortedSessions do
-                                                        let isSelected = model.SelectedSessionId = Some session.Id
+                                            Html.div [
+                                                prop.className "poster-image-container poster-shadow poster-projector-glow"
+                                                prop.children [
+                                                    match series.PosterPath with
+                                                    | Some _ ->
+                                                        Html.img [
+                                                            prop.src (getLocalPosterUrl series.PosterPath)
+                                                            prop.alt series.Name
+                                                            prop.className "poster-image"
+                                                            prop.custom ("crossorigin", "anonymous")
+                                                        ]
+                                                    | None ->
                                                         Html.div [
-                                                            prop.className "flex items-center gap-0.5"
+                                                            prop.className "w-full h-full flex items-center justify-center bg-base-200"
                                                             prop.children [
-                                                                Html.button [
-                                                                    prop.className (
-                                                                        "btn btn-sm " +
-                                                                        if isSelected then "btn-primary" else "btn-ghost"
-                                                                    )
-                                                                    prop.onClick (fun _ -> dispatch (SelectSession session.Id))
-                                                                    prop.text (sessionDisplayName session friends)
-                                                                ]
-                                                                // Delete button for non-default sessions
-                                                                if not session.IsDefault then
-                                                                    Html.button [
-                                                                        prop.className "btn btn-ghost btn-xs text-base-content/40 hover:text-error px-1"
-                                                                        prop.onClick (fun e ->
-                                                                            e.stopPropagation()
-                                                                            dispatch (DeleteSession session.Id))
-                                                                        prop.children [
-                                                                            Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ]
-                                                                        ]
-                                                                    ]
+                                                                Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ tv ] ]
                                                             ]
                                                         ]
-                                                    // New session button
-                                                    Html.button [
-                                                        prop.className "btn btn-sm btn-ghost gap-1"
-                                                        prop.onClick (fun _ -> dispatch OpenNewSessionModal)
-                                                        prop.children [
-                                                            Html.span [ prop.className "w-4 h-4"; prop.children [ plus ] ]
-                                                            Html.span [ prop.text "New" ]
-                                                        ]
-                                                    ]
-                                                | Loading ->
-                                                    Html.span [ prop.className "loading loading-spinner loading-sm" ]
-                                                | Failure _ | NotAsked -> Html.none
+                                                ]
                                             ]
-                                        ]
+                                            // Progress
+                                            progressBar watchedCount series.NumberOfEpisodes
 
-                                        Html.div [
-                                            prop.className "space-y-4"
-                                            prop.children [
-                                                // Build a lookup of watched episodes
-                                                let watchedEpisodes =
-                                                    model.EpisodeProgress
-                                                    |> List.filter (fun p -> p.IsWatched)
-                                                    |> List.map (fun p -> (p.SeasonNumber, p.EpisodeNumber))
-                                                    |> Set.ofList
-
-                                                // Show each season from TMDB data
-                                                for seasonNum in 1 .. series.NumberOfSeasons do
-                                                    let seasonDetailsOpt = Map.tryFind seasonNum model.SeasonDetails
-                                                    let isLoading = Set.contains seasonNum model.LoadingSeasons
-
-                                                    Html.div [
-                                                        prop.className "card bg-base-200"
-                                                        prop.children [
-                                                            Html.div [
-                                                                prop.className "card-body p-4"
-                                                                prop.children [
-                                                                    match seasonDetailsOpt with
-                                                                    | Some seasonDetails ->
-                                                                        let totalInSeason = seasonDetails.Episodes.Length
-                                                                        let watchedInSeason =
-                                                                            seasonDetails.Episodes
-                                                                            |> List.filter (fun ep -> Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes)
-                                                                            |> List.length
-
-                                                                        Html.div [
-                                                                            prop.className "flex justify-between items-center mb-3"
-                                                                            prop.children [
-                                                                                Html.h4 [
-                                                                                    prop.className "font-semibold"
-                                                                                    prop.text $"Season {seasonNum}"
-                                                                                ]
-                                                                                Html.div [
-                                                                                    prop.className "flex items-center gap-2"
-                                                                                    prop.children [
-                                                                                        Html.span [
-                                                                                            prop.className "text-sm text-base-content/60"
-                                                                                            prop.text $"{watchedInSeason}/{totalInSeason}"
-                                                                                        ]
-                                                                                        Html.button [
-                                                                                            prop.className "btn btn-xs btn-ghost"
-                                                                                            prop.onClick (fun _ -> dispatch (MarkSeasonWatched seasonNum))
-                                                                                            prop.text "Mark All"
-                                                                                        ]
-                                                                                    ]
-                                                                                ]
-                                                                            ]
-                                                                        ]
-                                                                        SeasonEpisodesGrid seasonNum seasonDetails.Episodes watchedEpisodes dispatch
-                                                                    | None when isLoading ->
-                                                                        Html.div [
-                                                                            prop.className "flex items-center gap-2"
-                                                                            prop.children [
-                                                                                Html.h4 [
-                                                                                    prop.className "font-semibold"
-                                                                                    prop.text $"Season {seasonNum}"
-                                                                                ]
-                                                                                Html.span [ prop.className "loading loading-spinner loading-sm" ]
-                                                                            ]
-                                                                        ]
-                                                                    | None ->
-                                                                        Html.div [
-                                                                            prop.className "flex items-center gap-2"
-                                                                            prop.children [
-                                                                                Html.h4 [
-                                                                                    prop.className "font-semibold"
-                                                                                    prop.text $"Season {seasonNum}"
-                                                                                ]
-                                                                                Html.button [
-                                                                                    prop.className "btn btn-xs btn-ghost"
-                                                                                    prop.onClick (fun _ -> dispatch (LoadSeasonDetails seasonNum))
-                                                                                    prop.text "Load episodes"
-                                                                                ]
-                                                                            ]
-                                                                        ]
-                                                                ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                            ]
+                                            // Mark as completed button (when all episodes watched)
+                                            match entry.WatchStatus with
+                                            | NotStarted | InProgress _ when watchedCount >= series.NumberOfEpisodes ->
+                                                Html.button [
+                                                    prop.className "btn btn-primary btn-sm w-full"
+                                                    prop.onClick (fun _ -> dispatch MarkSeriesCompleted)
+                                                    prop.text "Mark as Completed"
+                                                ]
+                                            | Completed ->
+                                                Html.div [
+                                                    prop.className "text-center text-success text-sm"
+                                                    prop.text "Series Completed"
+                                                ]
+                                            | _ -> Html.none
                                         ]
                                     ]
 
-                                    // Add to Collection
-                                    Html.button [
-                                        prop.className "btn btn-sm btn-ghost"
-                                        prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
+                                    // Right column - Title, meta, and actions
+                                    Html.div [
+                                        prop.className "md:col-span-2"
                                         prop.children [
-                                            Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
-                                            Html.span [ prop.text "Add to Collection" ]
+                                            Html.h1 [
+                                                prop.className "text-3xl font-bold"
+                                                prop.text series.Name
+                                            ]
+                                            Html.div [
+                                                prop.className "flex items-center gap-2 mt-2 text-base-content/60 flex-wrap"
+                                                prop.children [
+                                                    // Genres
+                                                    if not (List.isEmpty series.Genres) then
+                                                        Html.span [ prop.text (series.Genres |> String.concat ", ") ]
+                                                        Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
+                                                    // Year
+                                                    match series.FirstAirDate with
+                                                    | Some d ->
+                                                        Html.span [ prop.text (d.Year.ToString()) ]
+                                                        Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
+                                                    | None -> Html.none
+                                                    Html.span [ prop.text $"{series.NumberOfSeasons} Seasons" ]
+                                                    Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
+                                                    Html.span [ prop.text $"{series.NumberOfEpisodes} Episodes" ]
+                                                ]
+                                            ]
+                                            // Action buttons row
+                                            actionButtonsRow entry model.IsRatingOpen dispatch
                                         ]
                                     ]
-
-                                    // Collections this entry belongs to
-                                    match model.Collections with
-                                    | Success collectionsList when not (List.isEmpty collectionsList) ->
-                                        Html.div [
-                                            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "In Collections" ]
-                                            Html.div [
-                                                prop.className "flex flex-wrap gap-2"
-                                                prop.children [
-                                                    for collection in collectionsList do
-                                                        Html.span [
-                                                            prop.className "badge badge-outline"
-                                                            prop.text collection.Name
-                                                        ]
-                                                ]
-                                            ]
-                                        ]
-                                    | _ -> Html.none
-
-                                    // Cast & Crew
-                                    match model.Credits with
-                                    | Success credits ->
-                                        // Cast section
-                                        if not (List.isEmpty credits.Cast) then
-                                            Html.div [
-                                                prop.className "mt-6"
-                                                prop.children [
-                                                    Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
-                                                    Html.div [
-                                                        prop.className "flex flex-wrap gap-2"
-                                                        prop.children [
-                                                            for castMember in credits.Cast |> List.take (min 12 (List.length credits.Cast)) do
-                                                                let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
-                                                                Html.button [
-                                                                    prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
-                                                                    prop.className (
-                                                                        if isTracked then
-                                                                            "flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors cursor-pointer"
-                                                                        else
-                                                                            "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                                                    )
-                                                                    prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
-                                                                    prop.children [
-                                                                        // Profile image with tracked indicator
-                                                                        Html.div [
-                                                                            prop.className "relative"
-                                                                            prop.children [
-                                                                                match castMember.ProfilePath with
-                                                                                | Some path ->
-                                                                                    Html.img [
-                                                                                        prop.src $"https://image.tmdb.org/t/p/w45{path}"
-                                                                                        prop.className "w-8 h-8 rounded-full object-cover"
-                                                                                        prop.alt castMember.Name
-                                                                                    ]
-                                                                                | None ->
-                                                                                    Html.div [
-                                                                                        prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
-                                                                                        prop.children [
-                                                                                            Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
-                                                                                        ]
-                                                                                    ]
-                                                                                // Tracked indicator badge
-                                                                                if isTracked then
-                                                                                    Html.div [
-                                                                                        prop.className "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
-                                                                                        prop.children [
-                                                                                            Html.span [ prop.className "w-2.5 h-2.5 text-primary-content"; prop.children [ heart ] ]
-                                                                                        ]
-                                                                                    ]
-                                                                            ]
-                                                                        ]
-                                                                        Html.div [
-                                                                            prop.className "text-left"
-                                                                            prop.children [
-                                                                                Html.span [ prop.className "text-sm font-medium block"; prop.text castMember.Name ]
-                                                                                match castMember.Character with
-                                                                                | Some char ->
-                                                                                    Html.span [ prop.className "text-xs text-base-content/60"; prop.text char ]
-                                                                                | None -> Html.none
-                                                                            ]
-                                                                        ]
-                                                                    ]
-                                                                ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            ]
-
-                                        // Crew section (creators, directors, writers)
-                                        let keyCrewRoles = ["Director"; "Screenplay"; "Writer"; "Executive Producer"; "Creator"]
-                                        let keyCrew = credits.Crew |> List.filter (fun c -> List.contains c.Job keyCrewRoles)
-                                        if not (List.isEmpty keyCrew) then
-                                            Html.div [
-                                                prop.className "mt-4"
-                                                prop.children [
-                                                    Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Crew" ]
-                                                    Html.div [
-                                                        prop.className "flex flex-wrap gap-2"
-                                                        prop.children [
-                                                            for crewMember in keyCrew |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId) do
-                                                                Html.button [
-                                                                    prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
-                                                                    prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                                                    prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
-                                                                    prop.children [
-                                                                        match crewMember.ProfilePath with
-                                                                        | Some path ->
-                                                                            Html.img [
-                                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
-                                                                                prop.className "w-8 h-8 rounded-full object-cover"
-                                                                                prop.alt crewMember.Name
-                                                                            ]
-                                                                        | None ->
-                                                                            Html.div [
-                                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
-                                                                                prop.children [
-                                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
-                                                                                ]
-                                                                            ]
-                                                                        Html.div [
-                                                                            prop.className "text-left"
-                                                                            prop.children [
-                                                                                Html.span [ prop.className "text-sm font-medium block"; prop.text crewMember.Name ]
-                                                                                Html.span [ prop.className "text-xs text-base-content/60"; prop.text crewMember.Job ]
-                                                                            ]
-                                                                        ]
-                                                                    ]
-                                                                ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            ]
-                                    | Loading ->
-                                        Html.div [
-                                            prop.className "mt-6"
-                                            prop.children [
-                                                Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Cast & Crew" ]
-                                                Html.div [ prop.className "loading loading-spinner loading-sm" ]
-                                            ]
-                                        ]
-                                    | _ -> Html.none
                                 ]
                             ]
+
+                            // Tab bar and content
+                            Tabs.view
+                                seriesTabs
+                                (tabToId model.ActiveTab)
+                                (fun id -> dispatch (SetActiveTab (idToTab id)))
+                                (match model.ActiveTab with
+                                 | Overview -> overviewTab series entry model tags dispatch
+                                 | CastCrew -> castCrewTab model dispatch
+                                 | Episodes -> episodesTab series model friends dispatch
+                                 | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
                         ]
                     ]
                 | LibraryMovie _ ->

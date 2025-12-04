@@ -46,6 +46,10 @@
     <Compile Include="Common/Components/GlassButton/Types.fs" />
     <Compile Include="Common/Components/GlassButton/View.fs" />
 
+    <!-- Tabs -->
+    <Compile Include="Common/Components/Tabs/Types.fs" />
+    <Compile Include="Common/Components/Tabs/View.fs" />
+
     <!-- RemoteDataView (depends on PosterSkeleton, ErrorState) -->
     <Compile Include="Common/Components/RemoteDataView/Types.fs" />
     <Compile Include="Common/Components/RemoteDataView/View.fs" />

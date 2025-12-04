@@ -639,6 +639,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
                 ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
                 ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
+                CreateFriend = fun req -> Api.api.friendsCreate req
                 ToggleEpisode = fun (sessionId, s, e, w) ->
                     Api.api.sessionsUpdateEpisodeProgress (sessionId, s, e, w)
                 MarkSeasonWatched = fun (sessionId, s) ->
@@ -662,6 +663,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.EntryUpdated entry ->
                 let model'' = syncEntryToPages entry model'
                 model'', cmd
+            | Pages.SeriesDetail.Types.FriendCreatedInline friend ->
+                // Update global friends list
+                let updatedFriends =
+                    match model'.Friends with
+                    | Success friends -> Success (friend :: friends)
+                    | other -> other
+                { model' with Friends = updatedFriends }, cmd
         | None -> model, Cmd.none
 
     // Page messages - SessionDetail

@@ -3,6 +3,13 @@ module Pages.SeriesDetail.Types
 open Common.Types
 open Shared.Domain
 
+/// Tabs for series detail view
+type SeriesTab =
+    | Overview
+    | CastCrew
+    | Episodes
+    | Friends
+
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
@@ -15,6 +22,9 @@ type Model = {
     SeasonDetails: Map<int, TmdbSeasonDetails>
     LoadingSeasons: Set<int>
     IsRatingOpen: bool
+    IsFriendSelectorOpen: bool
+    IsAddingFriend: bool
+    ActiveTab: SeriesTab
 }
 
 type Msg =
@@ -26,6 +36,7 @@ type Msg =
     | CreditsLoaded of Result<TmdbCredits, string>
     | LoadTrackedContributors
     | TrackedContributorsLoaded of TrackedContributor list
+    | SetActiveTab of SeriesTab
     | LoadSessions
     | SessionsLoaded of Result<WatchSession list, string>
     | SelectSession of SessionId
@@ -49,7 +60,10 @@ type Msg =
     | DeleteSession of SessionId
     | SessionDeleteResult of Result<SessionId, string>
     | ToggleTag of TagId
+    | ToggleFriendSelector
     | ToggleFriend of FriendId
+    | AddNewFriend of string
+    | FriendCreated of Result<Friend, string>
     | ActionResult of Result<LibraryEntry, string>
     | EpisodeActionResult of Result<EpisodeProgress list, string>
     | ViewContributor of TmdbPersonId
@@ -65,6 +79,7 @@ type ExternalMsg =
     | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
+    | FriendCreatedInline of Friend
 
 module Model =
     let create entryId = {
@@ -79,4 +94,7 @@ module Model =
         SeasonDetails = Map.empty
         LoadingSeasons = Set.empty
         IsRatingOpen = false
+        IsFriendSelectorOpen = false
+        IsAddingFriend = false
+        ActiveTab = Overview
     }

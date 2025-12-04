@@ -3,6 +3,12 @@ module Pages.MovieDetail.Types
 open Common.Types
 open Shared.Domain
 
+/// Tabs for movie detail view
+type MovieTab =
+    | Overview
+    | CastCrew
+    | Friends
+
 type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
@@ -12,6 +18,7 @@ type Model = {
     IsAddingFriend: bool
     IsRatingOpen: bool
     IsFriendSelectorOpen: bool
+    ActiveTab: MovieTab
 }
 
 type Msg =
@@ -23,6 +30,7 @@ type Msg =
     | CreditsLoaded of Result<TmdbCredits, string>
     | LoadTrackedContributors
     | TrackedContributorsLoaded of TrackedContributor list
+    | SetActiveTab of MovieTab
     | MarkWatched
     | MarkUnwatched
     | OpenAbandonModal
@@ -63,4 +71,5 @@ module Model =
         IsAddingFriend = false
         IsRatingOpen = false
         IsFriendSelectorOpen = false
+        ActiveTab = Overview
     }

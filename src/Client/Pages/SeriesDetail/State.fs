@@ -19,6 +19,7 @@ type SeriesApi = {
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
     ToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
     ToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
+    CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
     ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
     MarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
     DeleteSession: SessionId -> Async<Result<unit, string>>
@@ -102,6 +103,9 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
             |> List.map (fun tc -> tc.TmdbPersonId)
             |> Set.ofList
         { model with TrackedPersonIds = trackedIds }, Cmd.none, NoOp
+
+    | SetActiveTab tab ->
+        { model with ActiveTab = tab }, Cmd.none, NoOp
 
     | LoadSeasonDetails seasonNum ->
         match model.Entry with
@@ -297,6 +301,9 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
 
+    | ToggleFriendSelector ->
+        { model with IsFriendSelectorOpen = not model.IsFriendSelectorOpen }, Cmd.none, NoOp
+
     | ToggleFriend friendId ->
         let cmd =
             Cmd.OfAsync.either
@@ -304,7 +311,34 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (model.EntryId, friendId)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+        { model with IsFriendSelectorOpen = false }, cmd, NoOp
+
+    | AddNewFriend name ->
+        let request : CreateFriendRequest = {
+            Name = name
+            Nickname = None
+            Notes = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateFriend
+                request
+                FriendCreated
+                (fun ex -> Error ex.Message |> FriendCreated)
+        { model with IsAddingFriend = true; IsFriendSelectorOpen = false }, cmd, NoOp
+
+    | FriendCreated (Ok friend) ->
+        // Toggle the friend on this entry (to add them) and notify the app
+        let toggleCmd =
+            Cmd.OfAsync.either
+                api.ToggleFriend
+                (model.EntryId, friend.Id)
+                ActionResult
+                (fun ex -> Error ex.Message |> ActionResult)
+        { model with IsAddingFriend = false }, toggleCmd, FriendCreatedInline friend
+
+    | FriendCreated (Error err) ->
+        { model with IsAddingFriend = false }, Cmd.none, ShowNotification (err, false)
 
     | ActionResult (Ok entry) ->
         { model with Entry = Success entry }, Cmd.none, EntryUpdated entry

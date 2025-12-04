@@ -93,6 +93,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             |> Set.ofList
         { model with TrackedPersonIds = trackedIds }, Cmd.none, NoOp
 
+    | SetActiveTab tab ->
+        { model with ActiveTab = tab }, Cmd.none, NoOp
+
     | MarkWatched ->
         let cmd =
             Cmd.OfAsync.either
