@@ -8,8 +8,49 @@
     <Compile Include="Common/Types.fs" />
     <Compile Include="Common/Routing.fs" />
 
-    <!-- Stateless Components -->
+    <!-- Icons (needed by Common Components) -->
     <Compile Include="Components/Icons.fs" />
+
+    <!-- Common Reusable Components -->
+    <!-- PosterSkeleton (no deps, used by RemoteDataView) -->
+    <Compile Include="Common/Components/PosterSkeleton/View.fs" />
+
+    <!-- PosterGrid -->
+    <Compile Include="Common/Components/PosterGrid/View.fs" />
+
+    <!-- ErrorState (used by RemoteDataView) -->
+    <Compile Include="Common/Components/ErrorState/Types.fs" />
+    <Compile Include="Common/Components/ErrorState/View.fs" />
+
+    <!-- EmptyState -->
+    <Compile Include="Common/Components/EmptyState/Types.fs" />
+    <Compile Include="Common/Components/EmptyState/View.fs" />
+
+    <!-- GlassPanel -->
+    <Compile Include="Common/Components/GlassPanel/Types.fs" />
+    <Compile Include="Common/Components/GlassPanel/View.fs" />
+
+    <!-- GlassChip -->
+    <Compile Include="Common/Components/GlassChip/Types.fs" />
+    <Compile Include="Common/Components/GlassChip/View.fs" />
+
+    <!-- FilterChip -->
+    <Compile Include="Common/Components/FilterChip/Types.fs" />
+    <Compile Include="Common/Components/FilterChip/View.fs" />
+
+    <!-- SectionHeader -->
+    <Compile Include="Common/Components/SectionHeader/Types.fs" />
+    <Compile Include="Common/Components/SectionHeader/View.fs" />
+
+    <!-- GlassButton -->
+    <Compile Include="Common/Components/GlassButton/Types.fs" />
+    <Compile Include="Common/Components/GlassButton/View.fs" />
+
+    <!-- RemoteDataView (depends on PosterSkeleton, ErrorState) -->
+    <Compile Include="Common/Components/RemoteDataView/Types.fs" />
+    <Compile Include="Common/Components/RemoteDataView/View.fs" />
+
+    <!-- Stateless Components -->
     <Compile Include="Components/Cards/View.fs" />
     <Compile Include="Components/Modal/View.fs" />
     <Compile Include="Components/FriendSelector/View.fs" />
@@ -121,6 +162,11 @@
     <Compile Include="Pages/CollectionDetail/Types.fs" />
     <Compile Include="Pages/CollectionDetail/State.fs" />
     <Compile Include="Pages/CollectionDetail/View.fs" />
+
+    <!-- ContributorDetail Page -->
+    <Compile Include="Pages/ContributorDetail/Types.fs" />
+    <Compile Include="Pages/ContributorDetail/State.fs" />
+    <Compile Include="Pages/ContributorDetail/View.fs" />
 
     <!-- Cache Page -->
     <Compile Include="Pages/Cache/Types.fs" />

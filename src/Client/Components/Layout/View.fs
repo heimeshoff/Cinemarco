@@ -20,6 +20,7 @@ let private getPageIcon (page: Page) =
     | TagDetailPage _ -> tags
     | CollectionsPage -> collections
     | CollectionDetailPage _ -> collections
+    | ContributorDetailPage _ -> userPlus
     | StatsPage -> stats
     | TimelinePage -> timeline
     | GraphPage -> graph
@@ -41,6 +42,7 @@ let private getIconColor (page: Page) =
     | TagDetailPage _ -> "text-nav-tags"
     | CollectionsPage -> "text-nav-collections" // Pink - curated
     | CollectionDetailPage _ -> "text-nav-collections"
+    | ContributorDetailPage _ -> "text-nav-library" // Contributor - same as library
     | StatsPage -> "text-nav-stats"         // Orange - metrics
     | TimelinePage -> "text-nav-timeline"   // Sky - time
     | GraphPage -> "text-nav-graph"         // Violet - connections

@@ -21,8 +21,8 @@ let handlePosterMouseMove (e: MouseEvent) =
         let y = (e.clientY - rect.top) / rect.height
         let shineX = x * 100.0
         let shineY = y * 100.0
-        shine.style.setProperty("--shine-x", $"{shineX}%%")
-        shine.style.setProperty("--shine-y", $"{shineY}%%")
+        shine?style?setProperty("--shine-x", $"{shineX}%%")
+        shine?style?setProperty("--shine-y", $"{shineY}%%")
 
 /// Handle mouse leave - no action needed, CSS handles the hover state
 let handlePosterMouseLeave (e: MouseEvent) =

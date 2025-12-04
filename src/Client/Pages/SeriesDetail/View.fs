@@ -559,13 +559,113 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                 prop.children [
                                                     for collection in collectionsList do
                                                         Html.span [
-                                                            prop.className "badge badge-outline gap-1"
-                                                            prop.children [
-                                                                Html.span [ prop.text (if collection.IsPublicFranchise then "🎬" else "📚") ]
-                                                                Html.span [ prop.text collection.Name ]
-                                                            ]
+                                                            prop.className "badge badge-outline"
+                                                            prop.text collection.Name
                                                         ]
                                                 ]
+                                            ]
+                                        ]
+                                    | _ -> Html.none
+
+                                    // Cast & Crew
+                                    match model.Credits with
+                                    | Success credits ->
+                                        // Cast section
+                                        if not (List.isEmpty credits.Cast) then
+                                            Html.div [
+                                                prop.className "mt-6"
+                                                prop.children [
+                                                    Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
+                                                    Html.div [
+                                                        prop.className "flex flex-wrap gap-2"
+                                                        prop.children [
+                                                            for castMember in credits.Cast |> List.take (min 12 (List.length credits.Cast)) do
+                                                                Html.button [
+                                                                    prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
+                                                                    prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                                                    prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
+                                                                    prop.children [
+                                                                        match castMember.ProfilePath with
+                                                                        | Some path ->
+                                                                            Html.img [
+                                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                                                                                prop.className "w-8 h-8 rounded-full object-cover"
+                                                                                prop.alt castMember.Name
+                                                                            ]
+                                                                        | None ->
+                                                                            Html.div [
+                                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                                                                                prop.children [
+                                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                                                                                ]
+                                                                            ]
+                                                                        Html.div [
+                                                                            prop.className "text-left"
+                                                                            prop.children [
+                                                                                Html.span [ prop.className "text-sm font-medium block"; prop.text castMember.Name ]
+                                                                                match castMember.Character with
+                                                                                | Some char ->
+                                                                                    Html.span [ prop.className "text-xs text-base-content/60"; prop.text char ]
+                                                                                | None -> Html.none
+                                                                            ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+
+                                        // Crew section (creators, directors, writers)
+                                        let keyCrewRoles = ["Director"; "Screenplay"; "Writer"; "Executive Producer"; "Creator"]
+                                        let keyCrew = credits.Crew |> List.filter (fun c -> List.contains c.Job keyCrewRoles)
+                                        if not (List.isEmpty keyCrew) then
+                                            Html.div [
+                                                prop.className "mt-4"
+                                                prop.children [
+                                                    Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Crew" ]
+                                                    Html.div [
+                                                        prop.className "flex flex-wrap gap-2"
+                                                        prop.children [
+                                                            for crewMember in keyCrew |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId) do
+                                                                Html.button [
+                                                                    prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
+                                                                    prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+                                                                    prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
+                                                                    prop.children [
+                                                                        match crewMember.ProfilePath with
+                                                                        | Some path ->
+                                                                            Html.img [
+                                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                                                                                prop.className "w-8 h-8 rounded-full object-cover"
+                                                                                prop.alt crewMember.Name
+                                                                            ]
+                                                                        | None ->
+                                                                            Html.div [
+                                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                                                                                prop.children [
+                                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                                                                                ]
+                                                                            ]
+                                                                        Html.div [
+                                                                            prop.className "text-left"
+                                                                            prop.children [
+                                                                                Html.span [ prop.className "text-sm font-medium block"; prop.text crewMember.Name ]
+                                                                                Html.span [ prop.className "text-xs text-base-content/60"; prop.text crewMember.Job ]
+                                                                            ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                    | Loading ->
+                                        Html.div [
+                                            prop.className "mt-6"
+                                            prop.children [
+                                                Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Cast & Crew" ]
+                                                Html.div [ prop.className "loading loading-spinner loading-sm" ]
                                             ]
                                         ]
                                     | _ -> Html.none

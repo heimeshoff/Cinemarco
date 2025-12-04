@@ -72,13 +72,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                         ]
                                     | None ->
                                         Html.figure [
-                                            prop.className "h-32 bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "text-4xl opacity-50"
-                                                    prop.text (if collection.IsPublicFranchise then "🎬" else "📚")
-                                                ]
-                                            ]
+                                            prop.className "h-32 bg-gradient-to-br from-primary/20 to-secondary/20"
                                         ]
 
                                     Html.div [

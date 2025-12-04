@@ -65,10 +65,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                     prop.onClick (fun _ -> dispatch (SelectCollection collection.Id))
                                                     prop.disabled model.IsSubmitting
                                                     prop.children [
-                                                        Html.span [
-                                                            prop.className "text-2xl"
-                                                            prop.text (if collection.IsPublicFranchise then "🎬" else "📚")
-                                                        ]
                                                         Html.div [
                                                             prop.className "flex-1"
                                                             prop.children [

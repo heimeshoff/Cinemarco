@@ -15,6 +15,7 @@ type Page =
     | TagDetailPage of TagId
     | CollectionsPage
     | CollectionDetailPage of CollectionId
+    | ContributorDetailPage of TmdbPersonId
     | StatsPage
     | TimelinePage
     | GraphPage
@@ -35,6 +36,7 @@ module Page =
         | TagDetailPage (TagId id) -> $"/tag/{id}"
         | CollectionsPage -> "/collections"
         | CollectionDetailPage (CollectionId id) -> $"/collection/{id}"
+        | ContributorDetailPage (TmdbPersonId id) -> $"/contributor/{id}"
         | StatsPage -> "/stats"
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
@@ -54,6 +56,7 @@ module Page =
         | TagDetailPage _ -> "Tag"
         | CollectionsPage -> "Collections"
         | CollectionDetailPage _ -> "Collection"
+        | ContributorDetailPage _ -> "Contributor"
         | StatsPage -> "Stats"
         | TimelinePage -> "Timeline"
         | GraphPage -> "Graph"

@@ -76,6 +76,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | CollectionDetailPage collectionId when model.CollectionDetailPage.IsNone || model.CollectionDetailPage |> Option.map (fun m -> m.CollectionId <> collectionId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.CollectionDetail.State.init collectionId
             { model' with CollectionDetailPage = Some pageModel }, Cmd.map CollectionDetailMsg pageCmd
+        | ContributorDetailPage personId when model.ContributorDetailPage.IsNone || model.ContributorDetailPage |> Option.map (fun m -> m.TmdbPersonId <> personId) |> Option.defaultValue true ->
+            let pageModel, pageCmd = Pages.ContributorDetail.State.init personId
+            { model' with ContributorDetailPage = Some pageModel }, Cmd.map ContributorDetailMsg pageCmd
         | _ -> model', Cmd.none
 
     // Global data loading
@@ -551,6 +554,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Error _ -> return None
                 }
                 GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
+                GetCredits = fun tmdbId -> Api.api.tmdbGetMovieCredits tmdbId
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
@@ -568,6 +572,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.MovieDetail.Types.NoOp -> model', cmd
             | Pages.MovieDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
+            | Pages.MovieDetail.Types.NavigateToContributor personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -598,6 +603,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Error _ -> return None
                 }
                 GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
+                GetCredits = fun tmdbId -> Api.api.tmdbGetSeriesCredits tmdbId
                 GetSessions = fun entryId -> Api.api.sessionsGetForEntry entryId
                 GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
@@ -621,6 +627,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.SeriesDetail.Types.NoOp -> model', cmd
             | Pages.SeriesDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
+            | Pages.SeriesDetail.Types.NavigateToContributor personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -744,6 +751,33 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | AddedToCollection _ ->
         model, Cmd.none
+
+    // Page messages - ContributorDetail
+    | ContributorDetailMsg contributorMsg ->
+        match model.ContributorDetailPage with
+        | Some pageModel ->
+            let contributorApi : Pages.ContributorDetail.State.ContributorApi = {
+                GetPersonDetails = fun personId -> Api.api.tmdbGetPersonDetails personId
+                GetFilmography = fun personId -> Api.api.tmdbGetPersonFilmography personId
+                GetLibrary = fun () -> Api.api.libraryGetAll ()
+                AddMovie = fun req -> Api.api.libraryAddMovie req
+                AddSeries = fun req -> Api.api.libraryAddSeries req
+            }
+            let newPage, pageCmd, extMsg = Pages.ContributorDetail.State.update contributorApi contributorMsg pageModel
+            let model' = { model with ContributorDetailPage = Some newPage }
+            let cmd = Cmd.map ContributorDetailMsg pageCmd
+            match extMsg with
+            | Pages.ContributorDetail.Types.NoOp -> model', cmd
+            | Pages.ContributorDetail.Types.NavigateBack ->
+                // Navigate back - could go to library or previous page
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
+            | Pages.ContributorDetail.Types.NavigateToMovieDetail entryId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
+            | Pages.ContributorDetail.Types.NavigateToSeriesDetail entryId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.ContributorDetail.Types.ShowNotification (msg, isSuccess) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none
 
     // Page messages - Cache
     | CacheMsg cacheMsg ->

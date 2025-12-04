@@ -99,6 +99,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | ContributorDetailPage _ ->
+        match model.ContributorDetailPage with
+        | Some pageModel ->
+            Pages.ContributorDetail.View.view pageModel (ContributorDetailMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | StatsPage
     | TimelinePage
     | GraphPage

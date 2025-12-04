@@ -8,6 +8,7 @@ open Types
 type SeriesApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
     GetCollections: EntryId -> Async<Collection list>
+    GetCredits: TmdbSeriesId -> Async<Result<TmdbCredits, string>>
     GetSessions: EntryId -> Async<WatchSession list>
     GetSessionProgress: SessionId -> Async<EpisodeProgress list>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
@@ -37,15 +38,18 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         { model with Entry = Loading }, cmd, NoOp
 
     | EntryLoaded (Ok (Some entry)) ->
-        // Trigger loading season details for all seasons
-        let seasonCmds =
+        // Trigger loading season details for all seasons and credits
+        let seasonCmds, creditsCmd =
             match entry.Media with
             | LibrarySeries series ->
-                [ 1 .. series.NumberOfSeasons ]
-                |> List.map (fun seasonNum -> Cmd.ofMsg (LoadSeasonDetails seasonNum))
-                |> Cmd.batch
-            | _ -> Cmd.none
-        { model with Entry = Success entry }, seasonCmds, NoOp
+                let sCmd =
+                    [ 1 .. series.NumberOfSeasons ]
+                    |> List.map (fun seasonNum -> Cmd.ofMsg (LoadSeasonDetails seasonNum))
+                    |> Cmd.batch
+                let cCmd = Cmd.ofMsg (LoadCredits series.TmdbId)
+                sCmd, cCmd
+            | _ -> Cmd.none, Cmd.none
+        { model with Entry = Success entry }, Cmd.batch [seasonCmds; creditsCmd], NoOp
 
     | EntryLoaded (Ok None) ->
         { model with Entry = Failure "Entry not found" }, Cmd.none, NoOp
@@ -67,6 +71,21 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | CollectionsLoaded (Error _) ->
         { model with Collections = Success [] }, Cmd.none, NoOp
+
+    | LoadCredits tmdbId ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetCredits
+                tmdbId
+                CreditsLoaded
+                (fun ex -> Error ex.Message |> CreditsLoaded)
+        { model with Credits = Loading }, cmd, NoOp
+
+    | CreditsLoaded (Ok credits) ->
+        { model with Credits = Success credits }, Cmd.none, NoOp
+
+    | CreditsLoaded (Error _) ->
+        { model with Credits = Failure "Could not load credits" }, Cmd.none, NoOp
 
     | LoadSeasonDetails seasonNum ->
         match model.Entry with
@@ -311,6 +330,9 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | SessionDeleteResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
+
+    | ViewContributor personId ->
+        model, Cmd.none, NavigateToContributor personId
 
     | GoBack ->
         model, Cmd.none, NavigateBack

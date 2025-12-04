@@ -46,6 +46,7 @@ type Model = {
     TagDetailPage: Pages.TagDetail.Types.Model option
     CollectionsPage: Pages.Collections.Types.Model option
     CollectionDetailPage: Pages.CollectionDetail.Types.Model option
+    ContributorDetailPage: Pages.ContributorDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
 }
 
@@ -100,6 +101,7 @@ type Msg =
     | TagDetailMsg of Pages.TagDetail.Types.Msg
     | CollectionsMsg of Pages.Collections.Types.Msg
     | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
+    | ContributorDetailMsg of Pages.ContributorDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
 
     // API result handlers
@@ -135,5 +137,6 @@ module Model =
         TagDetailPage = None
         CollectionsPage = None
         CollectionDetailPage = None
+        ContributorDetailPage = None
         CachePage = None
     }

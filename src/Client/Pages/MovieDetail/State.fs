@@ -8,6 +8,7 @@ open Types
 type MovieApi = {
     GetEntry: EntryId -> Async<LibraryEntry option>
     GetCollections: EntryId -> Async<Collection list>
+    GetCredits: TmdbMovieId -> Async<Result<TmdbCredits, string>>
     MarkWatched: EntryId -> Async<Result<LibraryEntry, string>>
     MarkUnwatched: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
@@ -33,7 +34,12 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with Entry = Loading }, cmd, NoOp
 
     | EntryLoaded (Ok (Some entry)) ->
-        { model with Entry = Success entry }, Cmd.none, NoOp
+        // Also load credits when entry is loaded
+        let creditsCmd =
+            match entry.Media with
+            | LibraryMovie m -> Cmd.ofMsg (LoadCredits m.TmdbId)
+            | LibrarySeries _ -> Cmd.none
+        { model with Entry = Success entry }, creditsCmd, NoOp
 
     | EntryLoaded (Ok None) ->
         { model with Entry = Failure "Entry not found" }, Cmd.none, NoOp
@@ -55,6 +61,21 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | CollectionsLoaded (Error _) ->
         { model with Collections = Success [] }, Cmd.none, NoOp
+
+    | LoadCredits tmdbId ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetCredits
+                tmdbId
+                CreditsLoaded
+                (fun ex -> Error ex.Message |> CreditsLoaded)
+        { model with Credits = Loading }, cmd, NoOp
+
+    | CreditsLoaded (Ok credits) ->
+        { model with Credits = Success credits }, Cmd.none, NoOp
+
+    | CreditsLoaded (Error _) ->
+        { model with Credits = Failure "Could not load credits" }, Cmd.none, NoOp
 
     | MarkWatched ->
         let cmd =
@@ -186,6 +207,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ActionResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
+
+    | ViewContributor personId ->
+        model, Cmd.none, NavigateToContributor personId
 
     | GoBack ->
         model, Cmd.none, NavigateBack

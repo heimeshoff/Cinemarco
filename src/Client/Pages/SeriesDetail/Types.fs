@@ -7,6 +7,7 @@ type Model = {
     EntryId: EntryId
     Entry: RemoteData<LibraryEntry>
     Collections: RemoteData<Collection list>
+    Credits: RemoteData<TmdbCredits>
     Sessions: RemoteData<WatchSession list>
     SelectedSessionId: SessionId option
     EpisodeProgress: EpisodeProgress list
@@ -20,6 +21,8 @@ type Msg =
     | EntryLoaded of Result<LibraryEntry option, string>
     | LoadCollections
     | CollectionsLoaded of Result<Collection list, string>
+    | LoadCredits of TmdbSeriesId
+    | CreditsLoaded of Result<TmdbCredits, string>
     | LoadSessions
     | SessionsLoaded of Result<WatchSession list, string>
     | SelectSession of SessionId
@@ -46,11 +49,13 @@ type Msg =
     | ToggleFriend of FriendId
     | ActionResult of Result<LibraryEntry, string>
     | EpisodeActionResult of Result<EpisodeProgress list, string>
+    | ViewContributor of TmdbPersonId
     | GoBack
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
+    | NavigateToContributor of TmdbPersonId
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of EntryId * title: string
@@ -63,6 +68,7 @@ module Model =
         EntryId = entryId
         Entry = NotAsked
         Collections = NotAsked
+        Credits = NotAsked
         Sessions = NotAsked
         SelectedSessionId = None
         EpisodeProgress = []

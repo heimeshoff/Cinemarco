@@ -225,8 +225,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     ]
                                 | None ->
                                     Html.div [
-                                        prop.className "w-24 h-32 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center text-4xl"
-                                        prop.text (if cwi.Collection.IsPublicFranchise then "🎬" else "📚")
+                                        prop.className "w-24 h-32 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg"
                                     ]
 
                                 Html.div [
