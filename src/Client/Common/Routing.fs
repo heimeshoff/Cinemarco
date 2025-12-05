@@ -13,8 +13,6 @@ type Page =
     | FriendDetailPage of FriendId
     | ContributorsPage
     | ContributorDetailPage of TmdbPersonId
-    | TagsPage
-    | TagDetailPage of TagId
     | CollectionsPage
     | CollectionDetailPage of CollectionId
     | StatsPage
@@ -35,8 +33,6 @@ module Page =
         | FriendDetailPage (FriendId id) -> $"/friend/{id}"
         | ContributorsPage -> "/contributors"
         | ContributorDetailPage (TmdbPersonId id) -> $"/contributor/{id}"
-        | TagsPage -> "/tags"
-        | TagDetailPage (TagId id) -> $"/tag/{id}"
         | CollectionsPage -> "/collections"
         | CollectionDetailPage (CollectionId id) -> $"/collection/{id}"
         | StatsPage -> "/stats"
@@ -56,8 +52,6 @@ module Page =
         | FriendDetailPage _ -> "Friend"
         | ContributorsPage -> "Contributors"
         | ContributorDetailPage _ -> "Contributor"
-        | TagsPage -> "Tags"
-        | TagDetailPage _ -> "Tag"
         | CollectionsPage -> "Collections"
         | CollectionDetailPage _ -> "Collection"
         | StatsPage -> "Stats"

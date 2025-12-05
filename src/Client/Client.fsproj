@@ -79,11 +79,6 @@
     <Compile Include="Components/FriendModal/State.fs" />
     <Compile Include="Components/FriendModal/View.fs" />
 
-    <!-- TagModal Component -->
-    <Compile Include="Components/TagModal/Types.fs" />
-    <Compile Include="Components/TagModal/State.fs" />
-    <Compile Include="Components/TagModal/View.fs" />
-
     <!-- AbandonModal Component -->
     <Compile Include="Components/AbandonModal/Types.fs" />
     <Compile Include="Components/AbandonModal/State.fs" />
@@ -151,16 +146,6 @@
     <Compile Include="Pages/Contributors/Types.fs" />
     <Compile Include="Pages/Contributors/State.fs" />
     <Compile Include="Pages/Contributors/View.fs" />
-
-    <!-- Tags Page -->
-    <Compile Include="Pages/Tags/Types.fs" />
-    <Compile Include="Pages/Tags/State.fs" />
-    <Compile Include="Pages/Tags/View.fs" />
-
-    <!-- TagDetail Page -->
-    <Compile Include="Pages/TagDetail/Types.fs" />
-    <Compile Include="Pages/TagDetail/State.fs" />
-    <Compile Include="Pages/TagDetail/View.fs" />
 
     <!-- Collections Page -->
     <Compile Include="Pages/Collections/Types.fs" />

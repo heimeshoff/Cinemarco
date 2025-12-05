@@ -489,6 +489,25 @@ CREATE TABLE IF NOT EXISTS tracked_contributors (
 CREATE INDEX IF NOT EXISTS idx_tracked_contributors_tmdb_id ON tracked_contributors(tmdb_person_id);
 """
     }
+
+    // Migration 8: Remove tags feature
+    {
+        Version = 8
+        Name = "Remove tags feature - drop tag tables"
+        Up = """
+-- Drop indexes first
+DROP INDEX IF EXISTS idx_session_tags_tag_id;
+DROP INDEX IF EXISTS idx_entry_tags_tag_id;
+DROP INDEX IF EXISTS idx_tags_name;
+
+-- Drop junction tables
+DROP TABLE IF EXISTS session_tags;
+DROP TABLE IF EXISTS entry_tags;
+
+-- Drop tags table
+DROP TABLE IF EXISTS tags;
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

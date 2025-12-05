@@ -8,11 +8,10 @@ open Components.Icons
 open Components.Cards.View
 
 /// Filter bar component
-let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg -> unit) =
+let private filterBar (filters: LibraryFilters) (dispatch: Msg -> unit) =
     let hasActiveFilters =
         filters.SearchQuery <> "" ||
         filters.WatchStatus <> AllStatuses ||
-        not (List.isEmpty filters.SelectedTags) ||
         filters.MinRating.IsSome
 
     Html.div [
@@ -138,30 +137,6 @@ let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg 
                         ]
                     ]
 
-                    // Tag filters (if tags exist)
-                    if not (List.isEmpty tags) then
-                        Html.div [
-                            prop.className "flex flex-wrap items-center gap-2"
-                            prop.children [
-                                Html.span [
-                                    prop.className "text-xs uppercase tracking-wider text-base-content/40 font-medium"
-                                    prop.text "Tags"
-                                ]
-                                for tag in tags do
-                                    let isSelected = List.contains tag.Id filters.SelectedTags
-                                    Html.button [
-                                        prop.type' "button"
-                                        prop.className (
-                                            "px-3 py-1 rounded-full text-xs font-medium transition-all " +
-                                            if isSelected then "bg-secondary/20 text-secondary border border-secondary/30"
-                                            else "bg-base-100/30 text-base-content/50 border border-white/5 hover:bg-base-100/50 hover:text-base-content/70"
-                                        )
-                                        prop.onClick (fun _ -> dispatch (ToggleTagFilter tag.Id))
-                                        prop.text tag.Name
-                                    ]
-                            ]
-                        ]
-
                     // Rating filter
                     Html.div [
                         prop.className "flex flex-wrap items-center gap-2"
@@ -214,7 +189,7 @@ let private filterBar (filters: LibraryFilters) (tags: Tag list) (dispatch: Msg 
         ]
     ]
 
-let view (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
+let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -225,7 +200,7 @@ let view (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
             ]
 
             // Filter bar
-            filterBar model.Filters tags dispatch
+            filterBar model.Filters dispatch
 
             // Entries grid
             match model.Entries with

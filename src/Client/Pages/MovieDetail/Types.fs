@@ -41,7 +41,6 @@ type Msg =
     | SaveNotes
     | OpenDeleteModal
     | OpenAddToCollectionModal
-    | ToggleTag of TagId
     | ToggleFriendSelector
     | ToggleFriend of FriendId
     | AddNewFriend of string

@@ -96,7 +96,6 @@ let update (api: ContributorApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
                 let request : AddMovieRequest = {
                     TmdbId = TmdbMovieId work.TmdbId
                     WhyAdded = None
-                    InitialTags = []
                     InitialFriends = []
                 }
                 Cmd.OfAsync.either
@@ -108,7 +107,6 @@ let update (api: ContributorApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
                 let request : AddSeriesRequest = {
                     TmdbId = TmdbSeriesId work.TmdbId
                     WhyAdded = None
-                    InitialTags = []
                     InitialFriends = []
                 }
                 Cmd.OfAsync.either

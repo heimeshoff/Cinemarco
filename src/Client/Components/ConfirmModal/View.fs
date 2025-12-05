@@ -9,8 +9,6 @@ let private getDeleteInfo (target: DeleteTarget) =
     match target with
     | Friend friend ->
         ("Delete Friend?", $"Are you sure you want to delete \"{friend.Name}\"? This cannot be undone.")
-    | Tag tag ->
-        ("Delete Tag?", $"Are you sure you want to delete \"{tag.Name}\"? This cannot be undone.")
     | Entry _ ->
         ("Delete Entry?", "Are you sure you want to delete this entry? This cannot be undone.")
     | Collection (collection, itemCount) ->

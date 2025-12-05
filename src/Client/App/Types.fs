@@ -9,7 +9,6 @@ type ActiveModal =
     | NoModal
     | SearchModal of Components.SearchModal.Types.Model
     | FriendModal of Components.FriendModal.Types.Model
-    | TagModal of Components.TagModal.Types.Model
     | AbandonModal of Components.AbandonModal.Types.Model
     | ConfirmDeleteModal of Components.ConfirmModal.Types.Model
     | WatchSessionModal of Components.WatchSessionModal.Types.Model
@@ -23,7 +22,6 @@ type Model = {
 
     // Global data (shared across pages)
     Friends: RemoteData<Friend list>
-    Tags: RemoteData<Tag list>
 
     // Layout state
     Layout: Components.Layout.Types.Model
@@ -44,8 +42,6 @@ type Model = {
     FriendDetailPage: Pages.FriendDetail.Types.Model option
     ContributorsPage: Pages.Contributors.Types.Model option
     ContributorDetailPage: Pages.ContributorDetail.Types.Model option
-    TagsPage: Pages.Tags.Types.Model option
-    TagDetailPage: Pages.TagDetail.Types.Model option
     CollectionsPage: Pages.Collections.Types.Model option
     CollectionDetailPage: Pages.CollectionDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
@@ -59,8 +55,6 @@ type Msg =
     // Global data
     | LoadFriends
     | FriendsLoaded of Result<Friend list, string>
-    | LoadTags
-    | TagsLoaded of Result<Tag list, string>
 
     // Layout
     | LayoutMsg of Components.Layout.Types.Msg
@@ -73,8 +67,6 @@ type Msg =
     | TmdbItemAddResult of Result<LibraryEntry, string> * MediaType
     | OpenFriendModal of Friend option
     | FriendModalMsg of Components.FriendModal.Types.Msg
-    | OpenTagModal of Tag option
-    | TagModalMsg of Components.TagModal.Types.Msg
     | OpenAbandonModal of EntryId
     | AbandonModalMsg of Components.AbandonModal.Types.Msg
     | OpenConfirmDeleteModal of Components.ConfirmModal.Types.DeleteTarget
@@ -100,8 +92,6 @@ type Msg =
     | FriendDetailMsg of Pages.FriendDetail.Types.Msg
     | ContributorsMsg of Pages.Contributors.Types.Msg
     | ContributorDetailMsg of Pages.ContributorDetail.Types.Msg
-    | TagsMsg of Pages.Tags.Types.Msg
-    | TagDetailMsg of Pages.TagDetail.Types.Msg
     | CollectionsMsg of Pages.Collections.Types.Msg
     | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
@@ -109,8 +99,6 @@ type Msg =
     // API result handlers
     | FriendSaved of Friend
     | FriendDeleted of FriendId
-    | TagSaved of Tag
-    | TagDeleted of TagId
     | EntryAbandoned of LibraryEntry
     | EntryDeleted of EntryId
     | EntryAdded of LibraryEntry
@@ -124,7 +112,6 @@ module Model =
     let empty = {
         CurrentPage = HomePage
         Friends = NotAsked
-        Tags = NotAsked
         Layout = Components.Layout.Types.Model.empty
         Modal = NoModal
         Notification = Components.Notification.Types.Model.empty
@@ -137,8 +124,6 @@ module Model =
         FriendDetailPage = None
         ContributorsPage = None
         ContributorDetailPage = None
-        TagsPage = None
-        TagDetailPage = None
         CollectionsPage = None
         CollectionDetailPage = None
         CachePage = None

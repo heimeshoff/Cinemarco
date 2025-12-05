@@ -27,9 +27,6 @@ type TmdbPersonId = TmdbPersonId of int
 /// Unique identifier for friends
 type FriendId = FriendId of int
 
-/// Unique identifier for tags
-type TagId = TagId of int
-
 /// Unique identifier for collections
 type CollectionId = CollectionId of int
 
@@ -73,10 +70,6 @@ module TmdbPersonId =
 module FriendId =
     let create id = FriendId id
     let value (FriendId id) = id
-
-module TagId =
-    let create id = TagId id
-    let value (TagId id) = id
 
 module CollectionId =
     let create id = CollectionId id
@@ -322,16 +315,6 @@ type TrackedContributor = {
 // Organization
 // =====================================
 
-/// A user-defined tag
-type Tag = {
-    Id: TagId
-    Name: string
-    Color: string option
-    Icon: string option
-    Description: string option
-    CreatedAt: DateTime
-}
-
 /// A curated, ordered collection
 type Collection = {
     Id: CollectionId
@@ -382,7 +365,6 @@ type LibraryEntry = {
     DateLastWatched: DateTime option
     Notes: string option
     IsFavorite: bool
-    Tags: TagId list
     Friends: FriendId list
 }
 
@@ -397,7 +379,6 @@ type WatchSession = {
     Status: SessionStatus
     StartDate: DateTime option
     EndDate: DateTime option
-    Tags: TagId list
     Friends: FriendId list
     Notes: string option
     CreatedAt: DateTime
@@ -425,7 +406,6 @@ type WatchTimeStats = {
     MovieMinutes: int
     SeriesMinutes: int
     ByYear: Map<int, int>
-    ByTag: Map<TagId, int>
     ByRating: Map<PersonalRating, int>
 }
 
@@ -434,7 +414,6 @@ type BacklogStats = {
     TotalEntries: int
     EstimatedMinutes: int
     OldestEntry: LibraryEntry option
-    ByTag: Map<TagId, int>
 }
 
 /// Year in review summary
@@ -445,7 +424,6 @@ type YearInReview = {
     TotalSeries: int
     TotalEpisodes: int
     RatingDistribution: Map<PersonalRating, int>
-    TopTags: (Tag * int) list
     CompletedCollections: Collection list
     NewContributorsDiscovered: Contributor list
     MostWatchedWith: (Friend * int) list
@@ -622,7 +600,6 @@ type TmdbCollection = {
 type AddMovieRequest = {
     TmdbId: TmdbMovieId
     WhyAdded: WhyAdded option
-    InitialTags: TagId list
     InitialFriends: FriendId list
 }
 
@@ -630,7 +607,6 @@ type AddMovieRequest = {
 type AddSeriesRequest = {
     TmdbId: TmdbSeriesId
     WhyAdded: WhyAdded option
-    InitialTags: TagId list
     InitialFriends: FriendId list
 }
 
@@ -641,7 +617,6 @@ type UpdateEntryRequest = {
     PersonalRating: PersonalRating option
     Notes: string option
     IsFavorite: bool option
-    Tags: TagId list option
     Friends: FriendId list option
     WhyAdded: WhyAdded option
 }
@@ -661,21 +636,6 @@ type UpdateFriendRequest = {
     Notes: string option
 }
 
-/// Request to create a tag
-type CreateTagRequest = {
-    Name: string
-    Color: string option
-    Description: string option
-}
-
-/// Request to update a tag
-type UpdateTagRequest = {
-    Id: TagId
-    Name: string option
-    Color: string option
-    Description: string option
-}
-
 /// Request to create a collection
 type CreateCollectionRequest = {
     Name: string
@@ -693,7 +653,6 @@ type UpdateCollectionRequest = {
 type CreateSessionRequest = {
     EntryId: EntryId
     Friends: FriendId list
-    Tags: TagId list
 }
 
 /// Request to abandon an entry
@@ -735,7 +694,6 @@ type LibraryFilter = {
     WatchStatus: WatchStatus option
     MinRating: PersonalRating option
     MaxRating: PersonalRating option
-    Tags: TagId list
     Friends: FriendId list
     SearchQuery: string option
     DateAddedFrom: DateTime option
@@ -812,12 +770,10 @@ type GraphNode =
     | SeriesNode of EntryId * name: string * posterPath: string option
     | FriendNode of FriendId * name: string
     | ContributorNode of ContributorId * name: string * profilePath: string option
-    | TagNode of TagId * name: string * color: string option
 
 /// Type of relationship between nodes
 type EdgeRelationship =
     | WatchedWith
-    | TaggedAs
     | WorkedOn of ContributorRole
     | InCollection of CollectionId
 
@@ -840,7 +796,6 @@ type GraphFilter = {
     IncludeSeries: bool
     IncludeFriends: bool
     IncludeContributors: bool
-    IncludeTags: bool
     IncludeGenres: bool
     MaxNodes: int option
     WatchStatusFilter: WatchStatus list option
@@ -857,14 +812,6 @@ type FriendStats = {
     MostWatchedGenres: string list
     FirstWatchedTogether: DateTime option
     LastWatchedTogether: DateTime option
-}
-
-/// Statistics about a tag
-type TagStats = {
-    TotalEntries: int
-    TotalSessions: int
-    TotalWatchTimeMinutes: int
-    RatingDistribution: Map<PersonalRating, int>
 }
 
 /// Collection with its items

@@ -134,17 +134,6 @@ type FriendRecord = {
 }
 
 [<CLIMutable>]
-type TagRecord = {
-    id: int
-    name: string
-    color: string
-    icon: string
-    description: string
-    created_at: string
-    updated_at: string
-}
-
-[<CLIMutable>]
 type CollectionRecord = {
     id: int
     name: string
@@ -625,105 +614,6 @@ let deleteFriend (FriendId id) : Async<unit> = async {
 }
 
 // =====================================
-// Tags CRUD
-// =====================================
-
-let private recordToTag (r: TagRecord) : Tag = {
-    Id = TagId r.id
-    Name = r.name
-    Color = if String.IsNullOrEmpty(r.color) then None else Some r.color
-    Icon = if String.IsNullOrEmpty(r.icon) then None else Some r.icon
-    Description = if String.IsNullOrEmpty(r.description) then None else Some r.description
-    CreatedAt = DateTime.Parse(r.created_at)
-}
-
-let getAllTags () : Async<Tag list> = async {
-    use conn = getConnection()
-    let! records =
-        conn.QueryAsync<TagRecord>("SELECT * FROM tags ORDER BY name")
-        |> Async.AwaitTask
-    return records |> Seq.map recordToTag |> Seq.toList
-}
-
-let getTagById (TagId id) : Async<Tag option> = async {
-    use conn = getConnection()
-    let! record =
-        conn.QueryFirstOrDefaultAsync<TagRecord>(
-            "SELECT * FROM tags WHERE id = @Id",
-            {| Id = id |}
-        ) |> Async.AwaitTask
-    return if isNull (box record) then None else Some (recordToTag record)
-}
-
-let getTagByName (name: string) : Async<Tag option> = async {
-    use conn = getConnection()
-    let! record =
-        conn.QueryFirstOrDefaultAsync<TagRecord>(
-            "SELECT * FROM tags WHERE name = @Name",
-            {| Name = name |}
-        ) |> Async.AwaitTask
-    return if isNull (box record) then None else Some (recordToTag record)
-}
-
-let insertTag (request: CreateTagRequest) : Async<Tag> = async {
-    use conn = getConnection()
-    let now = DateTime.UtcNow.ToString("o")
-    let! id =
-        conn.ExecuteScalarAsync<int64>("""
-            INSERT INTO tags (name, color, description, created_at, updated_at)
-            VALUES (@Name, @Color, @Description, @CreatedAt, @UpdatedAt);
-            SELECT last_insert_rowid();
-        """, {|
-            Name = request.Name
-            Color = request.Color |> Option.toObj
-            Description = request.Description |> Option.toObj
-            CreatedAt = now
-            UpdatedAt = now
-        |}) |> Async.AwaitTask
-    return {
-        Id = TagId (int id)
-        Name = request.Name
-        Color = request.Color
-        Icon = None
-        Description = request.Description
-        CreatedAt = DateTime.UtcNow
-    }
-}
-
-let updateTag (request: UpdateTagRequest) : Async<unit> = async {
-    use conn = getConnection()
-    let! existing = getTagById request.Id
-    match existing with
-    | None -> ()
-    | Some tag ->
-        let now = DateTime.UtcNow.ToString("o")
-        let name = Option.defaultValue tag.Name request.Name
-        let color = Option.toObj (Option.orElse tag.Color request.Color)
-        let description = Option.toObj (Option.orElse tag.Description request.Description)
-        let param = {|
-            Id = TagId.value request.Id
-            Name = name
-            Color = color
-            Description = description
-            UpdatedAt = now
-        |}
-        do! conn.ExecuteAsync("""
-            UPDATE tags SET
-                name = @Name,
-                color = @Color,
-                description = @Description,
-                updated_at = @UpdatedAt
-            WHERE id = @Id
-        """, param) |> Async.AwaitTask |> Async.Ignore
-}
-
-let deleteTag (TagId id) : Async<unit> = async {
-    use conn = getConnection()
-    do! conn.ExecuteAsync("DELETE FROM tags WHERE id = @Id", {| Id = id |})
-        |> Async.AwaitTask |> Async.Ignore
-}
-
-// =====================================
 // Collections CRUD
 // =====================================
 
@@ -939,45 +829,6 @@ let deleteContributor (ContributorId id) : Async<unit> = async {
 }
 
 // =====================================
-// Entry Tags Junction
-// =====================================
-
-let getTagsForEntry (EntryId entryId) : Async<TagId list> = async {
-    use conn = getConnection()
-    let! ids =
-        conn.QueryAsync<int>(
-            "SELECT tag_id FROM entry_tags WHERE entry_id = @EntryId",
-            {| EntryId = entryId |}
-        ) |> Async.AwaitTask
-    return ids |> Seq.map TagId |> Seq.toList
-}
-
-let addTagToEntry (EntryId entryId) (TagId tagId) : Async<unit> = async {
-    use conn = getConnection()
-    do! conn.ExecuteAsync("""
-        INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (@EntryId, @TagId)
-    """, {| EntryId = entryId; TagId = tagId |}) |> Async.AwaitTask |> Async.Ignore
-}
-
-let removeTagFromEntry (EntryId entryId) (TagId tagId) : Async<unit> = async {
-    use conn = getConnection()
-    let param = {| EntryId = entryId; TagId = tagId |}
-    let! _ = conn.ExecuteAsync("DELETE FROM entry_tags WHERE entry_id = @EntryId AND tag_id = @TagId", param) |> Async.AwaitTask
-    return ()
-}
-
-/// Get all library entries with a specific tag
-let getEntriesWithTag (TagId tagId) : Async<int list> = async {
-    use conn = getConnection()
-    let! entryIds =
-        conn.QueryAsync<int>(
-            "SELECT entry_id FROM entry_tags WHERE tag_id = @TagId",
-            {| TagId = tagId |}
-        ) |> Async.AwaitTask
-    return entryIds |> Seq.toList
-}
-
-// =====================================
 // Entry Friends Junction
 // =====================================
 
@@ -1043,13 +894,7 @@ let getSessionsForEntry (EntryId entryId) : Async<WatchSession list> = async {
         ) |> Async.AwaitTask
 
     let mapRecord (r: WatchSessionRecord) = async {
-        let tagParam = {| SessionId = r.id |}
         let friendParam = {| SessionId = r.id |}
-        let! tagIds =
-            conn.QueryAsync<int>(
-                "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
-                tagParam
-            ) |> Async.AwaitTask
         let! friendIds =
             conn.QueryAsync<int>(
                 "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
@@ -1061,7 +906,6 @@ let getSessionsForEntry (EntryId entryId) : Async<WatchSession list> = async {
             Status = parseSessionStatus r.status
             StartDate = parseDateTime r.start_date
             EndDate = parseDateTime r.end_date
-            Tags = tagIds |> Seq.map TagId |> Seq.toList
             Friends = friendIds |> Seq.map FriendId |> Seq.toList
             Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
             CreatedAt = DateTime.Parse(r.created_at)
@@ -1090,12 +934,6 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
 
     let sessionId = int id
 
-    // Add tags
-    for tagId in request.Tags do
-        let tagParam = {| SessionId = sessionId; TagId = TagId.value tagId |}
-        let! _ = conn.ExecuteAsync("INSERT INTO session_tags (session_id, tag_id) VALUES (@SessionId, @TagId)", tagParam) |> Async.AwaitTask
-        ()
-
     // Add friends
     for friendId in request.Friends do
         let friendParam = {| SessionId = sessionId; FriendId = FriendId.value friendId |}
@@ -1108,7 +946,6 @@ let insertWatchSession (request: CreateSessionRequest) : Async<WatchSession> = a
         Status = Active
         StartDate = Some DateTime.UtcNow
         EndDate = None
-        Tags = request.Tags
         Friends = request.Friends
         Notes = None
         CreatedAt = DateTime.UtcNow
@@ -1138,7 +975,6 @@ let createDefaultSession (entryId: EntryId) (seriesId: SeriesId) : Async<WatchSe
         Status = Active
         StartDate = Some DateTime.UtcNow
         EndDate = None
-        Tags = []
         Friends = []
         Notes = None
         CreatedAt = DateTime.UtcNow
@@ -1157,11 +993,6 @@ let getDefaultSession (entryId: EntryId) : Async<WatchSession option> = async {
 
     if isNull (box record) then return None
     else
-        let! tagIds =
-            conn.QueryAsync<int>(
-                "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
-                {| SessionId = record.id |}
-            ) |> Async.AwaitTask
         let! friendIds =
             conn.QueryAsync<int>(
                 "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
@@ -1173,7 +1004,6 @@ let getDefaultSession (entryId: EntryId) : Async<WatchSession option> = async {
             Status = parseSessionStatus record.status
             StartDate = parseDateTime record.start_date
             EndDate = parseDateTime record.end_date
-            Tags = tagIds |> Seq.map TagId |> Seq.toList
             Friends = friendIds |> Seq.map FriendId |> Seq.toList
             Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
             CreatedAt = DateTime.Parse(record.created_at)
@@ -1186,9 +1016,7 @@ let deleteWatchSession (SessionId id) : Async<unit> = async {
     // Delete associated episode progress first
     do! conn.ExecuteAsync("DELETE FROM episode_progress WHERE session_id = @Id", {| Id = id |})
         |> Async.AwaitTask |> Async.Ignore
-    // Delete session tags and friends
-    do! conn.ExecuteAsync("DELETE FROM session_tags WHERE session_id = @Id", {| Id = id |})
-        |> Async.AwaitTask |> Async.Ignore
+    // Delete session friends
     do! conn.ExecuteAsync("DELETE FROM session_friends WHERE session_id = @Id", {| Id = id |})
         |> Async.AwaitTask |> Async.Ignore
     // Delete the session
@@ -1208,17 +1036,10 @@ let getSessionById (SessionId id) : Async<WatchSession option> = async {
     if isNull (box record) then
         return None
     else
-        let tagParam = {| SessionId = record.id |}
-        let friendParam = {| SessionId = record.id |}
-        let! tagIds =
-            conn.QueryAsync<int>(
-                "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
-                tagParam
-            ) |> Async.AwaitTask
         let! friendIds =
             conn.QueryAsync<int>(
                 "SELECT friend_id FROM session_friends WHERE session_id = @SessionId",
-                friendParam
+                {| SessionId = record.id |}
             ) |> Async.AwaitTask
         return Some {
             Id = SessionId record.id
@@ -1226,7 +1047,6 @@ let getSessionById (SessionId id) : Async<WatchSession option> = async {
             Status = parseSessionStatus record.status
             StartDate = parseDateTime record.start_date
             EndDate = parseDateTime record.end_date
-            Tags = tagIds |> Seq.map TagId |> Seq.toList
             Friends = friendIds |> Seq.map FriendId |> Seq.toList
             Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
             CreatedAt = DateTime.Parse(record.created_at)
@@ -1269,34 +1089,6 @@ let updateWatchSession (request: UpdateSessionRequest) : Async<unit> = async {
                 updated_at = @UpdatedAt
             WHERE id = @Id
         """, param) |> Async.AwaitTask |> Async.Ignore
-}
-
-// =====================================
-// Session Tags Junction
-// =====================================
-
-let getTagsForSession (SessionId sessionId) : Async<TagId list> = async {
-    use conn = getConnection()
-    let! ids =
-        conn.QueryAsync<int>(
-            "SELECT tag_id FROM session_tags WHERE session_id = @SessionId",
-            {| SessionId = sessionId |}
-        ) |> Async.AwaitTask
-    return ids |> Seq.map TagId |> Seq.toList
-}
-
-let addTagToSession (SessionId sessionId) (TagId tagId) : Async<unit> = async {
-    use conn = getConnection()
-    do! conn.ExecuteAsync("""
-        INSERT OR IGNORE INTO session_tags (session_id, tag_id) VALUES (@SessionId, @TagId)
-    """, {| SessionId = sessionId; TagId = tagId |}) |> Async.AwaitTask |> Async.Ignore
-}
-
-let removeTagFromSession (SessionId sessionId) (TagId tagId) : Async<unit> = async {
-    use conn = getConnection()
-    let param = {| SessionId = sessionId; TagId = tagId |}
-    let! _ = conn.ExecuteAsync("DELETE FROM session_tags WHERE session_id = @SessionId AND tag_id = @TagId", param) |> Async.AwaitTask
-    return ()
 }
 
 // =====================================
@@ -1661,8 +1453,7 @@ let getLibraryEntryById (EntryId id) : Async<LibraryEntry option> = async {
         match media with
         | None -> return None
         | Some m ->
-            // Get tags and friends for this entry
-            let! tagIds = getTagsForEntry (EntryId record.id)
+            // Get friends for this entry
             let! friendIds = getFriendsForEntry (EntryId record.id)
 
             let whyAdded =
@@ -1702,7 +1493,6 @@ let getLibraryEntryById (EntryId id) : Async<LibraryEntry option> = async {
                 DateLastWatched = parseDateTime record.date_last_watched
                 Notes = if String.IsNullOrEmpty(record.notes) then None else Some record.notes
                 IsFavorite = record.is_favorite = 1
-                Tags = tagIds
                 Friends = friendIds
             }
 }
@@ -1842,10 +1632,6 @@ let insertLibraryEntryForMovie (movieDetails: TmdbMovieDetails) (request: AddMov
 
             let entryIdInt = int entryId
 
-            // Add tags
-            for tagId in request.InitialTags do
-                do! addTagToEntry (EntryId entryIdInt) tagId
-
             // Add friends
             for friendId in request.InitialFriends do
                 do! addFriendToEntry (EntryId entryIdInt) friendId
@@ -1955,10 +1741,6 @@ let insertLibraryEntryForSeries (seriesDetails: TmdbSeriesDetails) (request: Add
                 |}) |> Async.AwaitTask
 
             let entryIdInt = int entryId
-
-            // Add tags
-            for tagId in request.InitialTags do
-                do! addTagToEntry (EntryId entryIdInt) tagId
 
             // Add friends
             for friendId in request.InitialFriends do
@@ -2297,7 +2079,6 @@ let getDatabaseStats () : Async<Map<string, int>> = async {
     let! movieCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM movies") |> Async.AwaitTask
     let! seriesCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM series") |> Async.AwaitTask
     let! friendCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM friends") |> Async.AwaitTask
-    let! tagCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM tags") |> Async.AwaitTask
     let! collectionCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM collections") |> Async.AwaitTask
     let! contributorCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM contributors") |> Async.AwaitTask
     let! entryCount = conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM library_entries") |> Async.AwaitTask
@@ -2306,7 +2087,6 @@ let getDatabaseStats () : Async<Map<string, int>> = async {
         "movies", movieCount
         "series", seriesCount
         "friends", friendCount
-        "tags", tagCount
         "collections", collectionCount
         "contributors", contributorCount
         "library_entries", entryCount

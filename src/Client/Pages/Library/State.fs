@@ -33,14 +33,6 @@ let update (api: LibraryApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | SetWatchStatusFilter status ->
         { model with Filters = { model.Filters with WatchStatus = status } }, Cmd.none, NoOp
 
-    | ToggleTagFilter tagId ->
-        let newTags =
-            if List.contains tagId model.Filters.SelectedTags then
-                List.filter (fun t -> t <> tagId) model.Filters.SelectedTags
-            else
-                tagId :: model.Filters.SelectedTags
-        { model with Filters = { model.Filters with SelectedTags = newTags } }, Cmd.none, NoOp
-
     | SetMinRatingFilter rating ->
         { model with Filters = { model.Filters with MinRating = rating } }, Cmd.none, NoOp
 
@@ -85,11 +77,6 @@ let filterAndSortEntries (filters: LibraryFilters) (entries: LibraryEntry list) 
             | FilterCompleted -> match entry.WatchStatus with Completed -> true | _ -> false
             | FilterAbandoned -> match entry.WatchStatus with Abandoned _ -> true | _ -> false
 
-        // Tag filter
-        let matchesTags =
-            List.isEmpty filters.SelectedTags ||
-            filters.SelectedTags |> List.exists (fun tagId -> List.contains tagId entry.Tags)
-
         // Rating filter
         let matchesRating =
             match filters.MinRating with
@@ -99,7 +86,7 @@ let filterAndSortEntries (filters: LibraryFilters) (entries: LibraryEntry list) 
                 | Some rating -> PersonalRating.toInt rating >= minRating
                 | None -> false
 
-        matchesSearch && matchesStatus && matchesTags && matchesRating
+        matchesSearch && matchesStatus && matchesRating
     )
     |> List.sortBy (fun entry ->
         let sortKey =

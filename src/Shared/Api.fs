@@ -86,9 +86,6 @@ type ICinemarcoApi = {
     /// Update notes for an entry
     libraryUpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
 
-    /// Add or remove a tag from an entry
-    libraryToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
-
     /// Add or remove a friend from an entry
     libraryToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
 
@@ -113,28 +110,6 @@ type ICinemarcoApi = {
 
     /// Get library entries watched with a friend
     friendsGetWatchedWith: int -> Async<LibraryEntry list>
-
-    // =====================================
-    // Tags Operations
-    // =====================================
-
-    /// Get all tags
-    tagsGetAll: unit -> Async<Tag list>
-
-    /// Get tag by ID
-    tagsGetById: int -> Async<Result<Tag, string>>
-
-    /// Create a new tag
-    tagsCreate: CreateTagRequest -> Async<Result<Tag, string>>
-
-    /// Update an existing tag
-    tagsUpdate: UpdateTagRequest -> Async<Result<Tag, string>>
-
-    /// Delete a tag
-    tagsDelete: int -> Async<Result<unit, string>>
-
-    /// Get library entries with a tag
-    tagsGetTaggedEntries: int -> Async<LibraryEntry list>
 
     // =====================================
     // TMDB Operations
@@ -197,9 +172,6 @@ type ICinemarcoApi = {
 
     /// Delete a session
     sessionsDelete: SessionId -> Async<Result<unit, string>>
-
-    /// Toggle a tag on a session
-    sessionsToggleTag: SessionId * TagId -> Async<Result<WatchSession, string>>
 
     /// Toggle a friend on a session
     sessionsToggleFriend: SessionId * FriendId -> Async<Result<WatchSession, string>>

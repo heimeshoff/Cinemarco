@@ -20,7 +20,6 @@ type Msg =
     | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
     | UpdateStatus of SessionStatus
-    | ToggleTag of TagId
     | ToggleFriend of FriendId
     | AddNewFriend of string
     | FriendCreated of Result<Friend, string>

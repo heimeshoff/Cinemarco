@@ -4,7 +4,6 @@ open Shared.Domain
 
 type Model = {
     EntryId: EntryId
-    SelectedTags: TagId list
     SelectedFriends: FriendId list
     IsSubmitting: bool
     IsAddingFriend: bool
@@ -12,7 +11,6 @@ type Model = {
 }
 
 type Msg =
-    | ToggleTag of TagId
     | ToggleFriend of FriendId
     | AddNewFriend of string
     | FriendCreated of Result<Friend, string>
@@ -28,7 +26,6 @@ type ExternalMsg =
 module Model =
     let create (entryId: EntryId) = {
         EntryId = entryId
-        SelectedTags = []
         SelectedFriends = []
         IsSubmitting = false
         IsAddingFriend = false

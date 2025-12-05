@@ -5,7 +5,6 @@ open Shared.Domain
 /// What we're confirming deletion of
 type DeleteTarget =
     | Friend of Friend
-    | Tag of Tag
     | Entry of EntryId
     | Collection of Collection * itemCount: int
 

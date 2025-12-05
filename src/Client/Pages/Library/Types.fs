@@ -23,7 +23,6 @@ type SortDirection =
 type LibraryFilters = {
     SearchQuery: string
     WatchStatus: WatchStatusFilter
-    SelectedTags: TagId list
     MinRating: int option
     SortBy: LibrarySortBy
     SortDirection: SortDirection
@@ -39,7 +38,6 @@ type Msg =
     | EntriesLoaded of Result<LibraryEntry list, string>
     | SetSearchQuery of string
     | SetWatchStatusFilter of WatchStatusFilter
-    | ToggleTagFilter of TagId
     | SetMinRatingFilter of int option
     | SetSortBy of LibrarySortBy
     | ToggleSortDirection
@@ -56,7 +54,6 @@ module LibraryFilters =
     let empty = {
         SearchQuery = ""
         WatchStatus = AllStatuses
-        SelectedTags = []
         MinRating = None
         SortBy = SortByDateAdded
         SortDirection = Descending

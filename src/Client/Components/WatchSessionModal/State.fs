@@ -14,14 +14,6 @@ let init (entryId: EntryId) : Model =
 
 let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
-    | ToggleTag tagId ->
-        let newTags =
-            if List.contains tagId model.SelectedTags then
-                List.filter ((<>) tagId) model.SelectedTags
-            else
-                tagId :: model.SelectedTags
-        { model with SelectedTags = newTags }, Cmd.none, NoOp
-
     | ToggleFriend friendId ->
         let newFriends =
             if List.contains friendId model.SelectedFriends then
@@ -59,7 +51,6 @@ let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg
         else
             let request : CreateSessionRequest = {
                 EntryId = model.EntryId
-                Tags = model.SelectedTags
                 Friends = model.SelectedFriends
             }
             let cmd =

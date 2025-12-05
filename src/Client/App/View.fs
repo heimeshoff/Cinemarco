@@ -9,7 +9,6 @@ open Browser.Types
 
 /// Render the current page content
 let private pageContent (model: Model) (dispatch: Msg -> unit) =
-    let tags = RemoteData.defaultValue [] model.Tags
     let friends = RemoteData.defaultValue [] model.Friends
 
     match model.CurrentPage with
@@ -23,28 +22,28 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
     | LibraryPage ->
         match model.LibraryPage with
         | Some pageModel ->
-            Pages.Library.View.view pageModel tags (LibraryMsg >> dispatch)
+            Pages.Library.View.view pageModel (LibraryMsg >> dispatch)
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
     | MovieDetailPage _ ->
         match model.MovieDetailPage with
         | Some pageModel ->
-            Pages.MovieDetail.View.view pageModel tags friends (MovieDetailMsg >> dispatch)
+            Pages.MovieDetail.View.view pageModel friends (MovieDetailMsg >> dispatch)
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
     | SeriesDetailPage _ ->
         match model.SeriesDetailPage with
         | Some pageModel ->
-            Pages.SeriesDetail.View.view pageModel tags friends (SeriesDetailMsg >> dispatch)
+            Pages.SeriesDetail.View.view pageModel friends (SeriesDetailMsg >> dispatch)
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
     | SessionDetailPage _ ->
         match model.SessionDetailPage with
         | Some pageModel ->
-            Pages.SessionDetail.View.view pageModel tags friends (SessionDetailMsg >> dispatch)
+            Pages.SessionDetail.View.view pageModel friends (SessionDetailMsg >> dispatch)
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
@@ -67,21 +66,6 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         match model.ContributorsPage with
         | Some pageModel ->
             Pages.Contributors.View.view pageModel (ContributorsMsg >> dispatch)
-        | None ->
-            Html.div [ prop.className "loading loading-spinner" ]
-
-    | TagsPage ->
-        match model.TagsPage with
-        | Some pageModel ->
-            Pages.Tags.View.view pageModel (TagsMsg >> dispatch)
-        | None ->
-            Html.div [ prop.className "loading loading-spinner" ]
-
-    | TagDetailPage tagId ->
-        match model.TagDetailPage with
-        | Some pageModel ->
-            let tag = tags |> List.tryFind (fun t -> t.Id = tagId)
-            Pages.TagDetail.View.view pageModel tag (TagDetailMsg >> dispatch)
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
@@ -137,7 +121,6 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
 /// Render the active modal
 let private modalContent (model: Model) (dispatch: Msg -> unit) =
     let friends = RemoteData.defaultValue [] model.Friends
-    let tags = RemoteData.defaultValue [] model.Tags
 
     match model.Modal with
     | NoModal -> Html.none
@@ -148,9 +131,6 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | FriendModal modalModel ->
         Components.FriendModal.View.view modalModel (FriendModalMsg >> dispatch)
 
-    | TagModal modalModel ->
-        Components.TagModal.View.view modalModel (TagModalMsg >> dispatch)
-
     | AbandonModal modalModel ->
         Components.AbandonModal.View.view modalModel (AbandonModalMsg >> dispatch)
 
@@ -158,7 +138,7 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
         Components.ConfirmModal.View.view modalModel (ConfirmModalMsg >> dispatch)
 
     | WatchSessionModal modalModel ->
-        Components.WatchSessionModal.View.view modalModel tags friends (WatchSessionModalMsg >> dispatch)
+        Components.WatchSessionModal.View.view modalModel friends (WatchSessionModalMsg >> dispatch)
 
     | CollectionModal modalModel ->
         Components.CollectionModal.View.view modalModel (CollectionModalMsg >> dispatch)

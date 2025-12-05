@@ -229,22 +229,6 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to update notes: {ex.Message}"
     }
 
-    libraryToggleTag = fun (entryId, tagId) -> async {
-        try
-            // Check if tag is already associated
-            let! currentTags = Persistence.getTagsForEntry entryId
-            if List.contains tagId currentTags then
-                do! Persistence.removeTagFromEntry entryId tagId
-            else
-                do! Persistence.addTagToEntry entryId tagId
-            let! entry = Persistence.getLibraryEntryById entryId
-            match entry with
-            | Some e -> return Ok e
-            | None -> return Error "Entry not found after update"
-        with
-        | ex -> return Error $"Failed to toggle tag: {ex.Message}"
-    }
-
     libraryToggleFriend = fun (entryId, friendId) -> async {
         try
             // Check if friend is already associated
@@ -303,55 +287,6 @@ let cinemarcoApi : ICinemarcoApi = {
 
     friendsGetWatchedWith = fun friendId -> async {
         let! entryIds = Persistence.getEntriesWatchedWithFriend (FriendId friendId)
-        let! entries =
-            entryIds
-            |> List.map (fun eid -> Persistence.getLibraryEntryById (EntryId eid))
-            |> Async.Sequential
-        return entries |> Array.choose id |> Array.toList
-    }
-
-    // =====================================
-    // Tags Operations
-    // =====================================
-
-    tagsGetAll = fun () -> Persistence.getAllTags()
-
-    tagsGetById = fun id -> async {
-        let! tag = Persistence.getTagById (TagId id)
-        match tag with
-        | Some t -> return Ok t
-        | None -> return Error "Tag not found"
-    }
-
-    tagsCreate = fun request -> async {
-        try
-            let! tag = Persistence.insertTag request
-            return Ok tag
-        with
-        | ex -> return Error $"Failed to create tag: {ex.Message}"
-    }
-
-    tagsUpdate = fun request -> async {
-        try
-            do! Persistence.updateTag request
-            let! tag = Persistence.getTagById request.Id
-            match tag with
-            | Some t -> return Ok t
-            | None -> return Error "Tag not found after update"
-        with
-        | ex -> return Error $"Failed to update tag: {ex.Message}"
-    }
-
-    tagsDelete = fun id -> async {
-        try
-            do! Persistence.deleteTag (TagId id)
-            return Ok ()
-        with
-        | ex -> return Error $"Failed to delete tag: {ex.Message}"
-    }
-
-    tagsGetTaggedEntries = fun tagId -> async {
-        let! entryIds = Persistence.getEntriesWithTag (TagId tagId)
         let! entries =
             entryIds
             |> List.map (fun eid -> Persistence.getLibraryEntryById (EntryId eid))
@@ -431,22 +366,6 @@ let cinemarcoApi : ICinemarcoApi = {
             return Ok ()
         with
         | ex -> return Error $"Failed to delete session: {ex.Message}"
-    }
-
-    sessionsToggleTag = fun (sessionId, tagId) -> async {
-        try
-            // Check if tag is already associated
-            let! currentTags = Persistence.getTagsForSession sessionId
-            if List.contains tagId currentTags then
-                do! Persistence.removeTagFromSession sessionId tagId
-            else
-                do! Persistence.addTagToSession sessionId tagId
-            let! session = Persistence.getSessionById sessionId
-            match session with
-            | Some s -> return Ok s
-            | None -> return Error "Session not found after update"
-        with
-        | ex -> return Error $"Failed to toggle tag: {ex.Message}"
     }
 
     sessionsToggleFriend = fun (sessionId, friendId) -> async {

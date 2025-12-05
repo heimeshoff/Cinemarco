@@ -59,7 +59,6 @@ type Msg =
     | OpenNewSessionModal
     | DeleteSession of SessionId
     | SessionDeleteResult of Result<SessionId, string>
-    | ToggleTag of TagId
     | ToggleFriendSelector
     | ToggleFriend of FriendId
     | AddNewFriend of string

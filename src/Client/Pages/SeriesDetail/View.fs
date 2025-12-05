@@ -260,7 +260,7 @@ let private sessionDisplayName (session: WatchSession) (allFriends: Friend list)
             $"with {allButLast} and {last}"
 
 /// Overview tab content
-let private overviewTab (series: Series) (entry: LibraryEntry) (model: Model) (tags: Tag list) (dispatch: Msg -> unit) =
+let private overviewTab (series: Series) (entry: LibraryEntry) (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -300,29 +300,6 @@ let private overviewTab (series: Series) (entry: LibraryEntry) (model: Model) (t
                     ]
                 ]
             | _ -> Html.none
-
-            // Tags
-            if not (List.isEmpty tags) then
-                Html.div [
-                    Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Tags" ]
-                    Html.div [
-                        prop.className "flex flex-wrap gap-2"
-                        prop.children [
-                            for tag in tags do
-                                let isSelected = List.contains tag.Id entry.Tags
-                                Html.button [
-                                    prop.type' "button"
-                                    prop.className (
-                                        "px-3 py-1 rounded-full text-sm transition-all " +
-                                        if isSelected then "bg-secondary text-secondary-content"
-                                        else "bg-base-200 text-base-content/60 hover:bg-base-300"
-                                    )
-                                    prop.onClick (fun _ -> dispatch (ToggleTag tag.Id))
-                                    prop.text tag.Name
-                                ]
-                        ]
-                    ]
-                ]
 
             // Notes
             Html.div [
@@ -701,7 +678,7 @@ let private idToTab = function
     | "friends" -> Friends
     | _ -> Overview
 
-let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
+let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -820,7 +797,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                                         (tabToId model.ActiveTab)
                                                         (fun id -> dispatch (SetActiveTab (idToTab id)))
                                                         (match model.ActiveTab with
-                                                         | Overview -> overviewTab series entry model tags dispatch
+                                                         | Overview -> overviewTab series entry model dispatch
                                                          | CastCrew -> castCrewTab model dispatch
                                                          | Episodes -> episodesTab series model friends dispatch
                                                          | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
@@ -840,7 +817,7 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                         (tabToId model.ActiveTab)
                                         (fun id -> dispatch (SetActiveTab (idToTab id)))
                                         (match model.ActiveTab with
-                                         | Overview -> overviewTab series entry model tags dispatch
+                                         | Overview -> overviewTab series entry model dispatch
                                          | CastCrew -> castCrewTab model dispatch
                                          | Episodes -> episodesTab series model friends dispatch
                                          | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)

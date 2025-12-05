@@ -17,7 +17,6 @@ type SeriesApi = {
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
     SetRating: EntryId * int option -> Async<Result<LibraryEntry, string>>
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
-    ToggleTag: EntryId * TagId -> Async<Result<LibraryEntry, string>>
     ToggleFriend: EntryId * FriendId -> Async<Result<LibraryEntry, string>>
     CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
     ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
@@ -291,15 +290,6 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 | LibrarySeries s -> s.Name
             model, Cmd.none, RequestOpenAddToCollectionModal (model.EntryId, title)
         | _ -> model, Cmd.none, NoOp
-
-    | ToggleTag tagId ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.ToggleTag
-                (model.EntryId, tagId)
-                ActionResult
-                (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
 
     | ToggleFriendSelector ->
         { model with IsFriendSelectorOpen = not model.IsFriendSelectorOpen }, Cmd.none, NoOp

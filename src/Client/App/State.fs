@@ -27,7 +27,6 @@ let init () : Model * Cmd<Msg> =
     let model = Model.empty
     let cmds = Cmd.batch [
         Cmd.ofMsg LoadFriends
-        Cmd.ofMsg LoadTags
         Cmd.ofMsg (LayoutMsg Components.Layout.Types.CheckHealth)
         Cmd.ofMsg (NavigateTo HomePage)
     ]
@@ -49,9 +48,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | FriendsPage when model.FriendsPage.IsNone ->
             let pageModel, pageCmd = Pages.Friends.State.init ()
             { model' with FriendsPage = Some pageModel }, Cmd.map FriendsMsg pageCmd
-        | TagsPage when model.TagsPage.IsNone ->
-            let pageModel, pageCmd = Pages.Tags.State.init ()
-            { model' with TagsPage = Some pageModel }, Cmd.map TagsMsg pageCmd
         | MovieDetailPage entryId when model.MovieDetailPage.IsNone || model.MovieDetailPage |> Option.map (fun m -> m.EntryId <> entryId) |> Option.defaultValue true ->
             let pageModel, pageCmd = Pages.MovieDetail.State.init entryId
             { model' with MovieDetailPage = Some pageModel }, Cmd.map MovieDetailMsg pageCmd
@@ -68,9 +64,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             // Always reload contributors to get fresh data after tracking/untracking
             let pageModel, pageCmd = Pages.Contributors.State.init ()
             { model' with ContributorsPage = Some pageModel }, Cmd.map ContributorsMsg pageCmd
-        | TagDetailPage tagId when model.TagDetailPage.IsNone || model.TagDetailPage |> Option.map (fun m -> m.TagId <> tagId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.TagDetail.State.init tagId
-            { model' with TagDetailPage = Some pageModel }, Cmd.map TagDetailMsg pageCmd
         | CachePage when model.CachePage.IsNone ->
             let pageModel, pageCmd = Pages.Cache.State.init ()
             { model' with CachePage = Some pageModel }, Cmd.map CacheMsg pageCmd
@@ -99,20 +92,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | FriendsLoaded (Error _) ->
         { model with Friends = Success [] }, Cmd.none
-
-    | LoadTags ->
-        { model with Tags = Loading },
-        Cmd.OfAsync.either
-            Api.api.tagsGetAll
-            ()
-            (Ok >> TagsLoaded)
-            (fun ex -> Error ex.Message |> TagsLoaded)
-
-    | TagsLoaded (Ok tags) ->
-        { model with Tags = Success tags }, Cmd.none
-
-    | TagsLoaded (Error _) ->
-        { model with Tags = Success [] }, Cmd.none
 
     // Layout messages
     | LayoutMsg layoutMsg ->
@@ -169,7 +148,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 let request : AddMovieRequest = {
                     TmdbId = TmdbMovieId item.TmdbId
                     WhyAdded = None
-                    InitialTags = []
                     InitialFriends = []
                 }
                 Cmd.OfAsync.either
@@ -181,7 +159,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 let request : AddSeriesRequest = {
                     TmdbId = TmdbSeriesId item.TmdbId
                     WhyAdded = None
-                    InitialTags = []
                     InitialFriends = []
                 }
                 Cmd.OfAsync.either
@@ -226,28 +203,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
-    | OpenTagModal tag ->
-        let modalModel = Components.TagModal.State.init tag
-        { model with Modal = TagModal modalModel }, Cmd.none
-
-    | TagModalMsg tagMsg ->
-        match model.Modal with
-        | TagModal modalModel ->
-            let saveApi : Components.TagModal.State.SaveApi = {
-                Create = fun req -> Api.api.tagsCreate req
-                Update = fun req -> Api.api.tagsUpdate req
-            }
-            let newModal, modalCmd, extMsg = Components.TagModal.State.update saveApi tagMsg modalModel
-            let model' = { model with Modal = TagModal newModal }
-            let cmd = Cmd.map TagModalMsg modalCmd
-            match extMsg with
-            | Components.TagModal.Types.NoOp -> model', cmd
-            | Components.TagModal.Types.Saved tag ->
-                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (TagSaved tag)]
-            | Components.TagModal.Types.CloseRequested ->
-                { model' with Modal = NoModal }, cmd
-        | _ -> model, Cmd.none
-
     | OpenAbandonModal entryId ->
         let modalModel = Components.AbandonModal.State.init entryId
         { model with Modal = AbandonModal modalModel }, Cmd.none
@@ -288,12 +243,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                             Api.api.friendsDelete
                             (FriendId.value f.Id)
                             (fun _ -> FriendDeleted f.Id)
-                            (fun ex -> ShowNotification (ex.Message, false))
-                    | Components.ConfirmModal.Types.Tag t ->
-                        Cmd.OfAsync.either
-                            Api.api.tagsDelete
-                            (TagId.value t.Id)
-                            (fun _ -> TagDeleted t.Id)
                             (fun ex -> ShowNotification (ex.Message, false))
                     | Components.ConfirmModal.Types.Entry entryId ->
                         Cmd.OfAsync.either
@@ -479,37 +428,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
         | None -> model, Cmd.none
 
-    // Page messages - Tags
-    | TagsMsg tagsMsg ->
-        match model.TagsPage with
-        | Some pageModel ->
-            let tagsApi = fun () -> Api.api.tagsGetAll ()
-            let newPage, pageCmd, extMsg = Pages.Tags.State.update tagsApi tagsMsg pageModel
-            let model' = { model with TagsPage = Some newPage }
-            let cmd = Cmd.map TagsMsg pageCmd
-            match extMsg with
-            | Pages.Tags.Types.NoOp -> model', cmd
-            | Pages.Tags.Types.NavigateToTagDetail tagId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (TagDetailPage tagId))]
-            | Pages.Tags.Types.RequestOpenAddModal -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenTagModal None)]
-            | Pages.Tags.Types.RequestOpenEditModal tag -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenTagModal (Some tag))]
-            | Pages.Tags.Types.RequestOpenDeleteModal tag -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Tag tag))]
-        | None -> model, Cmd.none
-
-    // Page messages - TagDetail
-    | TagDetailMsg tagDetailMsg ->
-        match model.TagDetailPage with
-        | Some pageModel ->
-            let entriesApi = fun tagId -> Api.api.tagsGetTaggedEntries (TagId.value tagId)
-            let newPage, pageCmd, extMsg = Pages.TagDetail.State.update entriesApi tagDetailMsg pageModel
-            let model' = { model with TagDetailPage = Some newPage }
-            let cmd = Cmd.map TagDetailMsg pageCmd
-            match extMsg with
-            | Pages.TagDetail.Types.NoOp -> model', cmd
-            | Pages.TagDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo TagsPage)]
-            | Pages.TagDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.TagDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
-        | None -> model, Cmd.none
-
     // Page messages - Collections
     | CollectionsMsg collectionsMsg ->
         match model.CollectionsPage with
@@ -585,7 +503,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     let rating = ratingInt |> Option.bind PersonalRating.fromInt
                     Api.api.librarySetRating (entryId, rating)
                 UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
-                ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
                 ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
                 CreateFriend = fun request -> Api.api.friendsCreate request
             }
@@ -637,7 +554,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     let rating = ratingInt |> Option.bind PersonalRating.fromInt
                     Api.api.librarySetRating (entryId, rating)
                 UpdateNotes = fun (entryId, notes) -> Api.api.libraryUpdateNotes (entryId, notes)
-                ToggleTag = fun (entryId, tagId) -> Api.api.libraryToggleTag (entryId, tagId)
                 ToggleFriend = fun (entryId, friendId) -> Api.api.libraryToggleFriend (entryId, friendId)
                 CreateFriend = fun req -> Api.api.friendsCreate req
                 ToggleEpisode = fun (sessionId, s, e, w) ->
@@ -680,7 +596,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetSession = fun sessionId -> Api.api.sessionsGetById sessionId
                 UpdateSession = fun req -> Api.api.sessionsUpdate req
                 DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
-                ToggleTag = fun (sessionId, tagId) -> Api.api.sessionsToggleTag (sessionId, tagId)
                 ToggleFriend = fun (sessionId, friendId) -> Api.api.sessionsToggleFriend (sessionId, friendId)
                 CreateFriend = fun req -> Api.api.friendsCreate req
                 ToggleEpisode = fun (sessionId, s, e, w) -> Api.api.sessionsUpdateEpisodeProgress (sessionId, s, e, w)
@@ -726,25 +641,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             model.Friends |> RemoteData.map (List.filter (fun f -> f.Id <> friendId))
         { model with Friends = updatedFriends },
         Cmd.ofMsg (FriendsMsg Pages.Friends.Types.LoadFriends)
-
-    | TagSaved tag ->
-        let updatedTags =
-            match model.Tags with
-            | Success tags ->
-                let exists = tags |> List.exists (fun t -> t.Id = tag.Id)
-                if exists then
-                    tags |> List.map (fun t -> if t.Id = tag.Id then tag else t) |> Success
-                else
-                    (tag :: tags) |> Success
-            | other -> other
-        { model with Tags = updatedTags },
-        Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
-
-    | TagDeleted tagId ->
-        let updatedTags =
-            model.Tags |> RemoteData.map (List.filter (fun t -> t.Id <> tagId))
-        { model with Tags = updatedTags },
-        Cmd.ofMsg (TagsMsg Pages.Tags.Types.LoadTags)
 
     | EntryAbandoned _ ->
         model, Cmd.none

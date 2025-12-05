@@ -6,7 +6,7 @@ open Types
 open Components.Modal.View
 open Components.FriendSelector.View
 
-let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
+let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     let isWorking = model.IsSubmitting || model.IsAddingFriend
     let canSubmit = not (List.isEmpty model.SelectedFriends) && not isWorking
 
@@ -67,27 +67,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                             ]
                         ]
                 ]
-
-                // Tags selection
-                if not (List.isEmpty tags) then
-                    formField "Tags" false [
-                        Html.div [
-                            prop.className "flex flex-wrap gap-2"
-                            prop.children [
-                                for tag in tags do
-                                    let isSelected = List.contains tag.Id model.SelectedTags
-                                    Html.button [
-                                        prop.className (
-                                            "btn btn-sm " +
-                                            if isSelected then "btn-secondary" else "btn-ghost"
-                                        )
-                                        prop.onClick (fun _ -> dispatch (ToggleTag tag.Id))
-                                        prop.disabled isWorking
-                                        prop.text tag.Name
-                                    ]
-                            ]
-                        ]
-                    ]
             ]
         ]
     }

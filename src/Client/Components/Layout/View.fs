@@ -18,8 +18,6 @@ let private getPageIcon (page: Page) =
     | FriendDetailPage _ -> friends
     | ContributorsPage -> userPlus
     | ContributorDetailPage _ -> userPlus
-    | TagsPage -> tags
-    | TagDetailPage _ -> tags
     | CollectionsPage -> collections
     | CollectionDetailPage _ -> collections
     | StatsPage -> stats
@@ -41,8 +39,6 @@ let private getIconColor (page: Page) =
     | FriendDetailPage _ -> "text-nav-friends"
     | ContributorsPage -> "text-nav-contributors" // Violet/Purple - people you follow
     | ContributorDetailPage _ -> "text-nav-contributors"
-    | TagsPage -> "text-nav-tags"           // Teal - organization
-    | TagDetailPage _ -> "text-nav-tags"
     | CollectionsPage -> "text-nav-collections" // Pink - curated
     | CollectionDetailPage _ -> "text-nav-collections"
     | StatsPage -> "text-nav-stats"         // Orange - metrics
@@ -142,7 +138,6 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
 
                             navItem FriendsPage currentPage onNavigate
                             navItem ContributorsPage currentPage onNavigate
-                            navItem TagsPage currentPage onNavigate
                             navItem CollectionsPage currentPage onNavigate
 
                             // Divider
@@ -322,7 +317,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                     prop.className "space-y-1"
                                     prop.children [
                                         // Primary navigation
-                                        for page in [ FriendsPage; ContributorsPage; TagsPage; CollectionsPage ] do
+                                        for page in [ FriendsPage; ContributorsPage; CollectionsPage ] do
                                             let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [

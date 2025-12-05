@@ -167,7 +167,7 @@ let private statusControls (status: SessionStatus) (dispatch: Msg -> unit) =
         ]
     ]
 
-let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -> unit) =
+let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -291,35 +291,6 @@ let view (model: Model) (tags: Tag list) (friends: Friend list) (dispatch: Msg -
                                 ]
                             ]
                         ]
-
-                        // Tags
-                        if not (List.isEmpty tags) then
-                            Html.div [
-                                prop.className "card bg-base-200"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "card-body"
-                                        prop.children [
-                                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Tags" ]
-                                            Html.div [
-                                                prop.className "flex flex-wrap gap-2"
-                                                prop.children [
-                                                    for tag in tags do
-                                                        let isSelected = List.contains tag.Id session.Tags
-                                                        Html.button [
-                                                            prop.className (
-                                                                "btn btn-sm " +
-                                                                if isSelected then "btn-secondary" else "btn-ghost"
-                                                            )
-                                                            prop.onClick (fun _ -> dispatch (ToggleTag tag.Id))
-                                                            prop.text tag.Name
-                                                        ]
-                                                ]
-                                            ]
-                                        ]
-                                    ]
-                                ]
-                            ]
 
                         // Episodes by season (using TMDB data)
                         Html.div [

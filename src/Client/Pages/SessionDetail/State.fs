@@ -9,7 +9,6 @@ type SessionApi = {
     GetSession: SessionId -> Async<Result<WatchSessionWithProgress, string>>
     UpdateSession: UpdateSessionRequest -> Async<Result<WatchSession, string>>
     DeleteSession: SessionId -> Async<Result<unit, string>>
-    ToggleTag: SessionId * TagId -> Async<Result<WatchSession, string>>
     ToggleFriend: SessionId * FriendId -> Async<Result<WatchSession, string>>
     CreateFriend: CreateFriendRequest -> Async<Result<Friend, string>>
     ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
@@ -114,15 +113,6 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
             Cmd.OfAsync.either
                 api.UpdateSession
                 request
-                ActionResult
-                (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
-
-    | ToggleTag tagId ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.ToggleTag
-                (model.SessionId, tagId)
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
