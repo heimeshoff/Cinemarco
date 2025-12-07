@@ -59,116 +59,162 @@ let private watchStatusBadge (status: WatchStatus) =
             prop.text "Abandoned"
         ]
 
-let private collectionItemView (model: Model) (dispatch: Msg -> unit) (position: int) (item: CollectionItem, entry: LibraryEntry) =
-    let isDragging = model.DraggingItem = Some item.EntryId
-    let isDragOver = model.DragOverItem = Some item.EntryId
+/// Generate a unique key for a collection item
+let private itemKey (item: CollectionItem) =
+    match item.ItemRef with
+    | LibraryEntryRef (EntryId id) -> $"entry-{id}"
+    | SeasonRef (SeriesId sid, sn) -> $"season-{sid}-{sn}"
+    | EpisodeRef (SeriesId sid, sn, en) -> $"episode-{sid}-{sn}-{en}"
+
+let private collectionItemView (model: Model) (dispatch: Msg -> unit) (position: int) (item: CollectionItem, display: CollectionItemDisplay) =
+    let isDragging = model.DraggingItem = Some item.ItemRef
+    let showDropBefore = model.DropTarget = Some (Before item.ItemRef)
+    let showDropAfter = model.DropTarget = Some (After item.ItemRef)
+
+    // Extract title, poster, year, and click handler from display type
+    let title, posterPath, subtitle, icon, onClick =
+        match display with
+        | EntryDisplay entry ->
+            match entry.Media with
+            | LibraryMovie m ->
+                let year = m.ReleaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
+                (m.Title, m.PosterPath, year, "🎬", fun () -> dispatch (ViewMovieDetail entry.Id))
+            | LibrarySeries s ->
+                let year = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
+                (s.Name, s.PosterPath, year, "📺", fun () -> dispatch (ViewSeriesDetail entry.Id))
+        | SeasonDisplay (series, season) ->
+            let seasonName = season.Name |> Option.defaultValue $"Season {season.SeasonNumber}"
+            (seasonName, series.PosterPath, series.Name, "📀", fun () -> dispatch (ViewSeasonDetail (series.Id, season.SeasonNumber)))
+        | EpisodeDisplay (series, season, episode) ->
+            let epTitle = $"S{season.SeasonNumber}E{episode.EpisodeNumber}: {episode.Name}"
+            (epTitle, series.PosterPath, series.Name, "▶", fun () -> dispatch (ViewEpisodeDetail (series.Id, season.SeasonNumber, episode.EpisodeNumber)))
+
+    // Watch status badge only for library entries
+    let statusBadge =
+        match display with
+        | EntryDisplay entry -> watchStatusBadge entry.WatchStatus
+        | SeasonDisplay _ -> Html.span [ prop.className "badge badge-ghost badge-sm"; prop.text "Season" ]
+        | EpisodeDisplay _ -> Html.span [ prop.className "badge badge-ghost badge-sm"; prop.text "Episode" ]
+
+    let dropIndicatorBefore =
+        if showDropBefore then
+            Html.div [
+                prop.className "absolute -top-1 left-0 right-0 h-0.5 bg-white z-20"
+            ]
+        else Html.none
+
+    let dropIndicatorAfter =
+        if showDropAfter then
+            Html.div [
+                prop.className "absolute -bottom-1 left-0 right-0 h-0.5 bg-white z-20"
+            ]
+        else Html.none
 
     Html.div [
-        prop.key (EntryId.value item.EntryId |> string)
-        prop.className [
-            "flex items-center gap-4 p-3 bg-base-200 rounded-lg transition-all"
-            if isDragging then "opacity-50 scale-95"
-            elif isDragOver then "ring-2 ring-primary"
-            else "hover:bg-base-300"
-        ]
-        prop.draggable true
-        prop.onDragStart (fun e ->
-            e.dataTransfer.effectAllowed <- "move"
-            dispatch (StartDrag item.EntryId)
-        )
-        prop.onDragOver (fun e ->
-            e.preventDefault()
-            dispatch (DragOver item.EntryId)
-        )
-        prop.onDragLeave (fun _ -> dispatch DragEnd)
-        prop.onDrop (fun e ->
-            e.preventDefault()
-            dispatch (Drop item.EntryId)
-        )
-        prop.onDragEnd (fun _ -> dispatch DragEnd)
+        prop.key (itemKey item)
+        prop.className "relative py-1"
         prop.children [
-            // Drag handle
+            dropIndicatorBefore
+            dropIndicatorAfter
+
             Html.div [
-                prop.className "cursor-grab text-base-content/40 hover:text-base-content"
-                prop.children [
-                    Html.span [ prop.text "⋮⋮" ]
+                prop.className [
+                    "flex items-center gap-4 p-3 bg-base-200 rounded-lg"
+                    if isDragging then "opacity-50"
+                    else "hover:bg-base-300"
                 ]
-            ]
-
-            // Position number
-            Html.div [
-                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center text-sm font-bold"
-                prop.text (string (position + 1))
-            ]
-
-            // Extract title, poster, year from Media
-            let title, posterPath, yearText =
-                match entry.Media with
-                | LibraryMovie m ->
-                    let y = m.ReleaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                    (m.Title, m.PosterPath, y)
-                | LibrarySeries s ->
-                    let y = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                    (s.Name, s.PosterPath, y)
-
-            // Poster thumbnail
-            match posterPath with
-            | Some path ->
-                Html.img [
-                    prop.src $"/images/posters{path}"
-                    prop.className "w-12 h-16 object-cover rounded"
-                    prop.alt title
-                ]
-            | None ->
-                Html.div [
-                    prop.className "w-12 h-16 bg-base-300 rounded flex items-center justify-center text-xl"
-                    prop.text (match entry.Media with LibraryMovie _ -> "🎬" | LibrarySeries _ -> "📺")
-                ]
-
-            // Title and info
-            Html.div [
-                prop.className "flex-1 min-w-0 cursor-pointer"
-                prop.onClick (fun _ ->
-                    match entry.Media with
-                    | LibraryMovie _ -> dispatch (ViewMovieDetail entry.Id)
-                    | LibrarySeries _ -> dispatch (ViewSeriesDetail entry.Id)
+                prop.draggable true
+                prop.onDragStart (fun e ->
+                    e.dataTransfer.effectAllowed <- "move"
+                    dispatch (StartDrag item.ItemRef)
                 )
+                prop.onDragOver (fun e ->
+                    e.preventDefault()
+                    e.stopPropagation()
+                    // Determine if we're in the top or bottom half of the item
+                    let rect = (e.currentTarget :?> Browser.Types.HTMLElement).getBoundingClientRect()
+                    let midY = rect.top + rect.height / 2.0
+                    let dropPos =
+                        if e.clientY < midY then Before item.ItemRef
+                        else After item.ItemRef
+                    dispatch (DragOver dropPos)
+                )
+                prop.onDrop (fun e ->
+                    e.preventDefault()
+                    dispatch Drop
+                )
+                prop.onDragEnd (fun _ -> dispatch DragEnd)
                 prop.children [
-                    Html.p [
-                        prop.className "font-medium truncate"
-                        prop.text title
-                    ]
+                    // Drag handle
                     Html.div [
-                        prop.className "flex items-center gap-2 text-sm text-base-content/60"
+                        prop.className "cursor-grab text-base-content/40 hover:text-base-content"
                         prop.children [
-                            Html.span [
-                                prop.text yearText
-                            ]
-                            watchStatusBadge entry.WatchStatus
+                            Html.span [ prop.text "⋮⋮" ]
                         ]
                     ]
-                ]
-            ]
 
-            // Notes (if any)
-            match item.Notes with
-            | Some notes ->
-                Html.div [
-                    prop.className "hidden md:block text-sm text-base-content/50 max-w-xs truncate"
-                    prop.title notes
-                    prop.text notes
-                ]
-            | None -> Html.none
+                    // Position number
+                    Html.div [
+                        prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center text-sm font-bold"
+                        prop.text (string (position + 1))
+                    ]
 
-            // Remove button
-            Html.button [
-                prop.className "btn btn-ghost btn-sm btn-circle text-error"
-                prop.onClick (fun e ->
-                    e.stopPropagation()
-                    dispatch (RemoveItem item.EntryId)
-                )
-                prop.title "Remove from collection"
-                prop.text "✕"
+                    // Poster thumbnail
+                    match posterPath with
+                    | Some path ->
+                        Html.img [
+                            prop.src $"/images/posters{path}"
+                            prop.className "w-12 h-16 object-cover rounded"
+                            prop.alt title
+                        ]
+                    | None ->
+                        Html.div [
+                            prop.className "w-12 h-16 bg-base-300 rounded flex items-center justify-center text-xl"
+                            prop.text icon
+                        ]
+
+                    // Title and info
+                    Html.div [
+                        prop.className "flex-1 min-w-0 cursor-pointer"
+                        prop.onClick (fun _ -> onClick ())
+                        prop.children [
+                            Html.p [
+                                prop.className "font-medium truncate"
+                                prop.text title
+                            ]
+                            Html.div [
+                                prop.className "flex items-center gap-2 text-sm text-base-content/60"
+                                prop.children [
+                                    Html.span [
+                                        prop.text subtitle
+                                    ]
+                                    statusBadge
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Notes (if any)
+                    match item.Notes with
+                    | Some notes ->
+                        Html.div [
+                            prop.className "hidden md:block text-sm text-base-content/50 max-w-xs truncate"
+                            prop.title notes
+                            prop.text notes
+                        ]
+                    | None -> Html.none
+
+                    // Remove button
+                    Html.button [
+                        prop.className "btn btn-ghost btn-sm btn-circle text-error"
+                        prop.onClick (fun e ->
+                            e.stopPropagation()
+                            dispatch (RemoveItem item.ItemRef)
+                        )
+                        prop.title "Remove from collection"
+                        prop.text "✕"
+                    ]
+                ]
             ]
         ]
     ]
@@ -211,21 +257,27 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "space-y-6"
                     prop.children [
-                        // Header
+                        // Header with logo and name
                         Html.div [
                             prop.className "flex items-start gap-4"
                             prop.children [
-                                // Collection cover/icon
+                                // Collection logo
                                 match cwi.Collection.CoverImagePath with
                                 | Some path ->
                                     Html.img [
-                                        prop.src path
-                                        prop.className "w-24 h-32 object-cover rounded-lg"
+                                        prop.src $"/images/collections{path}"
+                                        prop.className "w-24 h-24 object-cover rounded-lg"
                                         prop.alt cwi.Collection.Name
                                     ]
                                 | None ->
                                     Html.div [
-                                        prop.className "w-24 h-32 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg"
+                                        prop.className "w-24 h-24 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center"
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "text-3xl opacity-50"
+                                                prop.text "📁"
+                                            ]
+                                        ]
                                     ]
 
                                 Html.div [
@@ -245,13 +297,61 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                     ]
                                             ]
                                         ]
-                                        match cwi.Collection.Description with
-                                        | Some desc ->
-                                            Html.p [
-                                                prop.className "text-base-content/70 mt-2"
-                                                prop.text desc
+                                        // Editable note below name
+                                        if model.EditingNote then
+                                            Html.div [
+                                                prop.className "mt-2"
+                                                prop.children [
+                                                    Html.textarea [
+                                                        prop.className "textarea textarea-bordered w-full text-sm resize-none"
+                                                        prop.placeholder "Add a note about this collection..."
+                                                        prop.value model.NoteText
+                                                        prop.onChange (fun (v: string) -> dispatch (NoteChanged v))
+                                                        prop.disabled model.SavingNote
+                                                        prop.style [
+                                                            style.custom ("fieldSizing", "content")
+                                                            style.minHeight (length.rem 3)
+                                                        ]
+                                                    ]
+                                                    Html.div [
+                                                        prop.className "flex gap-2 mt-2"
+                                                        prop.children [
+                                                            Html.button [
+                                                                prop.className "btn btn-sm btn-primary"
+                                                                prop.onClick (fun _ -> dispatch SaveNote)
+                                                                prop.disabled model.SavingNote
+                                                                prop.children [
+                                                                    if model.SavingNote then
+                                                                        Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                                    else
+                                                                        Html.span [ prop.text "Save" ]
+                                                                ]
+                                                            ]
+                                                            Html.button [
+                                                                prop.className "btn btn-sm btn-ghost"
+                                                                prop.onClick (fun _ -> dispatch CancelEditNote)
+                                                                prop.disabled model.SavingNote
+                                                                prop.text "Cancel"
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
                                             ]
-                                        | None -> Html.none
+                                        else
+                                            match cwi.Collection.Description with
+                                            | Some desc when not (System.String.IsNullOrWhiteSpace desc) ->
+                                                Html.div [
+                                                    prop.className "text-base-content/70 mt-2 text-sm cursor-pointer hover:text-base-content whitespace-pre-wrap"
+                                                    prop.title "Click to edit"
+                                                    prop.onClick (fun _ -> dispatch StartEditNote)
+                                                    prop.text desc
+                                                ]
+                                            | _ ->
+                                                Html.button [
+                                                    prop.className "btn btn-ghost btn-xs mt-2 text-base-content/50"
+                                                    prop.onClick (fun _ -> dispatch StartEditNote)
+                                                    prop.text "+ Add note"
+                                                ]
                                     ]
                                 ]
                             ]

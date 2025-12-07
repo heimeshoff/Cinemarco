@@ -118,6 +118,57 @@ let getCachedImage (imageType: string) (tmdbPath: string) : byte[] option =
     else
         None
 
+/// Save a collection logo from base64 data
+/// Returns the path to store in the database (e.g., "/collections/abc123.png")
+let saveCollectionLogo (collectionId: int) (base64Data: string) : Result<string, string> =
+    try
+        // Parse the base64 data (may include data URL prefix)
+        let cleanBase64, extension =
+            if base64Data.StartsWith("data:image/") then
+                let parts = base64Data.Split([|','|], 2)
+                if parts.Length = 2 then
+                    let mimeType = parts.[0].Replace("data:", "").Replace(";base64", "")
+                    let ext = match mimeType with
+                              | "image/png" -> ".png"
+                              | "image/jpeg" | "image/jpg" -> ".jpg"
+                              | "image/gif" -> ".gif"
+                              | "image/webp" -> ".webp"
+                              | _ -> ".png"
+                    parts.[1], ext
+                else
+                    base64Data, ".png"
+            else
+                base64Data, ".png"
+
+        let bytes = Convert.FromBase64String(cleanBase64)
+        let filename = $"{collectionId}{extension}"
+        let collectionsDir = getImageTypeDir "collections"
+        let localPath = Path.Combine(collectionsDir, filename)
+
+        // Delete any existing logo for this collection (different extension)
+        for ext in [".png"; ".jpg"; ".gif"; ".webp"] do
+            let existingPath = Path.Combine(collectionsDir, $"{collectionId}{ext}")
+            if File.Exists(existingPath) then
+                File.Delete(existingPath)
+
+        File.WriteAllBytes(localPath, bytes)
+        printfn $"Saved collection logo: {localPath}"
+        Ok $"/{filename}"
+    with ex ->
+        Error $"Failed to save logo: {ex.Message}"
+
+/// Delete a collection logo
+let deleteCollectionLogo (logoPath: string) =
+    try
+        if not (String.IsNullOrEmpty logoPath) then
+            let filename = if logoPath.StartsWith("/") then logoPath.Substring(1) else logoPath
+            let localPath = Path.Combine(getImageTypeDir "collections", filename)
+            if File.Exists(localPath) then
+                File.Delete(localPath)
+                printfn $"Deleted collection logo: {localPath}"
+    with ex ->
+        printfn $"Failed to delete logo: {ex.Message}"
+
 /// Get content type for an image based on extension
 let getContentType (filename: string) =
     match Path.GetExtension(filename).ToLowerInvariant() with

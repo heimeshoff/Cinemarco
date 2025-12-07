@@ -5,11 +5,13 @@ open Shared.Domain
 
 type Model = {
     Collections: RemoteData<Collection list>
+    SearchQuery: string
 }
 
 type Msg =
     | LoadCollections
     | CollectionsLoaded of Result<Collection list, string>
+    | SetSearchQuery of string
     | ViewCollectionDetail of CollectionId
     | OpenAddCollectionModal
     | OpenEditCollectionModal of Collection
@@ -23,4 +25,4 @@ type ExternalMsg =
     | RequestOpenDeleteModal of Collection
 
 module Model =
-    let empty = { Collections = NotAsked }
+    let empty = { Collections = NotAsked; SearchQuery = "" }

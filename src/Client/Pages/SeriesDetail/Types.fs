@@ -56,6 +56,8 @@ type Msg =
     | SaveNotes
     | OpenDeleteModal
     | OpenAddToCollectionModal
+    | AddSeasonToCollection of seasonNumber: int
+    | AddEpisodeToCollection of seasonNumber: int * episodeNumber: int
     | OpenNewSessionModal
     | DeleteSession of SessionId
     | SessionDeleteResult of Result<SessionId, string>
@@ -74,7 +76,7 @@ type ExternalMsg =
     | NavigateToContributor of TmdbPersonId
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
-    | RequestOpenAddToCollectionModal of EntryId * title: string
+    | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
     | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry

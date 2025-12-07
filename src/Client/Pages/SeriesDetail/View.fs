@@ -1,6 +1,7 @@
 module Pages.SeriesDetail.View
 
 open Feliz
+open Fable.React
 open Common.Types
 open Shared.Domain
 open Types
@@ -36,8 +37,14 @@ let private progressBar (current: int) (total: int) =
         ]
     ]
 
-/// Episode checkbox component with Ctrl+click support
-let private renderEpisodeCheckbox (seasonNum: int) (epNum: int) (isWatched: bool) (isHovered: bool) (onHover: int option -> unit) (dispatch: Msg -> unit) =
+/// Context menu position
+type ContextMenuPosition = { X: float; Y: float }
+
+/// Episode checkbox component with Ctrl+click support and context menu
+[<ReactComponent>]
+let private EpisodeCheckbox (seasonNum: int) (epNum: int) (epName: string) (isWatched: bool) (isHovered: bool) (onHover: int option -> unit) (dispatch: Msg -> unit) =
+    let (contextMenu, setContextMenu) = React.useState<ContextMenuPosition option> None
+
     let bgColor =
         if isWatched then
             if isHovered then "#243324" else "#1a2e1a"
@@ -50,26 +57,90 @@ let private renderEpisodeCheckbox (seasonNum: int) (epNum: int) (isWatched: bool
         elif isHovered then "#3d3d3d"
         else "#2a2a2a"
 
+    // Close context menu when clicking outside
+    React.useEffect (fun () ->
+        let closeMenu _ = setContextMenu None
+        Browser.Dom.document.addEventListener("click", closeMenu)
+        { new System.IDisposable with
+            member _.Dispose() =
+                Browser.Dom.document.removeEventListener("click", closeMenu)
+        }
+    , [| box contextMenu |])
+
     Html.div [
-        prop.className "cursor-pointer p-2 rounded border transition-all duration-150 select-none"
-        prop.style [
-            style.backgroundColor bgColor
-            style.borderColor borderColor
-        ]
-        prop.onMouseEnter (fun _ -> onHover (Some epNum))
-        prop.onMouseLeave (fun _ -> onHover None)
-        prop.onClick (fun e ->
-            e.preventDefault()
-            let newWatchedState = not isWatched
-            if e.ctrlKey then
-                dispatch (MarkEpisodesUpTo (seasonNum, epNum, newWatchedState))
-            else
-                dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
+        prop.className "relative"
         prop.children [
-            Html.span [
-                prop.className "text-xs font-medium"
-                prop.text $"E{epNum}"
+            Html.div [
+                prop.className "cursor-pointer p-2 rounded border transition-all duration-150 select-none"
+                prop.title $"E{epNum}: {epName}"
+                prop.style [
+                    style.backgroundColor bgColor
+                    style.borderColor borderColor
+                ]
+                prop.onMouseEnter (fun _ -> onHover (Some epNum))
+                prop.onMouseLeave (fun _ -> onHover None)
+                prop.onClick (fun e ->
+                    e.preventDefault()
+                    let newWatchedState = not isWatched
+                    if e.ctrlKey then
+                        dispatch (MarkEpisodesUpTo (seasonNum, epNum, newWatchedState))
+                    else
+                        dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
+                prop.onContextMenu (fun e ->
+                    e.preventDefault()
+                    setContextMenu (Some { X = e.clientX; Y = e.clientY }))
+                prop.children [
+                    Html.span [
+                        prop.className "text-xs font-medium"
+                        prop.text $"E{epNum}"
+                    ]
+                ]
             ]
+
+            // Context menu - rendered as portal to body
+            match contextMenu with
+            | Some pos ->
+                ReactDOM.createPortal(
+                    Html.div [
+                        prop.className "fixed z-[9999] glass border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] backdrop-blur-xl"
+                        prop.style [
+                            style.left (length.px pos.X)
+                            style.top (length.px pos.Y)
+                        ]
+                        prop.onClick (fun e -> e.stopPropagation())
+                        prop.children [
+                            Html.div [
+                                prop.className "px-3 py-1.5 text-xs text-base-content/50 border-b border-white/10"
+                                prop.text $"S{seasonNum}E{epNum}"
+                            ]
+                            Html.button [
+                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                prop.onClick (fun e ->
+                                    e.stopPropagation()
+                                    setContextMenu None
+                                    dispatch (AddEpisodeToCollection (seasonNum, epNum)))
+                                prop.children [
+                                    Html.span [ prop.text "+" ]
+                                    Html.span [ prop.text "Add to Collection" ]
+                                ]
+                            ]
+                            Html.button [
+                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                prop.onClick (fun e ->
+                                    e.stopPropagation()
+                                    setContextMenu None
+                                    let newWatchedState = not isWatched
+                                    dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
+                                prop.children [
+                                    Html.span [ prop.text (if isWatched then "✗" else "✓") ]
+                                    Html.span [ prop.text (if isWatched then "Mark Unwatched" else "Mark Watched") ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    Browser.Dom.document.body
+                )
+            | None -> Html.none
         ]
     ]
 
@@ -110,7 +181,7 @@ let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary li
                     hoveredEp.IsSome &&
                     ep.EpisodeNumber <= hoveredEp.Value
                 let showHover = (hoveredEp = Some ep.EpisodeNumber) || isInCtrlRange
-                renderEpisodeCheckbox seasonNum ep.EpisodeNumber isWatched showHover setHoveredEp dispatch
+                EpisodeCheckbox seasonNum ep.EpisodeNumber ep.Name isWatched showHover setHoveredEp dispatch
         ]
     ]
 
@@ -547,6 +618,15 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                                 prop.className "btn btn-xs btn-ghost"
                                                                 prop.onClick (fun _ -> dispatch (MarkSeasonWatched seasonNum))
                                                                 prop.text "Mark All"
+                                                            ]
+                                                            Html.button [
+                                                                prop.className "btn btn-xs btn-ghost"
+                                                                prop.title "Add season to collection"
+                                                                prop.onClick (fun _ -> dispatch (AddSeasonToCollection seasonNum))
+                                                                prop.children [
+                                                                    Html.span [ prop.text "+" ]
+                                                                    Html.span [ prop.className "hidden sm:inline ml-1"; prop.text "Collection" ]
+                                                                ]
                                                             ]
                                                         ]
                                                     ]

@@ -169,7 +169,7 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 match entry.Media with
                 | LibraryMovie m -> m.Title
                 | LibrarySeries s -> s.Name
-            model, Cmd.none, RequestOpenAddToCollectionModal (model.EntryId, title)
+            model, Cmd.none, RequestOpenAddToCollectionModal (LibraryEntryRef model.EntryId, title)
         | _ -> model, Cmd.none, NoOp
 
     | ToggleFriendSelector ->

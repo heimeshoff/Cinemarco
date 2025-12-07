@@ -288,7 +288,36 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 match entry.Media with
                 | LibraryMovie m -> m.Title
                 | LibrarySeries s -> s.Name
-            model, Cmd.none, RequestOpenAddToCollectionModal (model.EntryId, title)
+            model, Cmd.none, RequestOpenAddToCollectionModal (LibraryEntryRef model.EntryId, title)
+        | _ -> model, Cmd.none, NoOp
+
+    | AddSeasonToCollection seasonNumber ->
+        match model.Entry with
+        | Success entry ->
+            match entry.Media with
+            | LibrarySeries series ->
+                let title = $"{series.Name} - Season {seasonNumber}"
+                model, Cmd.none, RequestOpenAddToCollectionModal (SeasonRef (series.Id, seasonNumber), title)
+            | _ -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | AddEpisodeToCollection (seasonNumber, episodeNumber) ->
+        match model.Entry with
+        | Success entry ->
+            match entry.Media with
+            | LibrarySeries series ->
+                // Try to get episode name from season details
+                let episodeName =
+                    model.SeasonDetails
+                    |> Map.tryFind seasonNumber
+                    |> Option.bind (fun sd ->
+                        sd.Episodes
+                        |> List.tryFind (fun ep -> ep.EpisodeNumber = episodeNumber)
+                        |> Option.map (fun ep -> ep.Name))
+                    |> Option.defaultValue $"Episode {episodeNumber}"
+                let title = $"{series.Name} - S{seasonNumber}E{episodeNumber}: {episodeName}"
+                model, Cmd.none, RequestOpenAddToCollectionModal (EpisodeRef (series.Id, seasonNumber, episodeNumber), title)
+            | _ -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | ToggleFriendSelector ->

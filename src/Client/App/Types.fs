@@ -75,7 +75,7 @@ type Msg =
     | WatchSessionModalMsg of Components.WatchSessionModal.Types.Msg
     | OpenCollectionModal of Collection option
     | CollectionModalMsg of Components.CollectionModal.Types.Msg
-    | OpenAddToCollectionModal of EntryId * title: string
+    | OpenAddToCollectionModal of CollectionItemRef * title: string
     | AddToCollectionModalMsg of Components.AddToCollectionModal.Types.Msg
 
     // Notification

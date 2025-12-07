@@ -315,8 +315,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
-    | OpenAddToCollectionModal (entryId, title) ->
-        let modalModel, modalCmd = Components.AddToCollectionModal.State.init entryId title
+    | OpenAddToCollectionModal (itemRef, title) ->
+        let modalModel, modalCmd = Components.AddToCollectionModal.State.init itemRef title
         { model with Modal = AddToCollectionModal modalModel }, Cmd.map AddToCollectionModalMsg modalCmd
 
     | AddToCollectionModalMsg addToCollectionMsg ->
@@ -324,7 +324,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | AddToCollectionModal modalModel ->
             let api : Components.AddToCollectionModal.State.Api = {
                 GetCollections = fun () -> Api.api.collectionsGetAll ()
-                AddToCollection = fun (collectionId, entryId, notes) -> Api.api.collectionsAddItem (collectionId, entryId, notes)
+                AddToCollection = fun (collectionId, itemRef, notes) -> Api.api.collectionsAddItem (collectionId, itemRef, notes)
             }
             let newModal, modalCmd, extMsg = Components.AddToCollectionModal.State.update api addToCollectionMsg modalModel
             let model' = { model with Modal = AddToCollectionModal newModal }
@@ -466,8 +466,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let collectionApi : Pages.CollectionDetail.State.CollectionApi = {
                 GetCollection = fun collectionId -> Api.api.collectionsGetById collectionId
                 GetProgress = fun collectionId -> Api.api.collectionsGetProgress collectionId
-                RemoveItem = fun (collectionId, entryId) -> Api.api.collectionsRemoveItem (collectionId, entryId)
-                ReorderItems = fun (collectionId, entryIds) -> Api.api.collectionsReorderItems (collectionId, entryIds)
+                RemoveItem = fun (collectionId, itemRef) -> Api.api.collectionsRemoveItem (collectionId, itemRef)
+                ReorderItems = fun (collectionId, itemRefs) -> Api.api.collectionsReorderItems (collectionId, itemRefs)
+                UpdateCollection = fun request -> Api.api.collectionsUpdate request
             }
             let newPage, pageCmd, extMsg = Pages.CollectionDetail.State.update collectionApi collectionDetailMsg pageModel
             let model' = { model with CollectionDetailPage = Some newPage }
@@ -477,6 +478,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.CollectionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo CollectionsPage)]
             | Pages.CollectionDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
             | Pages.CollectionDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.CollectionDetail.Types.NavigateToSeriesBySeriesId seriesId ->
+                // Find the library entry for this series
+                let entryOpt =
+                    model.LibraryPage
+                    |> Option.bind (fun lp ->
+                        match lp.Entries with
+                        | Success entries ->
+                            entries |> List.tryFind (fun e ->
+                                match e.Media with
+                                | LibrarySeries s -> s.Id = seriesId
+                                | _ -> false)
+                        | _ -> None)
+                match entryOpt with
+                | Some entry -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entry.Id))]
+                | None -> model', cmd
             | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
@@ -677,8 +693,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         { model with CollectionsPage = None },
         Cmd.ofMsg (NavigateTo CollectionsPage)
 
-    | AddedToCollection _ ->
-        model, Cmd.none
+    | AddedToCollection collection ->
+        // Refresh the collection detail page if we're viewing it
+        let model', cmd =
+            match model.CollectionDetailPage with
+            | Some pageModel when pageModel.CollectionId = collection.Id ->
+                // Reload the collection to show the new item
+                let reloadCmd = Cmd.map CollectionDetailMsg (Cmd.ofMsg Pages.CollectionDetail.Types.LoadCollection)
+                model, reloadCmd
+            | _ ->
+                // Also invalidate the collections list page so it refreshes when visited
+                { model with CollectionsPage = None }, Cmd.none
+        model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ($"Added to {collection.Name}", true))]
 
     // Page messages - ContributorDetail
     | ContributorDetailMsg contributorMsg ->

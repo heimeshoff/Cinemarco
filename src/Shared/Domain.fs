@@ -327,10 +327,16 @@ type Collection = {
     UpdatedAt: DateTime
 }
 
+/// Reference to an item that can be added to a collection
+type CollectionItemRef =
+    | LibraryEntryRef of EntryId
+    | SeasonRef of seriesId: SeriesId * seasonNumber: int
+    | EpisodeRef of seriesId: SeriesId * seasonNumber: int * episodeNumber: int
+
 /// An item in a collection (ordered)
 type CollectionItem = {
     CollectionId: CollectionId
-    EntryId: EntryId
+    ItemRef: CollectionItemRef
     Position: int
     Notes: string option
 }
@@ -640,6 +646,8 @@ type UpdateFriendRequest = {
 type CreateCollectionRequest = {
     Name: string
     Description: string option
+    /// Base64 encoded logo image (PNG/JPG)
+    LogoBase64: string option
 }
 
 /// Request to update a collection
@@ -647,6 +655,8 @@ type UpdateCollectionRequest = {
     Id: CollectionId
     Name: string option
     Description: string option
+    /// Base64 encoded logo image (PNG/JPG), None = keep existing, Some "" = remove
+    LogoBase64: string option
 }
 
 /// Request to create a watch session (requires at least one friend)
@@ -814,10 +824,16 @@ type FriendStats = {
     LastWatchedTogether: DateTime option
 }
 
-/// Collection with its items
+/// Display data for a collection item (resolved from CollectionItemRef)
+type CollectionItemDisplay =
+    | EntryDisplay of LibraryEntry
+    | SeasonDisplay of series: Series * season: TmdbSeasonSummary
+    | EpisodeDisplay of series: Series * season: TmdbSeasonSummary * episode: TmdbEpisodeSummary
+
+/// Collection with its items and resolved display data
 type CollectionWithItems = {
     Collection: Collection
-    Items: (CollectionItem * LibraryEntry) list
+    Items: (CollectionItem * CollectionItemDisplay) list
 }
 
 /// Progress information for a collection

@@ -471,14 +471,25 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to delete collection: {ex.Message}"
     }
 
-    collectionsAddItem = fun (collectionId, entryId, notes) -> async {
+    collectionsAddItem = fun (collectionId, itemRef, notes) -> async {
         try
-            // Verify entry exists
-            let! entry = Persistence.getLibraryEntryById entryId
-            match entry with
-            | None -> return Error "Entry not found"
-            | Some _ ->
-                do! Persistence.addItemToCollection collectionId entryId notes
+            // Verify the referenced item exists
+            let! isValid = async {
+                match itemRef with
+                | LibraryEntryRef entryId ->
+                    let! entry = Persistence.getLibraryEntryById entryId
+                    return entry.IsSome
+                | SeasonRef (seriesId, _) ->
+                    let! series = Persistence.getSeriesById seriesId
+                    return series.IsSome
+                | EpisodeRef (seriesId, _, _) ->
+                    let! series = Persistence.getSeriesById seriesId
+                    return series.IsSome
+            }
+            if not isValid then
+                return Error "Referenced item not found"
+            else
+                do! Persistence.addItemToCollection collectionId itemRef notes
                 let! result = Persistence.getCollectionWithItems collectionId
                 match result with
                 | Some cwi -> return Ok cwi
@@ -487,9 +498,9 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to add item to collection: {ex.Message}"
     }
 
-    collectionsRemoveItem = fun (collectionId, entryId) -> async {
+    collectionsRemoveItem = fun (collectionId, itemRef) -> async {
         try
-            do! Persistence.removeItemFromCollection collectionId entryId
+            do! Persistence.removeItemFromCollection collectionId itemRef
             let! result = Persistence.getCollectionWithItems collectionId
             match result with
             | Some cwi -> return Ok cwi
@@ -498,9 +509,9 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to remove item from collection: {ex.Message}"
     }
 
-    collectionsReorderItems = fun (collectionId, entryIds) -> async {
+    collectionsReorderItems = fun (collectionId, itemRefs) -> async {
         try
-            do! Persistence.reorderCollectionItems collectionId entryIds
+            do! Persistence.reorderCollectionItems collectionId itemRefs
             let! result = Persistence.getCollectionWithItems collectionId
             match result with
             | Some cwi -> return Ok cwi
@@ -517,6 +528,8 @@ let cinemarcoApi : ICinemarcoApi = {
     }
 
     collectionsGetForEntry = fun entryId -> Persistence.getCollectionsForEntry entryId
+
+    collectionsGetForItem = fun itemRef -> Persistence.getCollectionsForItem itemRef
 
     // =====================================
     // TMDB Operations
@@ -618,6 +631,7 @@ let private imageRoutes : HttpHandler =
         GET >=> routef "/images/posters/%s" (serveImage "posters")
         GET >=> routef "/images/backdrops/%s" (serveImage "backdrops")
         GET >=> routef "/images/profiles/%s" (serveImage "profiles")
+        GET >=> routef "/images/collections/%s" (serveImage "collections")
     ]
 
 // =====================================

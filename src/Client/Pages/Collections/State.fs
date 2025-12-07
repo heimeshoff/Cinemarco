@@ -27,6 +27,9 @@ let update (api: CollectionsApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
     | CollectionsLoaded (Error _) ->
         { model with Collections = Success [] }, Cmd.none, NoOp
 
+    | SetSearchQuery query ->
+        { model with SearchQuery = query }, Cmd.none, NoOp
+
     | ViewCollectionDetail collectionId ->
         model, Cmd.none, NavigateToCollectionDetail collectionId
 

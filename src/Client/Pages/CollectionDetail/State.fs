@@ -8,8 +8,9 @@ open Types
 type CollectionApi = {
     GetCollection: CollectionId -> Async<Result<CollectionWithItems, string>>
     GetProgress: CollectionId -> Async<Result<CollectionProgress, string>>
-    RemoveItem: CollectionId * EntryId -> Async<Result<CollectionWithItems, string>>
-    ReorderItems: CollectionId * EntryId list -> Async<Result<CollectionWithItems, string>>
+    RemoveItem: CollectionId * CollectionItemRef -> Async<Result<CollectionWithItems, string>>
+    ReorderItems: CollectionId * CollectionItemRef list -> Async<Result<CollectionWithItems, string>>
+    UpdateCollection: UpdateCollectionRequest -> Async<Result<Collection, string>>
 }
 
 let init (collectionId: CollectionId) : Model * Cmd<Msg> =
@@ -56,11 +57,17 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
     | ViewSeriesDetail entryId ->
         model, Cmd.none, NavigateToSeriesDetail entryId
 
-    | RemoveItem entryId ->
+    | ViewSeasonDetail (seriesId, _) ->
+        model, Cmd.none, NavigateToSeriesBySeriesId seriesId
+
+    | ViewEpisodeDetail (seriesId, _, _) ->
+        model, Cmd.none, NavigateToSeriesBySeriesId seriesId
+
+    | RemoveItem itemRef ->
         let cmd =
             Cmd.OfAsync.either
                 api.RemoveItem
-                (model.CollectionId, entryId)
+                (model.CollectionId, itemRef)
                 ItemRemoved
                 (fun ex -> Error ex.Message |> ItemRemoved)
         model, cmd, NoOp
@@ -74,47 +81,107 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
         model, Cmd.none, ShowNotification (err, false)
 
     // Drag and drop handling
-    | StartDrag entryId ->
-        { model with DraggingItem = Some entryId }, Cmd.none, NoOp
+    | StartDrag itemRef ->
+        { model with DraggingItem = Some itemRef }, Cmd.none, NoOp
 
-    | DragOver entryId ->
-        { model with DragOverItem = Some entryId }, Cmd.none, NoOp
+    | DragOver dropPosition ->
+        { model with DropTarget = Some dropPosition }, Cmd.none, NoOp
 
     | DragEnd ->
-        { model with DraggingItem = None; DragOverItem = None }, Cmd.none, NoOp
+        { model with DraggingItem = None; DropTarget = None }, Cmd.none, NoOp
 
-    | Drop targetEntryId ->
-        match model.DraggingItem, model.Collection with
-        | Some draggedId, Success cwi when draggedId <> targetEntryId ->
-            // Calculate new order
-            let currentOrder = cwi.Items |> List.map (fun (item, _) -> item.EntryId)
-            let draggedIndex = currentOrder |> List.findIndex ((=) draggedId)
-            let targetIndex = currentOrder |> List.findIndex ((=) targetEntryId)
+    | Drop ->
+        match model.DraggingItem, model.DropTarget, model.Collection with
+        | Some draggedRef, Some dropPosition, Success cwi ->
+            // Get target ref and whether we're inserting before or after
+            let targetRef, insertBefore =
+                match dropPosition with
+                | Before ref -> ref, true
+                | After ref -> ref, false
 
-            // Remove dragged item and insert at target position
-            let withoutDragged = currentOrder |> List.filter ((<>) draggedId)
-            let newOrder =
-                withoutDragged
-                |> List.mapi (fun i id ->
-                    if i = targetIndex then [draggedId; id]
-                    elif i = targetIndex - 1 && targetIndex > draggedIndex then [id; draggedId]
-                    else [id])
-                |> List.concat
-                |> List.distinct
+            // Don't reorder if dropping on self
+            if draggedRef = targetRef then
+                { model with DraggingItem = None; DropTarget = None }, Cmd.none, NoOp
+            else
+                // Build new item order by removing dragged and inserting at correct position
+                let reorderedItems =
+                    cwi.Items
+                    |> List.collect (fun (item, display) ->
+                        if item.ItemRef = draggedRef then
+                            [] // Remove from current position
+                        elif item.ItemRef = targetRef then
+                            let draggedItem = cwi.Items |> List.find (fun (i, _) -> i.ItemRef = draggedRef)
+                            if insertBefore then [draggedItem; (item, display)]
+                            else [(item, display); draggedItem]
+                        else
+                            [(item, display)])
 
-            let cmd =
-                Cmd.OfAsync.either
-                    api.ReorderItems
-                    (model.CollectionId, newOrder)
-                    ReorderCompleted
-                    (fun ex -> Error ex.Message |> ReorderCompleted)
+                // Get new order of refs for API call
+                let newOrder = reorderedItems |> List.map (fun (item, _) -> item.ItemRef)
 
-            { model with DraggingItem = None; DragOverItem = None }, cmd, NoOp
+                // Optimistic update: immediately show reordered items
+                let updatedCwi = { cwi with Items = reorderedItems }
+
+                let cmd =
+                    Cmd.OfAsync.either
+                        api.ReorderItems
+                        (model.CollectionId, newOrder)
+                        ReorderCompleted
+                        (fun ex -> Error ex.Message |> ReorderCompleted)
+
+                { model with
+                    DraggingItem = None
+                    DropTarget = None
+                    Collection = Success updatedCwi }, cmd, NoOp
         | _ ->
-            { model with DraggingItem = None; DragOverItem = None }, Cmd.none, NoOp
+            { model with DraggingItem = None; DropTarget = None }, Cmd.none, NoOp
 
     | ReorderCompleted (Ok cwi) ->
         { model with Collection = Success cwi }, Cmd.none, NoOp
 
     | ReorderCompleted (Error err) ->
         model, Cmd.ofMsg LoadCollection, ShowNotification (err, false)
+
+    // Inline note editing
+    | StartEditNote ->
+        let currentNote =
+            match model.Collection with
+            | Success cwi -> cwi.Collection.Description |> Option.defaultValue ""
+            | _ -> ""
+        { model with EditingNote = true; NoteText = currentNote }, Cmd.none, NoOp
+
+    | NoteChanged text ->
+        { model with NoteText = text }, Cmd.none, NoOp
+
+    | CancelEditNote ->
+        { model with EditingNote = false; NoteText = "" }, Cmd.none, NoOp
+
+    | SaveNote ->
+        let request : UpdateCollectionRequest = {
+            Id = model.CollectionId
+            Name = None
+            Description = Some (if System.String.IsNullOrWhiteSpace model.NoteText then "" else model.NoteText.Trim())
+            LogoBase64 = None
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.UpdateCollection
+                request
+                NoteSaved
+                (fun ex -> Error ex.Message |> NoteSaved)
+        { model with SavingNote = true }, cmd, NoOp
+
+    | NoteSaved (Ok collection) ->
+        // Update the collection in the model with new description
+        let updatedCollection =
+            match model.Collection with
+            | Success cwi -> Success { cwi with Collection = collection }
+            | other -> other
+        { model with
+            Collection = updatedCollection
+            EditingNote = false
+            NoteText = ""
+            SavingNote = false }, Cmd.none, NoOp
+
+    | NoteSaved (Error err) ->
+        { model with SavingNote = false }, Cmd.none, ShowNotification (err, false)

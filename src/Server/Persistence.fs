@@ -149,7 +149,11 @@ type CollectionRecord = {
 type CollectionItemRecord = {
     id: int
     collection_id: int
-    entry_id: int
+    item_type: string
+    entry_id: Nullable<int>
+    series_id: Nullable<int>
+    season_number: Nullable<int>
+    episode_number: Nullable<int>
     position: int
     notes: string
 }
@@ -660,11 +664,27 @@ let insertCollection (request: CreateCollectionRequest) : Async<Collection> = as
             CreatedAt = now
             UpdatedAt = now
         |}) |> Async.AwaitTask
+
+    // Save logo if provided
+    let! coverImagePath = async {
+        match request.LogoBase64 with
+        | Some base64 when not (String.IsNullOrWhiteSpace base64) ->
+            match ImageCache.saveCollectionLogo (int id) base64 with
+            | Ok path ->
+                // Update the collection with the logo path
+                do! conn.ExecuteAsync(
+                    "UPDATE collections SET cover_image_path = @Path WHERE id = @Id",
+                    {| Id = int id; Path = path |}) |> Async.AwaitTask |> Async.Ignore
+                return Some path
+            | Error _ -> return None
+        | _ -> return None
+    }
+
     return {
         Id = CollectionId (int id)
         Name = request.Name
         Description = request.Description
-        CoverImagePath = None
+        CoverImagePath = coverImagePath
         IsPublicFranchise = false
         TmdbCollectionId = None
         CreatedAt = DateTime.UtcNow
@@ -690,16 +710,34 @@ let updateCollection (request: UpdateCollectionRequest) : Async<unit> = async {
         let now = DateTime.UtcNow.ToString("o")
         let name = Option.defaultValue collection.Name request.Name
         let description = Option.toObj (Option.orElse collection.Description request.Description)
+
+        // Handle logo: None = keep existing, Some "" = remove, Some data = update
+        let coverImagePath =
+            match request.LogoBase64 with
+            | None -> collection.CoverImagePath |> Option.toObj  // Keep existing
+            | Some "" ->
+                // Remove existing logo
+                collection.CoverImagePath |> Option.iter ImageCache.deleteCollectionLogo
+                null
+            | Some base64 ->
+                // Update logo
+                collection.CoverImagePath |> Option.iter ImageCache.deleteCollectionLogo
+                match ImageCache.saveCollectionLogo (CollectionId.value request.Id) base64 with
+                | Ok path -> path
+                | Error _ -> collection.CoverImagePath |> Option.toObj
+
         let param = {|
             Id = CollectionId.value request.Id
             Name = name
             Description = description
+            CoverImagePath = coverImagePath
             UpdatedAt = now
         |}
         do! conn.ExecuteAsync("""
             UPDATE collections SET
                 name = @Name,
                 description = @Description,
+                cover_image_path = @CoverImagePath,
                 updated_at = @UpdatedAt
             WHERE id = @Id
         """, param) |> Async.AwaitTask |> Async.Ignore
@@ -709,12 +747,24 @@ let updateCollection (request: UpdateCollectionRequest) : Async<unit> = async {
 // Collection Items CRUD
 // =====================================
 
-let private recordToCollectionItem (r: CollectionItemRecord) : CollectionItem = {
-    CollectionId = CollectionId r.collection_id
-    EntryId = EntryId r.entry_id
-    Position = r.position
-    Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
-}
+let private recordToCollectionItem (r: CollectionItemRecord) : CollectionItem =
+    let itemRef =
+        match r.item_type with
+        | "season" when r.series_id.HasValue && r.season_number.HasValue ->
+            SeasonRef (SeriesId r.series_id.Value, r.season_number.Value)
+        | "episode" when r.series_id.HasValue && r.season_number.HasValue && r.episode_number.HasValue ->
+            EpisodeRef (SeriesId r.series_id.Value, r.season_number.Value, r.episode_number.Value)
+        | _ when r.entry_id.HasValue ->
+            LibraryEntryRef (EntryId r.entry_id.Value)
+        | _ ->
+            // Fallback - shouldn't happen with valid data
+            LibraryEntryRef (EntryId 0)
+    {
+        CollectionId = CollectionId r.collection_id
+        ItemRef = itemRef
+        Position = r.position
+        Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
+    }
 
 let getCollectionItems (CollectionId collectionId) : Async<CollectionItem list> = async {
     use conn = getConnection()
@@ -726,29 +776,77 @@ let getCollectionItems (CollectionId collectionId) : Async<CollectionItem list> 
     return records |> Seq.map recordToCollectionItem |> Seq.toList
 }
 
-let addItemToCollection (CollectionId collectionId) (EntryId entryId) (notes: string option) : Async<unit> = async {
+let addItemToCollection (CollectionId collectionId) (itemRef: CollectionItemRef) (notes: string option) : Async<unit> = async {
     use conn = getConnection()
     // Get the max position for this collection
     let! maxPos = conn.ExecuteScalarAsync<Nullable<int>>("SELECT MAX(position) FROM collection_items WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
     let nextPos = if maxPos.HasValue then maxPos.Value + 1 else 0
-    let! _ = conn.ExecuteAsync("INSERT OR IGNORE INTO collection_items (collection_id, entry_id, position, notes) VALUES (@CollectionId, @EntryId, @Position, @Notes)", {| CollectionId = collectionId; EntryId = entryId; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
-    ()
-}
 
-let removeItemFromCollection (CollectionId collectionId) (EntryId entryId) : Async<unit> = async {
-    use conn = getConnection()
-    let! _ = conn.ExecuteAsync("DELETE FROM collection_items WHERE collection_id = @CollectionId AND entry_id = @EntryId", {| CollectionId = collectionId; EntryId = entryId |}) |> Async.AwaitTask
-    // Reorder remaining items to fill gaps
-    let! _ = conn.ExecuteAsync("UPDATE collection_items SET position = (SELECT COUNT(*) - 1 FROM collection_items AS ci2 WHERE ci2.collection_id = collection_items.collection_id AND ci2.position <= collection_items.position) WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
-    ()
-}
-
-let reorderCollectionItems (CollectionId collectionId) (entryIds: EntryId list) : Async<unit> = async {
-    use conn = getConnection()
-    // Update positions based on the order of entry IDs provided
-    for (position, EntryId entryId) in List.indexed entryIds do
-        let! _ = conn.ExecuteAsync("UPDATE collection_items SET position = @Position WHERE collection_id = @CollectionId AND entry_id = @EntryId", {| CollectionId = collectionId; EntryId = entryId; Position = position |}) |> Async.AwaitTask
+    match itemRef with
+    | LibraryEntryRef (EntryId entryId) ->
+        let! _ = conn.ExecuteAsync(
+            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, entry_id, position, notes) VALUES (@CollectionId, 'entry', @EntryId, @Position, @Notes)",
+            {| CollectionId = collectionId; EntryId = entryId; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
         ()
+    | SeasonRef (SeriesId seriesId, seasonNumber) ->
+        let! _ = conn.ExecuteAsync(
+            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, series_id, season_number, position, notes) VALUES (@CollectionId, 'season', @SeriesId, @SeasonNumber, @Position, @Notes)",
+            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+        ()
+    | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+        let! _ = conn.ExecuteAsync(
+            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, series_id, season_number, episode_number, position, notes) VALUES (@CollectionId, 'episode', @SeriesId, @SeasonNumber, @EpisodeNumber, @Position, @Notes)",
+            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+        ()
+}
+
+let removeItemFromCollection (CollectionId collectionId) (itemRef: CollectionItemRef) : Async<unit> = async {
+    use conn = getConnection()
+
+    match itemRef with
+    | LibraryEntryRef (EntryId entryId) ->
+        let! _ = conn.ExecuteAsync(
+            "DELETE FROM collection_items WHERE collection_id = @CollectionId AND item_type = 'entry' AND entry_id = @EntryId",
+            {| CollectionId = collectionId; EntryId = entryId |}) |> Async.AwaitTask
+        ()
+    | SeasonRef (SeriesId seriesId, seasonNumber) ->
+        let! _ = conn.ExecuteAsync(
+            "DELETE FROM collection_items WHERE collection_id = @CollectionId AND item_type = 'season' AND series_id = @SeriesId AND season_number = @SeasonNumber",
+            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber |}) |> Async.AwaitTask
+        ()
+    | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+        let! _ = conn.ExecuteAsync(
+            "DELETE FROM collection_items WHERE collection_id = @CollectionId AND item_type = 'episode' AND series_id = @SeriesId AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber",
+            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber |}) |> Async.AwaitTask
+        ()
+
+    // Reorder remaining items to fill gaps
+    let! _ = conn.ExecuteAsync(
+        "UPDATE collection_items SET position = (SELECT COUNT(*) - 1 FROM collection_items AS ci2 WHERE ci2.collection_id = collection_items.collection_id AND ci2.position <= collection_items.position) WHERE collection_id = @CollectionId",
+        {| CollectionId = collectionId |}) |> Async.AwaitTask
+    ()
+}
+
+let reorderCollectionItems (CollectionId collectionId) (itemRefs: CollectionItemRef list) : Async<unit> = async {
+    use conn = getConnection()
+    // Update positions based on the order of item refs provided
+    for (position, itemRef) in List.indexed itemRefs do
+        match itemRef with
+        | LibraryEntryRef (EntryId entryId) ->
+            let! _ = conn.ExecuteAsync(
+                "UPDATE collection_items SET position = @Position WHERE collection_id = @CollectionId AND item_type = 'entry' AND entry_id = @EntryId",
+                {| CollectionId = collectionId; EntryId = entryId; Position = position |}) |> Async.AwaitTask
+            ()
+        | SeasonRef (SeriesId seriesId, seasonNumber) ->
+            let! _ = conn.ExecuteAsync(
+                "UPDATE collection_items SET position = @Position WHERE collection_id = @CollectionId AND item_type = 'season' AND series_id = @SeriesId AND season_number = @SeasonNumber",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; Position = position |}) |> Async.AwaitTask
+            ()
+        | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+            let! _ = conn.ExecuteAsync(
+                "UPDATE collection_items SET position = @Position WHERE collection_id = @CollectionId AND item_type = 'episode' AND series_id = @SeriesId AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; Position = position |}) |> Async.AwaitTask
+            ()
 }
 
 // =====================================
@@ -2097,21 +2195,70 @@ let getDatabaseStats () : Async<Map<string, int>> = async {
 // Collection With Items & Progress
 // =====================================
 
-/// Get a collection with all its items and their library entries
+/// Resolve a collection item to its display data
+let private resolveCollectionItemDisplay (item: CollectionItem) : Async<CollectionItemDisplay option> = async {
+    match item.ItemRef with
+    | LibraryEntryRef entryId ->
+        let! entry = getLibraryEntryById entryId
+        return entry |> Option.map EntryDisplay
+
+    | SeasonRef (seriesId, seasonNumber) ->
+        let! series = getSeriesById seriesId
+        match series with
+        | None -> return None
+        | Some s ->
+            // Create a TmdbSeasonSummary from the season number
+            // Note: We don't have full season details stored, so we create a minimal summary
+            let seasonSummary: TmdbSeasonSummary = {
+                SeasonNumber = seasonNumber
+                Name = Some $"Season {seasonNumber}"
+                Overview = None
+                PosterPath = s.PosterPath  // Use series poster as fallback
+                AirDate = None
+                EpisodeCount = 0  // Unknown without fetching from TMDB
+            }
+            return Some (SeasonDisplay (s, seasonSummary))
+
+    | EpisodeRef (seriesId, seasonNumber, episodeNumber) ->
+        let! series = getSeriesById seriesId
+        match series with
+        | None -> return None
+        | Some s ->
+            // Create minimal summaries for season and episode
+            let seasonSummary: TmdbSeasonSummary = {
+                SeasonNumber = seasonNumber
+                Name = Some $"Season {seasonNumber}"
+                Overview = None
+                PosterPath = s.PosterPath
+                AirDate = None
+                EpisodeCount = 0
+            }
+            let episodeSummary: TmdbEpisodeSummary = {
+                EpisodeNumber = episodeNumber
+                Name = $"Episode {episodeNumber}"
+                Overview = None
+                AirDate = None
+                RuntimeMinutes = s.EpisodeRunTimeMinutes
+                StillPath = None
+            }
+            return Some (EpisodeDisplay (s, seasonSummary, episodeSummary))
+}
+
+/// Get a collection with all its items and their display data
 let getCollectionWithItems (collectionId: CollectionId) : Async<CollectionWithItems option> = async {
     let! collection = getCollectionById collectionId
     match collection with
     | None -> return None
     | Some c ->
         let! items = getCollectionItems collectionId
-        let! itemsWithEntries =
+        let! itemsWithDisplays =
             items
             |> List.map (fun item -> async {
-                let! entry = getLibraryEntryById item.EntryId
-                return entry |> Option.map (fun e -> (item, e))
+                let! display = resolveCollectionItemDisplay item
+                return display |> Option.map (fun d -> (item, d))
             })
             |> Async.Sequential
-        let validItems = itemsWithEntries |> Array.choose id |> Array.toList
+        let validItems = itemsWithDisplays |> Array.choose id |> Array.toList
         return Some {
             Collection = c
             Items = validItems
@@ -2125,41 +2272,61 @@ let getCollectionProgress (collectionId: CollectionId) : Async<CollectionProgres
     | None -> return None
     | Some cwi ->
         let totalItems = List.length cwi.Items
+
+        // Helper to check if an item is completed
+        let isCompleted (display: CollectionItemDisplay) =
+            match display with
+            | EntryDisplay entry -> entry.WatchStatus = Completed
+            | SeasonDisplay _ -> false  // Seasons don't have individual watch status
+            | EpisodeDisplay _ -> false  // Episodes don't have individual watch status
+
+        // Helper to check if an item is in progress
+        let isInProgress (display: CollectionItemDisplay) =
+            match display with
+            | EntryDisplay entry ->
+                match entry.WatchStatus with
+                | InProgress _ -> true
+                | _ -> false
+            | SeasonDisplay _ -> false
+            | EpisodeDisplay _ -> false
+
         let completedItems =
             cwi.Items
-            |> List.filter (fun (_, entry) ->
-                match entry.WatchStatus with
-                | Completed -> true
-                | _ -> false)
+            |> List.filter (fun (_, display) -> isCompleted display)
             |> List.length
         let inProgressItems =
             cwi.Items
-            |> List.filter (fun (_, entry) ->
-                match entry.WatchStatus with
-                | InProgress _ -> true
-                | _ -> false)
+            |> List.filter (fun (_, display) -> isInProgress display)
             |> List.length
 
         // Calculate total and watched runtime
         let totalMinutes =
             cwi.Items
-            |> List.sumBy (fun (_, entry) ->
-                match entry.Media with
-                | LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
-                | LibrarySeries series ->
-                    series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45))
+            |> List.sumBy (fun (_, display) ->
+                match display with
+                | EntryDisplay entry ->
+                    match entry.Media with
+                    | LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
+                    | LibrarySeries series ->
+                        series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
+                | SeasonDisplay (series, season) ->
+                    season.EpisodeCount * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
+                | EpisodeDisplay (series, _, _) ->
+                    series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
+
         let watchedMinutes =
             cwi.Items
-            |> List.sumBy (fun (_, entry) ->
-                match entry.WatchStatus, entry.Media with
-                | Completed, LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
-                | Completed, LibrarySeries series ->
-                    series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
-                | InProgress _, LibrarySeries _ ->
-                    // For in-progress series, we'd need to calculate watched episodes
-                    // For now, estimate based on progress - this is simplified
-                    0
-                | _ -> 0)
+            |> List.sumBy (fun (_, display) ->
+                match display with
+                | EntryDisplay entry ->
+                    match entry.WatchStatus, entry.Media with
+                    | Completed, LibraryMovie movie -> movie.RuntimeMinutes |> Option.defaultValue 0
+                    | Completed, LibrarySeries series ->
+                        series.NumberOfEpisodes * (series.EpisodeRunTimeMinutes |> Option.defaultValue 45)
+                    | InProgress _, LibrarySeries _ -> 0
+                    | _ -> 0
+                | SeasonDisplay _ -> 0  // No watch tracking for seasons in collections
+                | EpisodeDisplay _ -> 0)  // No watch tracking for episodes in collections
 
         let completionPct =
             if totalItems > 0 then float completedItems / float totalItems * 100.0
@@ -2183,10 +2350,40 @@ let getCollectionsForEntry (entryId: EntryId) : Async<Collection list> = async {
     let! records = conn.QueryAsync<CollectionRecord>(
         """SELECT c.* FROM collections c
            INNER JOIN collection_items ci ON c.id = ci.collection_id
-           WHERE ci.entry_id = @entryId
+           WHERE ci.item_type = 'entry' AND ci.entry_id = @entryId
            ORDER BY c.name""",
         {| entryId = entryIdVal |}) |> Async.AwaitTask
     return records |> Seq.map recordToCollection |> Seq.toList
+}
+
+/// Get all collections that contain a specific item (entry, season, or episode)
+let getCollectionsForItem (itemRef: CollectionItemRef) : Async<Collection list> = async {
+    use conn = getConnection()
+    match itemRef with
+    | LibraryEntryRef (EntryId entryId) ->
+        let! records = conn.QueryAsync<CollectionRecord>(
+            """SELECT c.* FROM collections c
+               INNER JOIN collection_items ci ON c.id = ci.collection_id
+               WHERE ci.item_type = 'entry' AND ci.entry_id = @entryId
+               ORDER BY c.name""",
+            {| entryId = entryId |}) |> Async.AwaitTask
+        return records |> Seq.map recordToCollection |> Seq.toList
+    | SeasonRef (SeriesId seriesId, seasonNumber) ->
+        let! records = conn.QueryAsync<CollectionRecord>(
+            """SELECT c.* FROM collections c
+               INNER JOIN collection_items ci ON c.id = ci.collection_id
+               WHERE ci.item_type = 'season' AND ci.series_id = @seriesId AND ci.season_number = @seasonNumber
+               ORDER BY c.name""",
+            {| seriesId = seriesId; seasonNumber = seasonNumber |}) |> Async.AwaitTask
+        return records |> Seq.map recordToCollection |> Seq.toList
+    | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+        let! records = conn.QueryAsync<CollectionRecord>(
+            """SELECT c.* FROM collections c
+               INNER JOIN collection_items ci ON c.id = ci.collection_id
+               WHERE ci.item_type = 'episode' AND ci.series_id = @seriesId AND ci.season_number = @seasonNumber AND ci.episode_number = @episodeNumber
+               ORDER BY c.name""",
+            {| seriesId = seriesId; seasonNumber = seasonNumber; episodeNumber = episodeNumber |}) |> Async.AwaitTask
+        return records |> Seq.map recordToCollection |> Seq.toList
 }
 
 // =====================================

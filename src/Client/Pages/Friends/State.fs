@@ -27,6 +27,9 @@ let update (api: FriendsApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | FriendsLoaded (Error _) ->
         { model with Friends = Success [] }, Cmd.none, NoOp
 
+    | SetSearchQuery query ->
+        { model with SearchQuery = query }, Cmd.none, NoOp
+
     | ViewFriendDetail friendId ->
         model, Cmd.none, NavigateToFriendDetail friendId
 

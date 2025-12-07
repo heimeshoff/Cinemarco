@@ -5,6 +5,38 @@ open Common.Types
 open Shared.Domain
 open Types
 
+/// Filter collections based on search query
+let private filterCollections (model: Model) (collections: Collection list) =
+    if System.String.IsNullOrWhiteSpace model.SearchQuery then
+        collections
+    else
+        let query = model.SearchQuery.ToLowerInvariant()
+        collections
+        |> List.filter (fun c ->
+            c.Name.ToLowerInvariant().Contains(query) ||
+            (c.Description |> Option.map (fun d -> d.ToLowerInvariant().Contains(query)) |> Option.defaultValue false)
+        )
+
+/// Search input row
+let private searchRow (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "flex items-center gap-4"
+        prop.children [
+            Html.div [
+                prop.className "flex-1 max-w-xs"
+                prop.children [
+                    Html.input [
+                        prop.type'.text
+                        prop.placeholder "Search collections..."
+                        prop.className "input input-bordered input-sm w-full"
+                        prop.value model.SearchQuery
+                        prop.onChange (fun v -> dispatch (SetSearchQuery v))
+                    ]
+                ]
+            ]
+        ]
+    ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
@@ -32,6 +64,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.text "Organize your library into collections. Create custom lists or track franchise watch orders."
             ]
 
+            // Search
+            searchRow model dispatch
+
             match model.Collections with
             | Loading ->
                 Html.div [
@@ -40,87 +75,86 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         Html.span [ prop.className "loading loading-spinner loading-lg" ]
                     ]
                 ]
-            | Success collectionList when List.isEmpty collectionList ->
-                Html.div [
-                    prop.className "text-center py-12 text-base-content/60"
-                    prop.children [
-                        Html.p [ prop.className "text-lg mb-2"; prop.text "No collections yet" ]
-                        Html.p [ prop.text "Create collections to organize your library!" ]
-                    ]
-                ]
             | Success collectionList ->
-                Html.div [
-                    prop.className "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-                    prop.children [
-                        for collection in collectionList do
-                            Html.div [
-                                prop.className "card bg-base-200 hover:shadow-lg transition-shadow cursor-pointer"
+                let filtered = filterCollections model collectionList
+                let sortedCollections = filtered |> List.sortBy (fun c -> c.Name.ToLowerInvariant())
+
+                if List.isEmpty collectionList then
+                    Html.div [
+                        prop.className "text-center py-12 text-base-content/60"
+                        prop.children [
+                            Html.p [ prop.className "text-lg mb-2"; prop.text "No collections yet" ]
+                            Html.p [ prop.text "Create collections to organize your library!" ]
+                        ]
+                    ]
+                elif List.isEmpty filtered then
+                    Html.div [
+                        prop.className "text-center py-12 text-base-content/60"
+                        prop.text "No collections match your search."
+                    ]
+                else
+                    Html.ul [
+                        prop.className "space-y-2"
+                        prop.children [
+                            for collection in sortedCollections do
+                            Html.li [
+                                prop.className "flex items-center gap-4 px-4 py-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors cursor-pointer"
                                 prop.onClick (fun _ -> dispatch (ViewCollectionDetail collection.Id))
                                 prop.children [
-                                    // Cover image (if available)
+                                    // Logo
                                     match collection.CoverImagePath with
                                     | Some path ->
-                                        Html.figure [
-                                            prop.className "h-32 bg-base-300"
-                                            prop.children [
-                                                Html.img [
-                                                    prop.src path
-                                                    prop.className "w-full h-full object-cover"
-                                                    prop.alt collection.Name
-                                                ]
-                                            ]
+                                        Html.img [
+                                            prop.src $"/images/collections{path}"
+                                            prop.className "w-12 h-12 object-cover rounded-lg"
+                                            prop.alt collection.Name
                                         ]
                                     | None ->
-                                        Html.figure [
-                                            prop.className "h-32 bg-gradient-to-br from-primary/20 to-secondary/20"
-                                        ]
-
-                                    Html.div [
-                                        prop.className "card-body"
-                                        prop.children [
-                                            Html.div [
-                                                prop.className "flex items-center gap-2"
-                                                prop.children [
-                                                    Html.h3 [
-                                                        prop.className "card-title text-base"
-                                                        prop.text collection.Name
-                                                    ]
-                                                    if collection.IsPublicFranchise then
-                                                        Html.span [
-                                                            prop.className "badge badge-secondary badge-sm"
-                                                            prop.text "Franchise"
-                                                        ]
+                                        Html.div [
+                                            prop.className "w-12 h-12 bg-base-300 rounded-lg flex items-center justify-center"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "text-xl opacity-50"
+                                                    prop.text "📁"
                                                 ]
                                             ]
-                                            match collection.Description with
-                                            | Some desc ->
-                                                Html.p [
-                                                    prop.className "text-sm text-base-content/60 line-clamp-2"
-                                                    prop.text desc
-                                                ]
-                                            | None -> Html.none
+                                        ]
 
-                                            // Action buttons
-                                            Html.div [
-                                                prop.className "card-actions justify-end mt-2"
-                                                prop.children [
-                                                    Html.button [
-                                                        prop.className "btn btn-ghost btn-xs"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            dispatch (OpenEditCollectionModal collection)
-                                                        )
-                                                        prop.text "Edit"
-                                                    ]
-                                                    Html.button [
-                                                        prop.className "btn btn-ghost btn-xs text-error"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            dispatch (OpenDeleteCollectionModal collection)
-                                                        )
-                                                        prop.text "Delete"
-                                                    ]
+                                    // Name and badges
+                                    Html.div [
+                                        prop.className "flex-1 min-w-0 flex items-center gap-2"
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "font-medium"
+                                                prop.text collection.Name
+                                            ]
+                                            if collection.IsPublicFranchise then
+                                                Html.span [
+                                                    prop.className "badge badge-secondary badge-sm"
+                                                    prop.text "Franchise"
                                                 ]
+                                        ]
+                                    ]
+
+                                    // Action buttons
+                                    Html.div [
+                                        prop.className "flex gap-2"
+                                        prop.children [
+                                            Html.button [
+                                                prop.className "btn btn-ghost btn-sm"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch (OpenEditCollectionModal collection)
+                                                )
+                                                prop.text "Edit"
+                                            ]
+                                            Html.button [
+                                                prop.className "btn btn-ghost btn-sm text-error"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch (OpenDeleteCollectionModal collection)
+                                                )
+                                                prop.text "Delete"
                                             ]
                                         ]
                                     ]

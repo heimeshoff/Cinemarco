@@ -4,8 +4,8 @@ open Common.Types
 open Shared.Domain
 
 type Model = {
-    EntryId: EntryId
-    EntryTitle: string
+    ItemRef: CollectionItemRef
+    ItemTitle: string
     Collections: RemoteData<Collection list>
     SelectedCollectionId: CollectionId option
     Notes: string
@@ -28,9 +28,9 @@ type ExternalMsg =
     | AddedToCollection of Collection
 
 module Model =
-    let create (entryId: EntryId) (title: string) : Model = {
-        EntryId = entryId
-        EntryTitle = title
+    let create (itemRef: CollectionItemRef) (title: string) : Model = {
+        ItemRef = itemRef
+        ItemTitle = title
         Collections = NotAsked
         SelectedCollectionId = None
         Notes = ""

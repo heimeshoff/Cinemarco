@@ -3,12 +3,20 @@ module Pages.CollectionDetail.Types
 open Common.Types
 open Shared.Domain
 
+type DropPosition =
+    | Before of CollectionItemRef
+    | After of CollectionItemRef
+
 type Model = {
     CollectionId: CollectionId
     Collection: RemoteData<CollectionWithItems>
     Progress: RemoteData<CollectionProgress>
-    DraggingItem: EntryId option
-    DragOverItem: EntryId option
+    DraggingItem: CollectionItemRef option
+    DropTarget: DropPosition option
+    // Inline note editing
+    EditingNote: bool
+    NoteText: string
+    SavingNote: bool
 }
 
 type Msg =
@@ -19,20 +27,29 @@ type Msg =
     | GoBack
     | ViewMovieDetail of EntryId
     | ViewSeriesDetail of EntryId
-    | RemoveItem of EntryId
+    | ViewSeasonDetail of SeriesId * seasonNumber: int
+    | ViewEpisodeDetail of SeriesId * seasonNumber: int * episodeNumber: int
+    | RemoveItem of CollectionItemRef
     | ItemRemoved of Result<CollectionWithItems, string>
     // Drag and drop
-    | StartDrag of EntryId
-    | DragOver of EntryId
+    | StartDrag of CollectionItemRef
+    | DragOver of DropPosition
     | DragEnd
-    | Drop of EntryId
+    | Drop
     | ReorderCompleted of Result<CollectionWithItems, string>
+    // Inline note editing
+    | StartEditNote
+    | NoteChanged of string
+    | SaveNote
+    | CancelEditNote
+    | NoteSaved of Result<Collection, string>
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
     | NavigateToMovieDetail of EntryId
     | NavigateToSeriesDetail of EntryId
+    | NavigateToSeriesBySeriesId of SeriesId
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =
@@ -41,5 +58,8 @@ module Model =
         Collection = NotAsked
         Progress = NotAsked
         DraggingItem = None
-        DragOverItem = None
+        DropTarget = None
+        EditingNote = false
+        NoteText = ""
+        SavingNote = false
     }

@@ -508,6 +508,62 @@ DROP TABLE IF EXISTS entry_tags;
 DROP TABLE IF EXISTS tags;
 """
     }
+
+    // Migration 9: Extend collection_items to support seasons and episodes
+    {
+        Version = 9
+        Name = "Extend collection_items to support seasons and episodes"
+        Up = """
+-- SQLite doesn't support ALTER TABLE ADD COLUMN with complex constraints,
+-- so we need to recreate the table with the new schema.
+
+-- Step 1: Create new table with extended schema
+CREATE TABLE collection_items_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_id INTEGER NOT NULL,
+    item_type TEXT NOT NULL DEFAULT 'entry',  -- 'entry', 'season', 'episode'
+    entry_id INTEGER,                          -- For library entries (movies/series)
+    series_id INTEGER,                         -- For seasons and episodes
+    season_number INTEGER,                     -- For seasons and episodes
+    episode_number INTEGER,                    -- For episodes only
+    position INTEGER NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE,
+    FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
+    CHECK (
+        (item_type = 'entry' AND entry_id IS NOT NULL AND series_id IS NULL) OR
+        (item_type = 'season' AND series_id IS NOT NULL AND season_number IS NOT NULL AND entry_id IS NULL) OR
+        (item_type = 'episode' AND series_id IS NOT NULL AND season_number IS NOT NULL AND episode_number IS NOT NULL AND entry_id IS NULL)
+    )
+);
+
+-- Step 2: Copy existing data (all existing items are library entries)
+INSERT INTO collection_items_new (id, collection_id, item_type, entry_id, position, notes)
+SELECT id, collection_id, 'entry', entry_id, position, notes
+FROM collection_items;
+
+-- Step 3: Drop old table
+DROP TABLE collection_items;
+
+-- Step 4: Rename new table
+ALTER TABLE collection_items_new RENAME TO collection_items;
+
+-- Step 5: Recreate indexes
+CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id);
+CREATE INDEX IF NOT EXISTS idx_collection_items_entry_id ON collection_items(entry_id);
+CREATE INDEX IF NOT EXISTS idx_collection_items_series_id ON collection_items(series_id);
+CREATE INDEX IF NOT EXISTS idx_collection_items_position ON collection_items(position);
+CREATE INDEX IF NOT EXISTS idx_collection_items_item_type ON collection_items(item_type);
+
+-- Step 6: Create unique constraint for each item type
+-- For entries: unique by (collection_id, entry_id)
+-- For seasons: unique by (collection_id, series_id, season_number)
+-- For episodes: unique by (collection_id, series_id, season_number, episode_number)
+-- SQLite doesn't support partial unique indexes directly, so we use a workaround with a generated column approach
+-- Actually, we'll handle uniqueness in application logic for now since the CHECK constraint covers validity
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

@@ -5,11 +5,13 @@ open Shared.Domain
 
 type Model = {
     Friends: RemoteData<Friend list>
+    SearchQuery: string
 }
 
 type Msg =
     | LoadFriends
     | FriendsLoaded of Result<Friend list, string>
+    | SetSearchQuery of string
     | ViewFriendDetail of FriendId
     | OpenAddFriendModal
     | OpenEditFriendModal of Friend
@@ -23,4 +25,4 @@ type ExternalMsg =
     | RequestOpenDeleteModal of Friend
 
 module Model =
-    let empty = { Friends = NotAsked }
+    let empty = { Friends = NotAsked; SearchQuery = "" }

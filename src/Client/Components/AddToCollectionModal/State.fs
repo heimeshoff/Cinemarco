@@ -7,11 +7,11 @@ open Types
 
 type Api = {
     GetCollections: unit -> Async<Collection list>
-    AddToCollection: CollectionId * EntryId * string option -> Async<Result<CollectionWithItems, string>>
+    AddToCollection: CollectionId * CollectionItemRef * string option -> Async<Result<CollectionWithItems, string>>
 }
 
-let init (entryId: EntryId) (title: string) : Model * Cmd<Msg> =
-    Model.create entryId title, Cmd.ofMsg LoadCollections
+let init (itemRef: CollectionItemRef) (title: string) : Model * Cmd<Msg> =
+    Model.create itemRef title, Cmd.ofMsg LoadCollections
 
 let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -45,7 +45,7 @@ let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg
             { model with IsSubmitting = true; Error = None },
             Cmd.OfAsync.either
                 api.AddToCollection
-                (collectionId, model.EntryId, notes)
+                (collectionId, model.ItemRef, notes)
                 SubmitResult
                 (fun ex -> SubmitResult (Error ex.Message)),
             NoOp

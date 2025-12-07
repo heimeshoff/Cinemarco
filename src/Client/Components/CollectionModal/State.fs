@@ -23,16 +23,30 @@ let update (api: SaveApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Externa
     | DescriptionChanged description ->
         { model with Description = description }, Cmd.none, NoOp
 
+    | LogoSelected base64DataUrl ->
+        { model with
+            LogoBase64 = Some base64DataUrl
+            LogoPreview = Some base64DataUrl
+            LogoRemoved = false }, Cmd.none, NoOp
+
+    | LogoRemoved ->
+        { model with
+            LogoBase64 = None
+            LogoPreview = None
+            LogoRemoved = true }, Cmd.none, NoOp
+
     | Submit ->
         if model.Name.Trim().Length = 0 then
             { model with Error = Some "Name is required" }, Cmd.none, NoOp
         else
+            let description = if model.Description.Trim().Length > 0 then Some (model.Description.Trim()) else None
             let cmd =
                 match model.EditingCollection with
                 | None ->
                     let request : CreateCollectionRequest = {
                         Name = model.Name.Trim()
-                        Description = if model.Description.Trim().Length > 0 then Some (model.Description.Trim()) else None
+                        Description = description
+                        LogoBase64 = model.LogoBase64
                     }
                     Cmd.OfAsync.either
                         api.Create
@@ -40,10 +54,16 @@ let update (api: SaveApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Externa
                         SubmitResult
                         (fun ex -> Error ex.Message |> SubmitResult)
                 | Some existing ->
+                    // For update: None = keep existing, Some "" = remove, Some data = new logo
+                    let logoForUpdate =
+                        if model.LogoRemoved then Some ""
+                        elif model.LogoBase64.IsSome then model.LogoBase64
+                        else None
                     let request : UpdateCollectionRequest = {
                         Id = existing.Id
                         Name = Some (model.Name.Trim())
-                        Description = if model.Description.Trim().Length > 0 then Some (model.Description.Trim()) else None
+                        Description = description
+                        LogoBase64 = logoForUpdate
                     }
                     Cmd.OfAsync.either
                         api.Update

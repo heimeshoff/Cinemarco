@@ -204,20 +204,23 @@ type ICinemarcoApi = {
     /// Delete a collection
     collectionsDelete: CollectionId -> Async<Result<unit, string>>
 
-    /// Add a library entry to a collection
-    collectionsAddItem: CollectionId * EntryId * string option -> Async<Result<CollectionWithItems, string>>
+    /// Add an item to a collection (movie, series, season, or episode)
+    collectionsAddItem: CollectionId * CollectionItemRef * string option -> Async<Result<CollectionWithItems, string>>
 
     /// Remove an item from a collection
-    collectionsRemoveItem: CollectionId * EntryId -> Async<Result<CollectionWithItems, string>>
+    collectionsRemoveItem: CollectionId * CollectionItemRef -> Async<Result<CollectionWithItems, string>>
 
-    /// Reorder items in a collection (takes full list of entry IDs in new order)
-    collectionsReorderItems: CollectionId * EntryId list -> Async<Result<CollectionWithItems, string>>
+    /// Reorder items in a collection (takes full list of item refs in new order)
+    collectionsReorderItems: CollectionId * CollectionItemRef list -> Async<Result<CollectionWithItems, string>>
 
     /// Get collection progress (completion stats)
     collectionsGetProgress: CollectionId -> Async<Result<CollectionProgress, string>>
 
     /// Get collections that contain a specific entry
     collectionsGetForEntry: EntryId -> Async<Collection list>
+
+    /// Get collections that contain a specific item (entry, season, or episode)
+    collectionsGetForItem: CollectionItemRef -> Async<Collection list>
 
     // =====================================
     // Cache Management Operations

@@ -55,7 +55,7 @@ type ExternalMsg =
     | NavigateToContributor of TmdbPersonId
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
-    | RequestOpenAddToCollectionModal of EntryId * title: string
+    | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
     | FriendCreatedInline of Friend

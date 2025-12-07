@@ -13,7 +13,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
         MaxWidth = Some "max-w-md"
         Children = [
             // Header
-            header "Add to Collection" (Some $"Add \"{model.EntryTitle}\" to a collection") (not model.IsSubmitting) (fun () -> dispatch Close)
+            header "Add to Collection" (Some $"Add \"{model.ItemTitle}\" to a collection") (not model.IsSubmitting) (fun () -> dispatch Close)
 
             // Body
             body [
