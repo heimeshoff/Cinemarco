@@ -1,6 +1,7 @@
 module Pages.SessionDetail.View
 
 open Feliz
+open Browser.Dom
 open Common.Types
 open Shared.Domain
 open Types
@@ -171,13 +172,13 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.button [
                 prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> dispatch GoBack)
+                prop.onClick (fun _ -> window.history.back())
                 prop.children [
                     Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back to Series" ]
+                    Html.span [ prop.text "Back" ]
                 ]
             ]
 

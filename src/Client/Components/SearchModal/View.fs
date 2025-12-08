@@ -110,7 +110,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                         | LibrarySeries s -> s.Name
                                                     Html.div [
                                                         prop.className "poster-card cursor-pointer group"
-                                                        prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType)))
+                                                        prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                                         prop.children [
                                                             Html.div [
                                                                 prop.className "poster-image-container poster-shadow"
@@ -182,7 +182,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                                     match libraryEntry with
                                                                     | Some entry ->
                                                                         // Navigate to library entry
-                                                                        fun _ -> dispatch (SelectLibraryItem (entry.Id, item.MediaType))
+                                                                        let title = match entry.Media with LibraryMovie m -> m.Title | LibrarySeries s -> s.Name
+                                                                        fun _ -> dispatch (SelectLibraryItem (entry.Id, item.MediaType, title))
                                                                     | None ->
                                                                         // Add to library
                                                                         fun i -> dispatch (SelectTmdbItem i)
@@ -233,7 +234,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                                     | LibrarySeries s -> s.Name
                                                                 Html.div [
                                                                     prop.className "poster-card cursor-pointer group"
-                                                                    prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType)))
+                                                                    prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                                                     prop.children [
                                                                         Html.div [
                                                                             prop.className "poster-image-container poster-shadow"

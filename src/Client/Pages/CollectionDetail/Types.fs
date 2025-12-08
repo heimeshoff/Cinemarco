@@ -17,6 +17,12 @@ type Model = {
     EditingNote: bool
     NoteText: string
     SavingNote: bool
+    // Inline name editing
+    EditingName: bool
+    NameText: string
+    SavingName: bool
+    // Inline logo editing
+    UploadingLogo: bool
 }
 
 type Msg =
@@ -25,10 +31,10 @@ type Msg =
     | LoadProgress
     | ProgressLoaded of Result<CollectionProgress, string>
     | GoBack
-    | ViewMovieDetail of EntryId
-    | ViewSeriesDetail of EntryId
-    | ViewSeasonDetail of SeriesId * seasonNumber: int
-    | ViewEpisodeDetail of SeriesId * seasonNumber: int * episodeNumber: int
+    | ViewMovieDetail of entryId: EntryId * title: string
+    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewSeasonDetail of seriesName: string
+    | ViewEpisodeDetail of seriesName: string
     | RemoveItem of CollectionItemRef
     | ItemRemoved of Result<CollectionWithItems, string>
     // Drag and drop
@@ -43,13 +49,22 @@ type Msg =
     | SaveNote
     | CancelEditNote
     | NoteSaved of Result<Collection, string>
+    // Inline name editing
+    | StartEditName
+    | NameChanged of string
+    | SaveName
+    | CancelEditName
+    | NameSaved of Result<Collection, string>
+    // Inline logo editing
+    | LogoSelected of string  // Base64 encoded image
+    | LogoSaved of Result<Collection, string>
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToMovieDetail of EntryId
-    | NavigateToSeriesDetail of EntryId
-    | NavigateToSeriesBySeriesId of SeriesId
+    | NavigateToMovieDetail of entryId: EntryId * title: string
+    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToSeriesByName of seriesName: string
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =
@@ -62,4 +77,8 @@ module Model =
         EditingNote = false
         NoteText = ""
         SavingNote = false
+        EditingName = false
+        NameText = ""
+        SavingName = false
+        UploadingLogo = false
     }

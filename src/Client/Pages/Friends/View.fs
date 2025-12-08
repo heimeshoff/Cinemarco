@@ -4,6 +4,7 @@ open Feliz
 open Common.Types
 open Shared.Domain
 open Types
+open Components.Icons
 
 /// Filter friends based on search query
 let private filterFriends (model: Model) (friends: Friend list) =
@@ -16,6 +17,61 @@ let private filterFriends (model: Model) (friends: Friend list) =
             f.Name.ToLowerInvariant().Contains(query) ||
             (f.Nickname |> Option.map (fun n -> n.ToLowerInvariant().Contains(query)) |> Option.defaultValue false)
         )
+
+/// Render a friend avatar (round, clickable to edit)
+let private friendAvatar (friend: Friend) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "relative group cursor-pointer"
+        prop.onClick (fun e ->
+            e.stopPropagation()
+            dispatch (OpenProfileImageModal friend))
+        prop.children [
+            // Avatar container with round shape
+            Html.div [
+                prop.className "avatar"
+                prop.children [
+                    match friend.AvatarUrl with
+                    | Some url ->
+                        Html.div [
+                            prop.className "w-12 h-12 rounded-full ring ring-primary/20 ring-offset-base-100 ring-offset-1 overflow-hidden"
+                            prop.children [
+                                Html.img [
+                                    prop.src $"/images/avatars{url}"
+                                    prop.alt friend.Name
+                                    prop.className "w-full h-full object-cover"
+                                ]
+                            ]
+                        ]
+                    | None ->
+                        // Placeholder with initials
+                        Html.div [
+                            prop.className "avatar placeholder"
+                            prop.children [
+                                Html.div [
+                                    prop.className "w-12 h-12 rounded-full bg-primary/20 text-primary-content flex items-center justify-center"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "text-lg font-semibold"
+                                            prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                ]
+            ]
+            // Edit overlay on hover
+            Html.div [
+                prop.className "absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                prop.children [
+                    Html.span [
+                        prop.className "text-white w-5 h-5"
+                        prop.children [ camera ]
+                    ]
+                ]
+            ]
+        ]
+    ]
 
 /// Search input row
 let private searchRow (model: Model) (dispatch: Msg -> unit) =
@@ -98,11 +154,15 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.children [
                             for friend in sortedFriends do
                             Html.li [
-                                prop.className "flex items-center justify-between px-4 py-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors cursor-pointer"
-                                prop.onClick (fun _ -> dispatch (ViewFriendDetail friend.Id))
+                                prop.className "flex items-center gap-4 px-4 py-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors cursor-pointer"
+                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
                                 prop.children [
-                                    // Left side: Name
+                                    // Avatar (clickable to edit image)
+                                    friendAvatar friend dispatch
+
+                                    // Name and nickname (links to detail)
                                     Html.div [
+                                        prop.className "flex-1"
                                         prop.children [
                                             Html.span [
                                                 prop.className "font-medium"
@@ -117,18 +177,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                             | None -> Html.none
                                         ]
                                     ]
-                                    // Right side: Action buttons
+
+                                    // Right side: Delete button only
                                     Html.div [
                                         prop.className "flex gap-2"
                                         prop.children [
-                                            Html.button [
-                                                prop.className "btn btn-ghost btn-sm"
-                                                prop.onClick (fun e ->
-                                                    e.stopPropagation()
-                                                    dispatch (OpenEditFriendModal friend)
-                                                )
-                                                prop.text "Edit"
-                                            ]
                                             Html.button [
                                                 prop.className "btn btn-ghost btn-sm text-error"
                                                 prop.onClick (fun e ->

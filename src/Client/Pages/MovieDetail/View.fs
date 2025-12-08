@@ -1,6 +1,7 @@
 module Pages.MovieDetail.View
 
 open Feliz
+open Browser.Dom
 open Common.Types
 open Shared.Domain
 open Types
@@ -231,15 +232,19 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             match model.Credits with
             | Success credits ->
-                // Cast section
-                if not (List.isEmpty credits.Cast) then
+                // Cast section - sort tracked contributors first
+                let trackedCast, untrackedCast =
+                    credits.Cast |> List.partition (fun c -> Set.contains c.TmdbPersonId model.TrackedPersonIds)
+                let sortedCast = trackedCast @ untrackedCast
+
+                if not (List.isEmpty sortedCast) then
                     Html.div [
                         prop.children [
                             Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
                             Html.div [
                                 prop.className "flex flex-wrap gap-2"
                                 prop.children [
-                                    for castMember in credits.Cast do
+                                    for castMember in sortedCast do
                                         let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
                                         Html.button [
                                             prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
@@ -249,7 +254,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                                 else
                                                     "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
                                             )
-                                            prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (castMember.TmdbPersonId, castMember.Name)))
                                             prop.children [
                                                 // Profile image with tracked indicator
                                                 Html.div [
@@ -311,7 +316,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                         Html.button [
                                             prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
                                             prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                            prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (crewMember.TmdbPersonId, crewMember.Name)))
                                             prop.children [
                                                 match crewMember.ProfilePath with
                                                 | Some path ->
@@ -448,13 +453,13 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.button [
                 prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> dispatch GoBack)
+                prop.onClick (fun _ -> window.history.back())
                 prop.children [
                     Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back to Library" ]
+                    Html.span [ prop.text "Back" ]
                 ]
             ]
 

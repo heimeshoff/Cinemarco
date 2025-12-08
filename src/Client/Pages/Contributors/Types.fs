@@ -21,13 +21,13 @@ type Msg =
     | ContributorsLoaded of Result<TrackedContributor list, string>
     | SetDepartmentFilter of DepartmentFilter
     | SetSearchQuery of string
-    | ViewContributorDetail of TmdbPersonId
+    | ViewContributorDetail of personId: TmdbPersonId * name: string
     | UntrackContributor of TrackedContributorId
     | UntrackResult of Result<unit, string>
 
 type ExternalMsg =
     | NoOp
-    | NavigateToContributorDetail of TmdbPersonId
+    | NavigateToContributorDetail of personId: TmdbPersonId * name: string
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

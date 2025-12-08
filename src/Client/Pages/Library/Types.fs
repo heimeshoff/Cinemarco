@@ -42,13 +42,13 @@ type Msg =
     | SetSortBy of LibrarySortBy
     | ToggleSortDirection
     | ClearFilters
-    | ViewMovieDetail of EntryId
-    | ViewSeriesDetail of EntryId
+    | ViewMovieDetail of entryId: EntryId * title: string
+    | ViewSeriesDetail of entryId: EntryId * name: string
 
 type ExternalMsg =
     | NoOp
-    | NavigateToMovieDetail of EntryId
-    | NavigateToSeriesDetail of EntryId
+    | NavigateToMovieDetail of entryId: EntryId * title: string
+    | NavigateToSeriesDetail of entryId: EntryId * name: string
 
 module LibraryFilters =
     let empty = {

@@ -23,60 +23,131 @@ let private syncEntryToPages (entry: LibraryEntry) (model: Model) =
             { hp with Library = hp.Library |> RemoteData.map (updateEntryInList entry) })
     { model with LibraryPage = updatedLibraryPage; HomePage = updatedHomePage }
 
+/// Initialize a page based on page type (used by both NavigateTo and UrlChanged)
+/// For slug-based pages, dispatches commands to load entities by slug
+let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
+    let model' = { model with CurrentPage = page }
+    match page with
+    | HomePage when model.HomePage.IsNone ->
+        let pageModel, pageCmd = Pages.Home.State.init ()
+        { model' with HomePage = Some pageModel }, Cmd.map HomeMsg pageCmd
+    | LibraryPage when model.LibraryPage.IsNone ->
+        let pageModel, pageCmd = Pages.Library.State.init ()
+        { model' with LibraryPage = Some pageModel }, Cmd.map LibraryMsg pageCmd
+    | FriendsPage when model.FriendsPage.IsNone ->
+        let pageModel, pageCmd = Pages.Friends.State.init ()
+        { model' with FriendsPage = Some pageModel }, Cmd.map FriendsMsg pageCmd
+    | MovieDetailPage slug ->
+        // Load entry by slug
+        model', Cmd.ofMsg (LoadEntryBySlug (slug, true))
+    | SeriesDetailPage slug ->
+        // Load entry by slug
+        model', Cmd.ofMsg (LoadEntryBySlug (slug, false))
+    | SessionDetailPage slug ->
+        // Load session by slug
+        model', Cmd.ofMsg (LoadSessionBySlug slug)
+    | FriendDetailPage slug ->
+        // Load friend by slug
+        model', Cmd.ofMsg (LoadFriendBySlug slug)
+    | ContributorsPage ->
+        // Always reload contributors to get fresh data after tracking/untracking
+        let pageModel, pageCmd = Pages.Contributors.State.init ()
+        { model' with ContributorsPage = Some pageModel }, Cmd.map ContributorsMsg pageCmd
+    | CachePage when model.CachePage.IsNone ->
+        let pageModel, pageCmd = Pages.Cache.State.init ()
+        { model' with CachePage = Some pageModel }, Cmd.map CacheMsg pageCmd
+    | CollectionsPage when model.CollectionsPage.IsNone ->
+        let pageModel, pageCmd = Pages.Collections.State.init ()
+        { model' with CollectionsPage = Some pageModel }, Cmd.map CollectionsMsg pageCmd
+    | CollectionDetailPage slug ->
+        // Load collection by slug
+        model', Cmd.ofMsg (LoadCollectionBySlug slug)
+    | ContributorDetailPage (slug, Some personId) ->
+        // Untracked contributor - use TMDB ID directly
+        if model.ContributorDetailPage.IsNone || model.ContributorDetailPage |> Option.map (fun m -> m.TmdbPersonId <> personId) |> Option.defaultValue true then
+            let pageModel, pageCmd = Pages.ContributorDetail.State.init personId
+            { model' with ContributorDetailPage = Some pageModel }, Cmd.map ContributorDetailMsg pageCmd
+        else
+            model', Cmd.none
+    | ContributorDetailPage (slug, None) ->
+        // Tracked contributor - look up by slug
+        model', Cmd.ofMsg (LoadContributorBySlug slug)
+    | _ -> model', Cmd.none
+
+/// Initialize movie detail page with an entry that's already been loaded
+let private initializeMovieDetailWithEntry (entry: LibraryEntry) (model: Model) : Model * Cmd<Msg> =
+    if model.MovieDetailPage.IsNone || model.MovieDetailPage |> Option.map (fun m -> m.EntryId <> entry.Id) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.MovieDetail.State.init entry.Id
+        { model with MovieDetailPage = Some pageModel }, Cmd.map MovieDetailMsg pageCmd
+    else
+        // Page already exists - refresh tracked contributors in case they changed
+        model, Cmd.map MovieDetailMsg (Cmd.ofMsg Pages.MovieDetail.Types.LoadTrackedContributors)
+
+/// Initialize series detail page with an entry that's already been loaded
+let private initializeSeriesDetailWithEntry (entry: LibraryEntry) (model: Model) : Model * Cmd<Msg> =
+    if model.SeriesDetailPage.IsNone || model.SeriesDetailPage |> Option.map (fun m -> m.EntryId <> entry.Id) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.SeriesDetail.State.init entry.Id
+        { model with SeriesDetailPage = Some pageModel }, Cmd.map SeriesDetailMsg pageCmd
+    else
+        // Page already exists - refresh tracked contributors in case they changed
+        model, Cmd.map SeriesDetailMsg (Cmd.ofMsg Pages.SeriesDetail.Types.LoadTrackedContributors)
+
+/// Initialize friend detail page with a friend that's already been loaded
+let private initializeFriendDetailWithFriend (friend: Friend) (model: Model) : Model * Cmd<Msg> =
+    if model.FriendDetailPage.IsNone || model.FriendDetailPage |> Option.map (fun m -> m.FriendId <> friend.Id) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.FriendDetail.State.init friend.Id
+        { model with FriendDetailPage = Some pageModel }, Cmd.map FriendDetailMsg pageCmd
+    else
+        model, Cmd.none
+
+/// Initialize session detail page with a session that's already been loaded
+let private initializeSessionDetailWithSession (sessionWithProgress: WatchSessionWithProgress) (model: Model) : Model * Cmd<Msg> =
+    if model.SessionDetailPage.IsNone || model.SessionDetailPage |> Option.map (fun m -> m.SessionId <> sessionWithProgress.Session.Id) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.SessionDetail.State.init sessionWithProgress.Session.Id
+        { model with SessionDetailPage = Some pageModel }, Cmd.map SessionDetailMsg pageCmd
+    else
+        model, Cmd.none
+
+/// Initialize collection detail page with a collection that's already been loaded
+let private initializeCollectionDetailWithCollection (collectionWithItems: CollectionWithItems) (model: Model) : Model * Cmd<Msg> =
+    if model.CollectionDetailPage.IsNone || model.CollectionDetailPage |> Option.map (fun m -> m.CollectionId <> collectionWithItems.Collection.Id) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.CollectionDetail.State.init collectionWithItems.Collection.Id
+        { model with CollectionDetailPage = Some pageModel }, Cmd.map CollectionDetailMsg pageCmd
+    else
+        model, Cmd.none
+
+/// Initialize contributor detail page with a contributor that's already been loaded
+let private initializeContributorDetailWithContributor (contributor: TrackedContributor) (model: Model) : Model * Cmd<Msg> =
+    if model.ContributorDetailPage.IsNone || model.ContributorDetailPage |> Option.map (fun m -> m.TmdbPersonId <> contributor.TmdbPersonId) |> Option.defaultValue true then
+        let pageModel, pageCmd = Pages.ContributorDetail.State.init contributor.TmdbPersonId
+        { model with ContributorDetailPage = Some pageModel }, Cmd.map ContributorDetailMsg pageCmd
+    else
+        model, Cmd.none
+
 let init () : Model * Cmd<Msg> =
-    let model = Model.empty
+    // Parse the initial URL to determine starting page
+    let initialPage = Router.parseCurrentUrl ()
+    let model = { Model.empty with CurrentPage = initialPage }
     let cmds = Cmd.batch [
         Cmd.ofMsg LoadFriends
         Cmd.ofMsg (LayoutMsg Components.Layout.Types.CheckHealth)
-        Cmd.ofMsg (NavigateTo HomePage)
+        // Use UrlChanged for initial page to avoid pushing URL again
+        Cmd.ofMsg (UrlChanged initialPage)
     ]
     model, cmds
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
-    // Navigation
+    // Navigation - push URL to browser history
     | NavigateTo page ->
-        let model' = { model with CurrentPage = page }
-        // Initialize page if needed
-        match page with
-        | HomePage when model.HomePage.IsNone ->
-            let pageModel, pageCmd = Pages.Home.State.init ()
-            { model' with HomePage = Some pageModel }, Cmd.map HomeMsg pageCmd
-        | LibraryPage when model.LibraryPage.IsNone ->
-            let pageModel, pageCmd = Pages.Library.State.init ()
-            { model' with LibraryPage = Some pageModel }, Cmd.map LibraryMsg pageCmd
-        | FriendsPage when model.FriendsPage.IsNone ->
-            let pageModel, pageCmd = Pages.Friends.State.init ()
-            { model' with FriendsPage = Some pageModel }, Cmd.map FriendsMsg pageCmd
-        | MovieDetailPage entryId when model.MovieDetailPage.IsNone || model.MovieDetailPage |> Option.map (fun m -> m.EntryId <> entryId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.MovieDetail.State.init entryId
-            { model' with MovieDetailPage = Some pageModel }, Cmd.map MovieDetailMsg pageCmd
-        | SeriesDetailPage entryId when model.SeriesDetailPage.IsNone || model.SeriesDetailPage |> Option.map (fun m -> m.EntryId <> entryId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.SeriesDetail.State.init entryId
-            { model' with SeriesDetailPage = Some pageModel }, Cmd.map SeriesDetailMsg pageCmd
-        | SessionDetailPage sessionId when model.SessionDetailPage.IsNone || model.SessionDetailPage |> Option.map (fun m -> m.SessionId <> sessionId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.SessionDetail.State.init sessionId
-            { model' with SessionDetailPage = Some pageModel }, Cmd.map SessionDetailMsg pageCmd
-        | FriendDetailPage friendId when model.FriendDetailPage.IsNone || model.FriendDetailPage |> Option.map (fun m -> m.FriendId <> friendId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.FriendDetail.State.init friendId
-            { model' with FriendDetailPage = Some pageModel }, Cmd.map FriendDetailMsg pageCmd
-        | ContributorsPage ->
-            // Always reload contributors to get fresh data after tracking/untracking
-            let pageModel, pageCmd = Pages.Contributors.State.init ()
-            { model' with ContributorsPage = Some pageModel }, Cmd.map ContributorsMsg pageCmd
-        | CachePage when model.CachePage.IsNone ->
-            let pageModel, pageCmd = Pages.Cache.State.init ()
-            { model' with CachePage = Some pageModel }, Cmd.map CacheMsg pageCmd
-        | CollectionsPage when model.CollectionsPage.IsNone ->
-            let pageModel, pageCmd = Pages.Collections.State.init ()
-            { model' with CollectionsPage = Some pageModel }, Cmd.map CollectionsMsg pageCmd
-        | CollectionDetailPage collectionId when model.CollectionDetailPage.IsNone || model.CollectionDetailPage |> Option.map (fun m -> m.CollectionId <> collectionId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.CollectionDetail.State.init collectionId
-            { model' with CollectionDetailPage = Some pageModel }, Cmd.map CollectionDetailMsg pageCmd
-        | ContributorDetailPage personId when model.ContributorDetailPage.IsNone || model.ContributorDetailPage |> Option.map (fun m -> m.TmdbPersonId <> personId) |> Option.defaultValue true ->
-            let pageModel, pageCmd = Pages.ContributorDetail.State.init personId
-            { model' with ContributorDetailPage = Some pageModel }, Cmd.map ContributorDetailMsg pageCmd
-        | _ -> model', Cmd.none
+        // Push the URL to browser history
+        Router.pushUrl (Page.toUrl page)
+        // Initialize the page
+        initializePage page model
+
+    // URL changed (from browser back/forward) - don't push URL
+    | UrlChanged page ->
+        initializePage page model
 
     // Global data loading
     | LoadFriends ->
@@ -130,11 +201,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.SearchModal.Types.TmdbItemSelected item ->
                 // Close modal and add directly to library
                 { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (AddTmdbItemDirectly item)]
-            | Components.SearchModal.Types.LibraryItemSelected (entryId, mediaType) ->
+            | Components.SearchModal.Types.LibraryItemSelected (_, mediaType, title) ->
+                let slug = Slug.generate title
                 let page =
                     match mediaType with
-                    | MediaType.Movie -> MovieDetailPage entryId
-                    | MediaType.Series -> SeriesDetailPage entryId
+                    | MediaType.Movie -> MovieDetailPage slug
+                    | MediaType.Series -> SeriesDetailPage slug
                 { model' with Modal = NoModal }, Cmd.ofMsg (NavigateTo page)
             | Components.SearchModal.Types.CloseRequested ->
                 { model' with Modal = NoModal }, cmd
@@ -170,10 +242,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | TmdbItemAddResult (Ok entry, mediaType) ->
         // Navigate to the detail page
+        let title =
+            match entry.Media with
+            | LibraryMovie m -> m.Title
+            | LibrarySeries s -> s.Name
+        let slug = Slug.generate title
         let page =
             match mediaType with
-            | MediaType.Movie -> MovieDetailPage entry.Id
-            | MediaType.Series -> SeriesDetailPage entry.Id
+            | MediaType.Movie -> MovieDetailPage slug
+            | MediaType.Series -> SeriesDetailPage slug
         // Clear library/home page caches so they reload with new entry
         { model with LibraryPage = None; HomePage = None },
         Cmd.ofMsg (NavigateTo page)
@@ -337,6 +414,42 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
+    | OpenProfileImageModal friend ->
+        let modalModel = Components.ProfileImageEditor.State.init friend.AvatarUrl
+        { model with Modal = ProfileImageModal (modalModel, friend.Id) }, Cmd.none
+
+    | ProfileImageModalMsg profileMsg ->
+        match model.Modal with
+        | ProfileImageModal (modalModel, friendId) ->
+            let newModal, _, extMsg = Components.ProfileImageEditor.State.update profileMsg modalModel
+            let model' = { model with Modal = ProfileImageModal (newModal, friendId) }
+            match extMsg with
+            | Components.ProfileImageEditor.Types.NoOp -> model', Cmd.none
+            | Components.ProfileImageEditor.Types.Confirmed base64Image ->
+                { model' with Modal = NoModal }, Cmd.ofMsg (ProfileImageConfirmed (friendId, base64Image))
+            | Components.ProfileImageEditor.Types.Cancelled ->
+                { model' with Modal = NoModal }, Cmd.none
+        | _ -> model, Cmd.none
+
+    | ProfileImageConfirmed (friendId, base64Image) ->
+        // Update the friend with the new avatar
+        let updateRequest : UpdateFriendRequest = {
+            Id = friendId
+            Name = None
+            Nickname = None
+            AvatarBase64 = Some base64Image
+        }
+        let updateCmd =
+            Cmd.OfAsync.either
+                Api.api.friendsUpdate
+                updateRequest
+                (fun result ->
+                    match result with
+                    | Ok friend -> FriendSaved friend
+                    | Error err -> ShowNotification (err, false))
+                (fun ex -> ShowNotification (ex.Message, false))
+        { model with Modal = NoModal }, updateCmd
+
     // Notification
     | ShowNotification (message, isSuccess) ->
         let newNotification, notificationCmd, _ =
@@ -361,8 +474,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.Home.Types.NoOp -> model', cmd
             | Pages.Home.Types.NavigateToLibrary -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.Home.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.Home.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.Home.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.Home.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
     // Page messages - Library
@@ -375,8 +492,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map LibraryMsg pageCmd
             match extMsg with
             | Pages.Library.Types.NoOp -> model', cmd
-            | Pages.Library.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.Library.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.Library.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.Library.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
     // Page messages - Friends
@@ -389,25 +510,42 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map FriendsMsg pageCmd
             match extMsg with
             | Pages.Friends.Types.NoOp -> model', cmd
-            | Pages.Friends.Types.NavigateToFriendDetail friendId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage friendId))]
+            | Pages.Friends.Types.NavigateToFriendDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
             | Pages.Friends.Types.RequestOpenAddModal -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenFriendModal None)]
-            | Pages.Friends.Types.RequestOpenEditModal friend -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenFriendModal (Some friend))]
             | Pages.Friends.Types.RequestOpenDeleteModal friend -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Friend friend))]
+            | Pages.Friends.Types.RequestOpenProfileImageModal friend -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenProfileImageModal friend)]
         | None -> model, Cmd.none
 
     // Page messages - FriendDetail
     | FriendDetailMsg friendDetailMsg ->
         match model.FriendDetailPage with
         | Some pageModel ->
-            let entriesApi = fun friendId -> Api.api.friendsGetWatchedWith (FriendId.value friendId)
-            let newPage, pageCmd, extMsg = Pages.FriendDetail.State.update entriesApi friendDetailMsg pageModel
+            let friendDetailApi : Pages.FriendDetail.State.FriendDetailApi = {
+                GetEntries = fun friendId -> Api.api.friendsGetWatchedWith (FriendId.value friendId)
+                UpdateFriend = fun req -> Api.api.friendsUpdate req
+            }
+            let newPage, pageCmd, extMsg = Pages.FriendDetail.State.update friendDetailApi friendDetailMsg pageModel
             let model' = { model with FriendDetailPage = Some newPage }
             let cmd = Cmd.map FriendDetailMsg pageCmd
             match extMsg with
             | Pages.FriendDetail.Types.NoOp -> model', cmd
             | Pages.FriendDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo FriendsPage)]
-            | Pages.FriendDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.FriendDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.FriendDetail.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.FriendDetail.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.FriendDetail.Types.RequestOpenProfileImageModal friend ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (OpenProfileImageModal friend)]
+            | Pages.FriendDetail.Types.FriendUpdated friend ->
+                // Update the global friends list
+                let updatedFriends =
+                    model'.Friends
+                    |> RemoteData.map (List.map (fun f -> if f.Id = friend.Id then friend else f))
+                { model' with Friends = updatedFriends }, cmd
         | None -> model, Cmd.none
 
     // Page messages - Contributors
@@ -423,7 +561,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map ContributorsMsg pageCmd
             match extMsg with
             | Pages.Contributors.Types.NoOp -> model', cmd
-            | Pages.Contributors.Types.NavigateToContributorDetail personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
+            | Pages.Contributors.Types.NavigateToContributorDetail (_, name) ->
+                // From tracked contributors list - use slug only (no ID needed)
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage (slug, None)))]
             | Pages.Contributors.Types.ShowNotification (msg, isSuccess) ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
         | None -> model, Cmd.none
@@ -432,15 +573,17 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | CollectionsMsg collectionsMsg ->
         match model.CollectionsPage with
         | Some pageModel ->
-            let collectionsApi = fun () -> Api.api.collectionsGetAll ()
+            let collectionsApi : Pages.Collections.State.CollectionsApi = {
+                GetAll = fun () -> Api.api.collectionsGetAll ()
+                Create = fun req -> Api.api.collectionsCreate req
+            }
             let newPage, pageCmd, extMsg = Pages.Collections.State.update collectionsApi collectionsMsg pageModel
             let model' = { model with CollectionsPage = Some newPage }
             let cmd = Cmd.map CollectionsMsg pageCmd
             match extMsg with
             | Pages.Collections.Types.NoOp -> model', cmd
-            | Pages.Collections.Types.NavigateToCollectionDetail collectionId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage collectionId))]
-            | Pages.Collections.Types.RequestOpenAddModal -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenCollectionModal None)]
-            | Pages.Collections.Types.RequestOpenEditModal collection -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenCollectionModal (Some collection))]
+            | Pages.Collections.Types.NavigateToCollectionDetail slug ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
             | Pages.Collections.Types.RequestOpenDeleteModal collection ->
                 // Fetch item count first, then show confirm modal
                 let fetchCmd =
@@ -457,6 +600,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                                 OpenConfirmDeleteModal (Components.ConfirmModal.Types.Collection (collection, 0))
                         )
                 model', Cmd.batch [cmd; fetchCmd]
+            | Pages.Collections.Types.ShowNotification (msg, isSuccess) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
         | None -> model, Cmd.none
 
     // Page messages - CollectionDetail
@@ -476,23 +621,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.CollectionDetail.Types.NoOp -> model', cmd
             | Pages.CollectionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo CollectionsPage)]
-            | Pages.CollectionDetail.Types.NavigateToMovieDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.CollectionDetail.Types.NavigateToSeriesDetail entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
-            | Pages.CollectionDetail.Types.NavigateToSeriesBySeriesId seriesId ->
-                // Find the library entry for this series
-                let entryOpt =
-                    model.LibraryPage
-                    |> Option.bind (fun lp ->
-                        match lp.Entries with
-                        | Success entries ->
-                            entries |> List.tryFind (fun e ->
-                                match e.Media with
-                                | LibrarySeries s -> s.Id = seriesId
-                                | _ -> false)
-                        | _ -> None)
-                match entryOpt with
-                | Some entry -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entry.Id))]
-                | None -> model', cmd
+            | Pages.CollectionDetail.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.CollectionDetail.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.CollectionDetail.Types.NavigateToSeriesByName seriesName ->
+                let slug = Slug.generate seriesName
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
@@ -528,7 +665,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.MovieDetail.Types.NoOp -> model', cmd
             | Pages.MovieDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.MovieDetail.Types.NavigateToContributor personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
+            | Pages.MovieDetail.Types.NavigateToContributor (personId, name, isTracked) ->
+                let slug = Slug.generate name
+                let page =
+                    if isTracked then ContributorDetailPage (slug, None)  // Tracked: slug only
+                    else ContributorDetailPage (slug, Some personId)  // Untracked: slug + ID
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo page)]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -584,7 +726,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.SeriesDetail.Types.NoOp -> model', cmd
             | Pages.SeriesDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.SeriesDetail.Types.NavigateToContributor personId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage personId))]
+            | Pages.SeriesDetail.Types.NavigateToContributor (personId, name, isTracked) ->
+                let slug = Slug.generate name
+                let page =
+                    if isTracked then ContributorDetailPage (slug, None)  // Tracked: slug only
+                    else ContributorDetailPage (slug, Some personId)  // Untracked: slug + ID
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo page)]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -624,7 +771,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.SessionDetail.Types.NoOp -> model', cmd
             | Pages.SessionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.SessionDetail.Types.NavigateToSeries entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.SessionDetail.Types.NavigateToSeries (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
@@ -728,10 +877,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.ContributorDetail.Types.NavigateBack ->
                 // Navigate back - could go to library or previous page
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.ContributorDetail.Types.NavigateToMovieDetail entryId ->
-                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage entryId))]
-            | Pages.ContributorDetail.Types.NavigateToSeriesDetail entryId ->
-                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage entryId))]
+            | Pages.ContributorDetail.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.ContributorDetail.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.ContributorDetail.Types.ShowNotification (msg, isSuccess) ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
         | None -> model, Cmd.none
@@ -755,3 +906,87 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
         | None -> model, Cmd.none
+
+    // Slug-based entity loading (for URL navigation)
+    | LoadEntryBySlug (slug, isMovie) ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.libraryGetBySlug
+                slug
+                (fun result -> EntryBySlugLoaded (result, isMovie))
+                (fun ex -> EntryBySlugLoaded (Error ex.Message, isMovie))
+        model, cmd
+
+    | EntryBySlugLoaded (Ok entry, isMovie) ->
+        if isMovie then
+            initializeMovieDetailWithEntry entry model
+        else
+            initializeSeriesDetailWithEntry entry model
+
+    | EntryBySlugLoaded (Error err, _) ->
+        { model with CurrentPage = NotFoundPage },
+        Cmd.ofMsg (ShowNotification ($"Entry not found: {err}", false))
+
+    | LoadFriendBySlug slug ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.friendsGetBySlug
+                slug
+                FriendBySlugLoaded
+                (fun ex -> FriendBySlugLoaded (Error ex.Message))
+        model, cmd
+
+    | FriendBySlugLoaded (Ok friend) ->
+        initializeFriendDetailWithFriend friend model
+
+    | FriendBySlugLoaded (Error err) ->
+        { model with CurrentPage = NotFoundPage },
+        Cmd.ofMsg (ShowNotification ($"Friend not found: {err}", false))
+
+    | LoadSessionBySlug slug ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.sessionsGetBySlug
+                slug
+                SessionBySlugLoaded
+                (fun ex -> SessionBySlugLoaded (Error ex.Message))
+        model, cmd
+
+    | SessionBySlugLoaded (Ok sessionWithProgress) ->
+        initializeSessionDetailWithSession sessionWithProgress model
+
+    | SessionBySlugLoaded (Error err) ->
+        { model with CurrentPage = NotFoundPage },
+        Cmd.ofMsg (ShowNotification ($"Session not found: {err}", false))
+
+    | LoadCollectionBySlug slug ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.collectionsGetBySlug
+                slug
+                CollectionBySlugLoaded
+                (fun ex -> CollectionBySlugLoaded (Error ex.Message))
+        model, cmd
+
+    | CollectionBySlugLoaded (Ok collectionWithItems) ->
+        initializeCollectionDetailWithCollection collectionWithItems model
+
+    | CollectionBySlugLoaded (Error err) ->
+        { model with CurrentPage = NotFoundPage },
+        Cmd.ofMsg (ShowNotification ($"Collection not found: {err}", false))
+
+    | LoadContributorBySlug slug ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.contributorsGetBySlug
+                slug
+                ContributorBySlugLoaded
+                (fun ex -> ContributorBySlugLoaded (Error ex.Message))
+        model, cmd
+
+    | ContributorBySlugLoaded (Ok contributor) ->
+        initializeContributorDetailWithContributor contributor model
+
+    | ContributorBySlugLoaded (Error err) ->
+        { model with CurrentPage = NotFoundPage },
+        Cmd.ofMsg (ShowNotification ($"Contributor not found: {err}", false))

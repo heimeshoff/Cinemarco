@@ -12,17 +12,16 @@ type Msg =
     | LoadCollections
     | CollectionsLoaded of Result<Collection list, string>
     | SetSearchQuery of string
-    | ViewCollectionDetail of CollectionId
-    | OpenAddCollectionModal
-    | OpenEditCollectionModal of Collection
+    | ViewCollectionDetail of collectionId: CollectionId * name: string
+    | CreateNewCollection
+    | CollectionCreated of Result<Collection, string>
     | OpenDeleteCollectionModal of Collection
 
 type ExternalMsg =
     | NoOp
-    | NavigateToCollectionDetail of CollectionId
-    | RequestOpenAddModal
-    | RequestOpenEditModal of Collection
+    | NavigateToCollectionDetail of slug: string
     | RequestOpenDeleteModal of Collection
+    | ShowNotification of message: string * isSuccess: bool
 
 module Model =
     let empty = { Collections = NotAsked; SearchQuery = "" }

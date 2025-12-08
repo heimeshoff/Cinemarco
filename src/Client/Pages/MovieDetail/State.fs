@@ -188,7 +188,6 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let request : CreateFriendRequest = {
             Name = name
             Nickname = None
-            Notes = None
         }
         let cmd =
             Cmd.OfAsync.either
@@ -217,8 +216,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ActionResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
 
-    | ViewContributor personId ->
-        model, Cmd.none, NavigateToContributor personId
+    | ViewContributor (personId, name) ->
+        let isTracked = Set.contains personId model.TrackedPersonIds
+        model, Cmd.none, NavigateToContributor (personId, name, isTracked)
 
     | GoBack ->
         model, Cmd.none, NavigateBack

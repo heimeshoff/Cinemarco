@@ -65,8 +65,8 @@ let update (api: unit -> string -> Async<TmdbSearchResult list>) (msg: Msg) (mod
     | SelectTmdbItem item ->
         model, Cmd.none, TmdbItemSelected item
 
-    | SelectLibraryItem (entryId, mediaType) ->
-        model, Cmd.none, LibraryItemSelected (entryId, mediaType)
+    | SelectLibraryItem (entryId, mediaType, title) ->
+        model, Cmd.none, LibraryItemSelected (entryId, mediaType, title)
 
     | Close ->
         model, Cmd.none, CloseRequested

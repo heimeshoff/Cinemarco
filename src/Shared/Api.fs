@@ -36,6 +36,9 @@ type ICinemarcoApi = {
     /// Get a library entry by ID
     libraryGetById: EntryId -> Async<Result<LibraryEntry, string>>
 
+    /// Get a library entry by slug
+    libraryGetBySlug: string -> Async<Result<LibraryEntry, string>>
+
     /// Check if a TMDB movie is already in library (returns entry ID if exists)
     libraryIsMovieInLibrary: TmdbMovieId -> Async<EntryId option>
 
@@ -98,6 +101,9 @@ type ICinemarcoApi = {
 
     /// Get friend by ID
     friendsGetById: int -> Async<Result<Friend, string>>
+
+    /// Get friend by slug
+    friendsGetBySlug: string -> Async<Result<Friend, string>>
 
     /// Create a new friend
     friendsCreate: CreateFriendRequest -> Async<Result<Friend, string>>
@@ -164,6 +170,9 @@ type ICinemarcoApi = {
     /// Get a session by ID with full progress information
     sessionsGetById: SessionId -> Async<Result<WatchSessionWithProgress, string>>
 
+    /// Get a session by slug with full progress information
+    sessionsGetBySlug: string -> Async<Result<WatchSessionWithProgress, string>>
+
     /// Create a new watch session
     sessionsCreate: CreateSessionRequest -> Async<Result<WatchSession, string>>
 
@@ -194,6 +203,9 @@ type ICinemarcoApi = {
 
     /// Get a collection by ID with all its items and entries
     collectionsGetById: CollectionId -> Async<Result<CollectionWithItems, string>>
+
+    /// Get a collection by slug with all its items and entries
+    collectionsGetBySlug: string -> Async<Result<CollectionWithItems, string>>
 
     /// Create a new collection
     collectionsCreate: CreateCollectionRequest -> Async<Result<Collection, string>>
@@ -247,6 +259,9 @@ type ICinemarcoApi = {
 
     /// Get a tracked contributor by ID
     contributorsGetById: TrackedContributorId -> Async<Result<TrackedContributor, string>>
+
+    /// Get a tracked contributor by slug
+    contributorsGetBySlug: string -> Async<Result<TrackedContributor, string>>
 
     /// Track a new contributor
     contributorsTrack: TrackContributorRequest -> Async<Result<TrackedContributor, string>>

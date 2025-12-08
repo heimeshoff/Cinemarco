@@ -32,7 +32,7 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToSeries of EntryId
+    | NavigateToSeries of entryId: EntryId * name: string
     | ShowNotification of message: string * isSuccess: bool
     | SessionDeleted of SessionId
     | FriendCreatedInline of Friend

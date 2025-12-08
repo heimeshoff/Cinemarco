@@ -67,13 +67,13 @@ type Msg =
     | FriendCreated of Result<Friend, string>
     | ActionResult of Result<LibraryEntry, string>
     | EpisodeActionResult of Result<EpisodeProgress list, string>
-    | ViewContributor of TmdbPersonId
+    | ViewContributor of personId: TmdbPersonId * name: string
     | GoBack
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToContributor of TmdbPersonId
+    | NavigateToContributor of personId: TmdbPersonId * name: string * isTracked: bool
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of CollectionItemRef * title: string

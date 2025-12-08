@@ -537,7 +537,6 @@ let private recordToFriend (r: FriendRecord) : Friend = {
     Name = r.name
     Nickname = if String.IsNullOrEmpty(r.nickname) then None else Some r.nickname
     AvatarUrl = if String.IsNullOrEmpty(r.avatar_url) then None else Some r.avatar_url
-    Notes = if String.IsNullOrEmpty(r.notes) then None else Some r.notes
     CreatedAt = DateTime.Parse(r.created_at)
 }
 
@@ -564,13 +563,12 @@ let insertFriend (request: CreateFriendRequest) : Async<Friend> = async {
     let now = DateTime.UtcNow.ToString("o")
     let! id =
         conn.ExecuteScalarAsync<int64>("""
-            INSERT INTO friends (name, nickname, notes, created_at, updated_at)
-            VALUES (@Name, @Nickname, @Notes, @CreatedAt, @UpdatedAt);
+            INSERT INTO friends (name, nickname, created_at, updated_at)
+            VALUES (@Name, @Nickname, @CreatedAt, @UpdatedAt);
             SELECT last_insert_rowid();
         """, {|
             Name = request.Name
             Nickname = request.Nickname |> Option.toObj
-            Notes = request.Notes |> Option.toObj
             CreatedAt = now
             UpdatedAt = now
         |}) |> Async.AwaitTask
@@ -579,7 +577,6 @@ let insertFriend (request: CreateFriendRequest) : Async<Friend> = async {
         Name = request.Name
         Nickname = request.Nickname
         AvatarUrl = None
-        Notes = request.Notes
         CreatedAt = DateTime.UtcNow
     }
 }
@@ -593,19 +590,34 @@ let updateFriend (request: UpdateFriendRequest) : Async<unit> = async {
         let now = DateTime.UtcNow.ToString("o")
         let name = Option.defaultValue friend.Name request.Name
         let nickname = Option.toObj (Option.orElse friend.Nickname request.Nickname)
-        let notes = Option.toObj (Option.orElse friend.Notes request.Notes)
+
+        // Handle avatar: None = keep existing, Some "" = remove, Some data = update
+        let avatarUrl =
+            match request.AvatarBase64 with
+            | None -> friend.AvatarUrl |> Option.toObj  // Keep existing
+            | Some "" ->
+                // Remove existing avatar
+                friend.AvatarUrl |> Option.iter ImageCache.deleteFriendAvatar
+                null
+            | Some base64 ->
+                // Update avatar
+                friend.AvatarUrl |> Option.iter ImageCache.deleteFriendAvatar
+                match ImageCache.saveFriendAvatar (FriendId.value request.Id) base64 with
+                | Ok path -> path
+                | Error _ -> friend.AvatarUrl |> Option.toObj
+
         let param = {|
             Id = FriendId.value request.Id
             Name = name
             Nickname = nickname
-            Notes = notes
+            AvatarUrl = avatarUrl
             UpdatedAt = now
         |}
         do! conn.ExecuteAsync("""
             UPDATE friends SET
                 name = @Name,
                 nickname = @Nickname,
-                notes = @Notes,
+                avatar_url = @AvatarUrl,
                 updated_at = @UpdatedAt
             WHERE id = @Id
         """, param) |> Async.AwaitTask |> Async.Ignore

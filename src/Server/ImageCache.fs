@@ -169,6 +169,57 @@ let deleteCollectionLogo (logoPath: string) =
     with ex ->
         printfn $"Failed to delete logo: {ex.Message}"
 
+/// Save a friend avatar from base64 data
+/// Returns the path to store in the database (e.g., "/avatars/123.png")
+let saveFriendAvatar (friendId: int) (base64Data: string) : Result<string, string> =
+    try
+        // Parse the base64 data (may include data URL prefix)
+        let cleanBase64, extension =
+            if base64Data.StartsWith("data:image/") then
+                let parts = base64Data.Split([|','|], 2)
+                if parts.Length = 2 then
+                    let mimeType = parts.[0].Replace("data:", "").Replace(";base64", "")
+                    let ext = match mimeType with
+                              | "image/png" -> ".png"
+                              | "image/jpeg" | "image/jpg" -> ".jpg"
+                              | "image/gif" -> ".gif"
+                              | "image/webp" -> ".webp"
+                              | _ -> ".png"
+                    parts.[1], ext
+                else
+                    base64Data, ".png"
+            else
+                base64Data, ".png"
+
+        let bytes = Convert.FromBase64String(cleanBase64)
+        let filename = $"{friendId}{extension}"
+        let avatarsDir = getImageTypeDir "avatars"
+        let localPath = Path.Combine(avatarsDir, filename)
+
+        // Delete any existing avatar for this friend (different extension)
+        for ext in [".png"; ".jpg"; ".gif"; ".webp"] do
+            let existingPath = Path.Combine(avatarsDir, $"{friendId}{ext}")
+            if File.Exists(existingPath) then
+                File.Delete(existingPath)
+
+        File.WriteAllBytes(localPath, bytes)
+        printfn $"Saved friend avatar: {localPath}"
+        Ok $"/{filename}"
+    with ex ->
+        Error $"Failed to save avatar: {ex.Message}"
+
+/// Delete a friend avatar
+let deleteFriendAvatar (avatarPath: string) =
+    try
+        if not (String.IsNullOrEmpty avatarPath) then
+            let filename = if avatarPath.StartsWith("/") then avatarPath.Substring(1) else avatarPath
+            let localPath = Path.Combine(getImageTypeDir "avatars", filename)
+            if File.Exists(localPath) then
+                File.Delete(localPath)
+                printfn $"Deleted friend avatar: {localPath}"
+    with ex ->
+        printfn $"Failed to delete avatar: {ex.Message}"
+
 /// Get content type for an image based on extension
 let getContentType (filename: string) =
     match Path.GetExtension(filename).ToLowerInvariant() with

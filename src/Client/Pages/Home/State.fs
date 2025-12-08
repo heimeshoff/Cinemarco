@@ -27,11 +27,11 @@ let update (api: LibraryApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | LibraryLoaded (Error err) ->
         { model with Library = Failure err }, Cmd.none, NoOp
 
-    | ViewMovieDetail entryId ->
-        model, Cmd.none, NavigateToMovieDetail entryId
+    | ViewMovieDetail (entryId, title) ->
+        model, Cmd.none, NavigateToMovieDetail (entryId, title)
 
-    | ViewSeriesDetail entryId ->
-        model, Cmd.none, NavigateToSeriesDetail entryId
+    | ViewSeriesDetail (entryId, name) ->
+        model, Cmd.none, NavigateToSeriesDetail (entryId, name)
 
     | ViewLibrary ->
         model, Cmd.none, NavigateToLibrary

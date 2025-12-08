@@ -51,17 +51,17 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
     | GoBack ->
         model, Cmd.none, NavigateBack
 
-    | ViewMovieDetail entryId ->
-        model, Cmd.none, NavigateToMovieDetail entryId
+    | ViewMovieDetail (entryId, title) ->
+        model, Cmd.none, NavigateToMovieDetail (entryId, title)
 
-    | ViewSeriesDetail entryId ->
-        model, Cmd.none, NavigateToSeriesDetail entryId
+    | ViewSeriesDetail (entryId, name) ->
+        model, Cmd.none, NavigateToSeriesDetail (entryId, name)
 
-    | ViewSeasonDetail (seriesId, _) ->
-        model, Cmd.none, NavigateToSeriesBySeriesId seriesId
+    | ViewSeasonDetail seriesName ->
+        model, Cmd.none, NavigateToSeriesByName seriesName
 
-    | ViewEpisodeDetail (seriesId, _, _) ->
-        model, Cmd.none, NavigateToSeriesBySeriesId seriesId
+    | ViewEpisodeDetail seriesName ->
+        model, Cmd.none, NavigateToSeriesByName seriesName
 
     | RemoveItem itemRef ->
         let cmd =
@@ -185,3 +185,77 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
 
     | NoteSaved (Error err) ->
         { model with SavingNote = false }, Cmd.none, ShowNotification (err, false)
+
+    // Inline name editing
+    | StartEditName ->
+        let currentName =
+            match model.Collection with
+            | Success cwi -> cwi.Collection.Name
+            | _ -> ""
+        { model with EditingName = true; NameText = currentName }, Cmd.none, NoOp
+
+    | NameChanged text ->
+        { model with NameText = text }, Cmd.none, NoOp
+
+    | CancelEditName ->
+        { model with EditingName = false; NameText = "" }, Cmd.none, NoOp
+
+    | SaveName ->
+        if System.String.IsNullOrWhiteSpace model.NameText then
+            model, Cmd.none, ShowNotification ("Name cannot be empty", false)
+        else
+            let request : UpdateCollectionRequest = {
+                Id = model.CollectionId
+                Name = Some (model.NameText.Trim())
+                Description = None
+                LogoBase64 = None
+            }
+            let cmd =
+                Cmd.OfAsync.either
+                    api.UpdateCollection
+                    request
+                    NameSaved
+                    (fun ex -> Error ex.Message |> NameSaved)
+            { model with SavingName = true }, cmd, NoOp
+
+    | NameSaved (Ok collection) ->
+        let updatedCollection =
+            match model.Collection with
+            | Success cwi -> Success { cwi with Collection = collection }
+            | other -> other
+        { model with
+            Collection = updatedCollection
+            EditingName = false
+            NameText = ""
+            SavingName = false }, Cmd.none, NoOp
+
+    | NameSaved (Error err) ->
+        { model with SavingName = false }, Cmd.none, ShowNotification (err, false)
+
+    // Inline logo editing
+    | LogoSelected base64Data ->
+        let request : UpdateCollectionRequest = {
+            Id = model.CollectionId
+            Name = None
+            Description = None
+            LogoBase64 = Some base64Data
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.UpdateCollection
+                request
+                LogoSaved
+                (fun ex -> Error ex.Message |> LogoSaved)
+        { model with UploadingLogo = true }, cmd, NoOp
+
+    | LogoSaved (Ok collection) ->
+        let updatedCollection =
+            match model.Collection with
+            | Success cwi -> Success { cwi with Collection = collection }
+            | other -> other
+        { model with
+            Collection = updatedCollection
+            UploadingLogo = false }, Cmd.none, ShowNotification ("Logo updated", true)
+
+    | LogoSaved (Error err) ->
+        { model with UploadingLogo = false }, Cmd.none, ShowNotification (err, false)

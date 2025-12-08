@@ -51,7 +51,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     ]
                     Html.button [
                         prop.className "btn btn-primary"
-                        prop.onClick (fun _ -> dispatch OpenAddCollectionModal)
+                        prop.onClick (fun _ -> dispatch CreateNewCollection)
                         prop.children [
                             Html.span [ prop.text "+ New Collection" ]
                         ]
@@ -99,7 +99,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             for collection in sortedCollections do
                             Html.li [
                                 prop.className "flex items-center gap-4 px-4 py-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors cursor-pointer"
-                                prop.onClick (fun _ -> dispatch (ViewCollectionDetail collection.Id))
+                                prop.onClick (fun _ -> dispatch (ViewCollectionDetail (collection.Id, collection.Name)))
                                 prop.children [
                                     // Logo
                                     match collection.CoverImagePath with
@@ -136,27 +136,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                         ]
                                     ]
 
-                                    // Action buttons
-                                    Html.div [
-                                        prop.className "flex gap-2"
-                                        prop.children [
-                                            Html.button [
-                                                prop.className "btn btn-ghost btn-sm"
-                                                prop.onClick (fun e ->
-                                                    e.stopPropagation()
-                                                    dispatch (OpenEditCollectionModal collection)
-                                                )
-                                                prop.text "Edit"
-                                            ]
-                                            Html.button [
-                                                prop.className "btn btn-ghost btn-sm text-error"
-                                                prop.onClick (fun e ->
-                                                    e.stopPropagation()
-                                                    dispatch (OpenDeleteCollectionModal collection)
-                                                )
-                                                prop.text "Delete"
-                                            ]
-                                        ]
+                                    // Delete button
+                                    Html.button [
+                                        prop.className "btn btn-ghost btn-sm text-error"
+                                        prop.onClick (fun e ->
+                                            e.stopPropagation()
+                                            dispatch (OpenDeleteCollectionModal collection)
+                                        )
+                                        prop.text "Delete"
                                     ]
                                 ]
                             ]

@@ -97,9 +97,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     Html.div [
                                         prop.key (EntryId.value entry.Id)
                                         prop.children [
+                                            let title =
+                                                match entry.Media with
+                                                | LibraryMovie m -> m.Title
+                                                | LibrarySeries s -> s.Name
                                             libraryEntryCard entry (fun id isMovie ->
-                                                if isMovie then dispatch (ViewMovieDetail id)
-                                                else dispatch (ViewSeriesDetail id))
+                                                if isMovie then dispatch (ViewMovieDetail (id, title))
+                                                else dispatch (ViewSeriesDetail (id, title)))
                                         ]
                                     ]
                             ]

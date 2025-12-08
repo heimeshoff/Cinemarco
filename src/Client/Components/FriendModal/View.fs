@@ -43,17 +43,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
 
-                // Notes field
-                formField "Notes" false [
-                    Html.textarea [
-                        prop.className "textarea textarea-bordered h-20 w-full"
-                        prop.placeholder "Notes about this friend..."
-                        prop.value model.Notes
-                        prop.onChange (fun (e: string) -> dispatch (NotesChanged e))
-                        prop.disabled model.IsSubmitting
-                    ]
-                ]
-
                 // Submit button
                 submitButton buttonText model.IsSubmitting (fun () -> dispatch Submit)
             ]
