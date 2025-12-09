@@ -220,5 +220,8 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let isTracked = Set.contains personId model.TrackedPersonIds
         model, Cmd.none, NavigateToContributor (personId, name, isTracked)
 
+    | ViewFriendDetail (friendId, name) ->
+        model, Cmd.none, NavigateToFriendDetail (friendId, name)
+
     | GoBack ->
         model, Cmd.none, NavigateBack

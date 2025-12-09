@@ -671,6 +671,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     if isTracked then ContributorDetailPage (slug, None)  // Tracked: slug only
                     else ContributorDetailPage (slug, Some personId)  // Untracked: slug + ID
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo page)]
+            | Pages.MovieDetail.Types.NavigateToFriendDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -732,6 +735,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     if isTracked then ContributorDetailPage (slug, None)  // Tracked: slug only
                     else ContributorDetailPage (slug, Some personId)  // Untracked: slug + ID
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo page)]
+            | Pages.SeriesDetail.Types.NavigateToFriendDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]

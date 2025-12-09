@@ -408,16 +408,45 @@ let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriend
                     ]
                 ]
 
-            // Friend pills
+            // Friend pills (clickable to navigate to friend detail)
             if not (List.isEmpty selectedFriendsList) then
                 Html.div [
-                    prop.className "flex flex-wrap items-center gap-2 mt-4"
+                    prop.className "flex flex-wrap items-center gap-3 mt-4"
                     prop.children [
                         for friend in selectedFriendsList do
-                            Html.span [
+                            Html.div [
                                 prop.key (FriendId.value friend.Id |> string)
-                                prop.className "friend-pill"
-                                prop.text friend.Name
+                                prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
+                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+                                prop.children [
+                                    // Friend avatar (same size as friends list)
+                                    match friend.AvatarUrl with
+                                    | Some url ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+                                            prop.children [
+                                                Html.img [
+                                                    prop.src $"/images/avatars{url}"
+                                                    prop.alt friend.Name
+                                                    prop.className "w-full h-full object-cover"
+                                                ]
+                                            ]
+                                        ]
+                                    | None ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "text-sm font-medium"
+                                                    prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
+                                                ]
+                                            ]
+                                        ]
+                                    Html.span [
+                                        prop.className "text-sm font-medium whitespace-nowrap"
+                                        prop.text friend.Name
+                                    ]
+                                ]
                             ]
                     ]
                 ]

@@ -403,5 +403,8 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         let isTracked = Set.contains personId model.TrackedPersonIds
         model, Cmd.none, NavigateToContributor (personId, name, isTracked)
 
+    | ViewFriendDetail (friendId, name) ->
+        model, Cmd.none, NavigateToFriendDetail (friendId, name)
+
     | GoBack ->
         model, Cmd.none, NavigateBack
