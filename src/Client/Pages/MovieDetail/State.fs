@@ -223,5 +223,8 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ViewFriendDetail (friendId, name) ->
         model, Cmd.none, NavigateToFriendDetail (friendId, name)
 
+    | ViewCollectionDetail (collectionId, name) ->
+        model, Cmd.none, NavigateToCollectionDetail (collectionId, name)
+
     | GoBack ->
         model, Cmd.none, NavigateBack

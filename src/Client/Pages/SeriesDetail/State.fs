@@ -406,5 +406,8 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
     | ViewFriendDetail (friendId, name) ->
         model, Cmd.none, NavigateToFriendDetail (friendId, name)
 
+    | ViewCollectionDetail (collectionId, name) ->
+        model, Cmd.none, NavigateToCollectionDetail (collectionId, name)
+
     | GoBack ->
         model, Cmd.none, NavigateBack

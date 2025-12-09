@@ -88,9 +88,9 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
     ]
 
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
-let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatch: Msg -> unit) =
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "flex items-center gap-3 mt-4"
+        prop.className "flex flex-wrap items-center gap-3 mt-4"
         prop.children [
             // Watch status button
             match entry.WatchStatus with
@@ -152,6 +152,20 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
                 ]
             // Rating button
             ratingButton (entry.PersonalRating |> Option.map PersonalRating.toInt) isRatingOpen dispatch
+            // Add to Collection button
+            Html.div [
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", "Add to Collection")
+                prop.children [
+                    Html.button [
+                        prop.className "detail-action-btn"
+                        prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ collections ] ]
+                        ]
+                    ]
+                ]
+            ]
             // Delete button
             Html.div [
                 prop.className "tooltip tooltip-bottom detail-tooltip"
@@ -166,6 +180,17 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (dispatc
                     ]
                 ]
             ]
+            // Collection pills
+            match entryCollections with
+            | Success collectionsList when not (List.isEmpty collectionsList) ->
+                for collection in collectionsList do
+                    Html.button [
+                        prop.key (CollectionId.value collection.Id |> string)
+                        prop.className "badge badge-outline badge-sm hover:badge-primary cursor-pointer transition-colors"
+                        prop.onClick (fun _ -> dispatch (ViewCollectionDetail (collection.Id, collection.Name)))
+                        prop.text collection.Name
+                    ]
+            | _ -> Html.none
         ]
     ]
 
@@ -180,34 +205,6 @@ let private overviewTab (movie: Movie) (entry: LibraryEntry) (model: Model) (dis
                 Html.div [
                     Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Overview" ]
                     Html.p [ prop.className "text-base-content/70"; prop.text overview ]
-                ]
-            | _ -> Html.none
-
-            // Add to Collection button
-            Html.button [
-                prop.className "btn btn-sm btn-ghost"
-                prop.onClick (fun _ -> dispatch OpenAddToCollectionModal)
-                prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ collections ] ]
-                    Html.span [ prop.text "Add to Collection" ]
-                ]
-            ]
-
-            // Collections this entry belongs to
-            match model.Collections with
-            | Success collectionsList when not (List.isEmpty collectionsList) ->
-                Html.div [
-                    Html.h3 [ prop.className "font-semibold mb-2"; prop.text "In Collections" ]
-                    Html.div [
-                        prop.className "flex flex-wrap gap-2"
-                        prop.children [
-                            for collection in collectionsList do
-                                Html.span [
-                                    prop.className "badge badge-outline"
-                                    prop.text collection.Name
-                                ]
-                        ]
-                    ]
                 ]
             | _ -> Html.none
 
@@ -568,7 +565,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                 ]
                                             ]
                                             // Action buttons row
-                                            actionButtonsRow entry model.IsRatingOpen dispatch
+                                            actionButtonsRow entry model.IsRatingOpen model.Collections dispatch
 
                                             // Tab bar and content (hidden on mobile, shown on md+)
                                             Html.div [

@@ -69,6 +69,7 @@ type Msg =
     | EpisodeActionResult of Result<EpisodeProgress list, string>
     | ViewContributor of personId: TmdbPersonId * name: string
     | ViewFriendDetail of friendId: FriendId * name: string
+    | ViewCollectionDetail of collectionId: CollectionId * name: string
     | GoBack
 
 type ExternalMsg =
@@ -79,6 +80,7 @@ type ExternalMsg =
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
+    | NavigateToCollectionDetail of collectionId: CollectionId * name: string
     | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry

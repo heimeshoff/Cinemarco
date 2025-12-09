@@ -5,44 +5,8 @@ open Common.Types
 open Shared.Domain
 open Types
 open Components.Modal.View
+module Icons = Components.Icons
 
-let private searchIcon =
-    Html.svg [
-        prop.className "w-4 h-4 text-base-content/50"
-        prop.viewBox (0, 0, 24, 24)
-        prop.fill "none"
-        prop.stroke "currentColor"
-        prop.strokeWidth 2
-        prop.children [
-            Html.circle [ prop.cx 11; prop.cy 11; prop.r 8 ]
-            Html.line [ prop.x1 21; prop.y1 21; prop.x2 16.65; prop.y2 16.65 ]
-        ]
-    ]
-
-let private plusIcon =
-    Html.svg [
-        prop.className "w-5 h-5"
-        prop.viewBox (0, 0, 24, 24)
-        prop.fill "none"
-        prop.stroke "currentColor"
-        prop.strokeWidth 2
-        prop.children [
-            Html.line [ prop.x1 12; prop.y1 5; prop.x2 12; prop.y2 19 ]
-            Html.line [ prop.x1 5; prop.y1 12; prop.x2 19; prop.y2 12 ]
-        ]
-    ]
-
-let private checkIcon =
-    Html.svg [
-        prop.className "w-4 h-4"
-        prop.viewBox (0, 0, 24, 24)
-        prop.fill "none"
-        prop.stroke "currentColor"
-        prop.strokeWidth 3
-        prop.children [
-            Html.polyline [ prop.points "20 6 9 17 4 12" ]
-        ]
-    ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let isDisabled = model.IsSubmitting || model.IsCreatingCollection
@@ -86,7 +50,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 prop.children [
                                     Html.div [
                                         prop.className "absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-                                        prop.children [ searchIcon ]
+                                        prop.children [ Icons.search ]
                                     ]
                                     Html.input [
                                         prop.type' "text"
@@ -122,7 +86,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                             prop.children [
                                                 Html.div [
                                                     prop.className "flex items-center justify-center w-6 h-6 rounded bg-success/30 text-success"
-                                                    prop.children [ plusIcon ]
+                                                    prop.children [ Icons.plus ]
                                                 ]
                                                 Html.div [
                                                     prop.className "flex-1"
@@ -181,7 +145,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                             else "border-base-content/30"
                                                         )
                                                         prop.children [
-                                                            if isSelected then checkIcon
+                                                            if isSelected then Icons.check
                                                         ]
                                                     ]
                                                     Html.div [

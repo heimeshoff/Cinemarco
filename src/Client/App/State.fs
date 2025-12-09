@@ -412,8 +412,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Components.AddToCollectionModal.Types.NoOp -> model', cmd
             | Components.AddToCollectionModal.Types.CollectionsUpdated ->
+                // Reload collections in the active detail page
+                let reloadCmd =
+                    match model'.MovieDetailPage, model'.SeriesDetailPage with
+                    | Some _, _ -> Cmd.ofMsg (MovieDetailMsg Pages.MovieDetail.Types.LoadCollections)
+                    | _, Some _ -> Cmd.ofMsg (SeriesDetailMsg Pages.SeriesDetail.Types.LoadCollections)
+                    | _ -> Cmd.none
                 { model' with Modal = NoModal; CollectionsPage = None },
-                Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Collections updated", true))]
+                Cmd.batch [cmd; reloadCmd]
             | Components.AddToCollectionModal.Types.CloseRequested ->
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
@@ -678,6 +684,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.NavigateToFriendDetail (_, name) ->
                 let slug = Slug.generate name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
+            | Pages.MovieDetail.Types.NavigateToCollectionDetail (_, name) ->
+                let slug = Slug.forCollection name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -742,6 +751,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.NavigateToFriendDetail (_, name) ->
                 let slug = Slug.generate name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
+            | Pages.SeriesDetail.Types.NavigateToCollectionDetail (_, name) ->
+                let slug = Slug.forCollection name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
             | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
