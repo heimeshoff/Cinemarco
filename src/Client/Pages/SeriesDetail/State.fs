@@ -22,6 +22,7 @@ type SeriesApi = {
     ToggleEpisode: SessionId * int * int * bool -> Async<Result<EpisodeProgress list, string>>
     MarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
     DeleteSession: SessionId -> Async<Result<unit, string>>
+    UpdateEpisodeWatchedDate: SessionId * int * int * System.DateTime option -> Async<Result<unit, string>>
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
@@ -244,6 +245,33 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                     (fun ex -> Error ex.Message |> EpisodeActionResult)
             model, cmd, NoOp
         | None -> model, Cmd.none, NoOp
+
+    | UpdateEpisodeWatchedDate (seasonNum, episodeNum, date) ->
+        match model.SelectedSessionId with
+        | Some sessionId ->
+            let cmd =
+                Cmd.OfAsync.either
+                    api.UpdateEpisodeWatchedDate
+                    (sessionId, seasonNum, episodeNum, date)
+                    (fun result -> result |> Result.map (fun () -> ()) |> function Ok () -> EpisodeDateUpdateResult (Ok model.EpisodeProgress) | Error e -> EpisodeDateUpdateResult (Error e))
+                    (fun ex -> Error ex.Message |> EpisodeDateUpdateResult)
+            model, cmd, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | EpisodeDateUpdateResult (Ok _) ->
+        // Reload episode progress for the selected session to get the updated dates
+        match model.SelectedSessionId with
+        | Some sessionId ->
+            let cmd =
+                Cmd.OfAsync.perform
+                    api.GetSessionProgress
+                    sessionId
+                    (Ok >> SessionProgressLoaded)
+            model, cmd, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | EpisodeDateUpdateResult (Error err) ->
+        model, Cmd.none, ShowNotification (err, false)
 
     | ToggleRatingDropdown ->
         { model with IsRatingOpen = not model.IsRatingOpen }, Cmd.none, NoOp

@@ -76,6 +76,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh stats when navigating to the page
         let pageModel, pageCmd = Pages.Stats.State.init ()
         { model' with StatsPage = Some pageModel }, Cmd.map StatsMsg pageCmd
+    | TimelinePage ->
+        // Always refresh timeline when navigating to the page
+        let pageModel, pageCmd = Pages.Timeline.State.init ()
+        { model' with TimelinePage = Some pageModel }, Cmd.map TimelineMsg pageCmd
     | _ -> model', Cmd.none
 
 /// Initialize movie detail page with an entry that's already been loaded
@@ -795,6 +799,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 MarkSeasonWatched = fun (sessionId, s) ->
                     Api.api.sessionsMarkSeasonWatched (sessionId, s)
                 DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
+                UpdateEpisodeWatchedDate = fun (sessionId, s, e, date) ->
+                    Api.api.sessionsUpdateEpisodeWatchedDate (sessionId, s, e, date)
             }
             let newPage, pageCmd, extMsg = Pages.SeriesDetail.State.update seriesApi seriesMsg pageModel
             let model' = { model with SeriesDetailPage = Some newPage }
@@ -1013,6 +1019,26 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Stats.Types.NavigateToCollection (collectionId, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
+        | None -> model, Cmd.none
+
+    // Page messages - Timeline
+    | TimelineMsg timelineMsg ->
+        match model.TimelinePage with
+        | Some pageModel ->
+            let timelineApi : Pages.Timeline.State.TimelineApi = {
+                GetEntries = fun (filter, page, pageSize) -> Api.api.timelineGetEntries (filter, page, pageSize)
+            }
+            let newPage, pageCmd, extMsg = Pages.Timeline.State.update timelineApi timelineMsg pageModel
+            let model' = { model with TimelinePage = Some newPage }
+            let cmd = Cmd.map TimelineMsg pageCmd
+            match extMsg with
+            | Pages.Timeline.Types.NoOp -> model', cmd
+            | Pages.Timeline.Types.NavigateToMovieDetail (entryId, title) ->
+                let slug = Slug.forMovie title None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.Timeline.Types.NavigateToSeriesDetail (entryId, name) ->
+                let slug = Slug.forSeries name None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
     // Slug-based entity loading (for URL navigation)

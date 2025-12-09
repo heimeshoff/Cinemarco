@@ -1523,13 +1523,22 @@ let updateSessionEpisodeProgress (sessionId: SessionId) (entryId: EntryId) (seri
 
     match existingId.HasValue with
     | true ->
-        // Update existing record
+        // Update existing record - only set watched_date if marking as watched AND no date exists
+        // If unmarking, clear the date
         let! _ =
-            conn.ExecuteAsync(
-                """UPDATE episode_progress SET is_watched = @IsWatched, watched_date = @WatchedDate
-                   WHERE id = @Id""",
-                {| Id = existingId.Value; IsWatched = (if watched then 1 else 0); WatchedDate = (if watched then now else null) |}
-            ) |> Async.AwaitTask
+            if watched then
+                conn.ExecuteAsync(
+                    """UPDATE episode_progress
+                       SET is_watched = 1, watched_date = COALESCE(watched_date, @WatchedDate)
+                       WHERE id = @Id""",
+                    {| Id = existingId.Value; WatchedDate = now |}
+                ) |> Async.AwaitTask
+            else
+                conn.ExecuteAsync(
+                    """UPDATE episode_progress SET is_watched = 0, watched_date = NULL
+                       WHERE id = @Id""",
+                    {| Id = existingId.Value |}
+                ) |> Async.AwaitTask
         return ()
     | false ->
         // Insert new record
@@ -2362,6 +2371,24 @@ let updateEpisodeProgress (entryId: EntryId) (seriesId: SeriesId) (seasonNumber:
         ()
 }
 
+/// Update the watched date for a specific episode in a specific session
+let updateSessionEpisodeWatchedDate (sessionId: SessionId) (seasonNumber: int) (episodeNumber: int) (watchedDate: DateTime option) : Async<unit> = async {
+    use conn = getConnection()
+    let dateStr = watchedDate |> Option.map (fun d -> d.ToString("o")) |> Option.toObj
+    let! _ =
+        conn.ExecuteAsync(
+            """UPDATE episode_progress
+               SET watched_date = @WatchedDate
+               WHERE session_id = @SessionId
+               AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber""",
+            {| SessionId = SessionId.value sessionId
+               SeasonNumber = seasonNumber
+               EpisodeNumber = episodeNumber
+               WatchedDate = dateStr |}
+        ) |> Async.AwaitTask
+    return ()
+}
+
 /// Mark all episodes in a season as watched (for default session)
 let markSeasonWatched (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeCount: int) : Async<unit> = async {
     let! defaultSession = getDefaultSession entryId
@@ -2369,6 +2396,117 @@ let markSeasonWatched (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int
     | Some session ->
         do! markSessionSeasonWatched session.Id entryId seriesId seasonNumber episodeCount
     | None -> ()
+}
+
+/// Get season details with episodes from local database
+/// Returns None if the season data hasn't been cached yet
+let getLocalSeasonDetails (seriesId: SeriesId) (seasonNumber: int) : Async<TmdbSeasonDetails option> = async {
+    use conn = getConnection()
+    let seriesIdVal = SeriesId.value seriesId
+
+    // Get the series to find the TMDB ID
+    let! series = getSeriesById seriesId
+    match series with
+    | None -> return None
+    | Some s ->
+        // Check if we have episodes for this season
+        let! episodeRecords =
+            conn.QueryAsync<EpisodeRecord>(
+                """SELECT * FROM episodes
+                   WHERE series_id = @SeriesId AND season_number = @SeasonNumber
+                   ORDER BY episode_number""",
+                {| SeriesId = seriesIdVal; SeasonNumber = seasonNumber |}
+            ) |> Async.AwaitTask
+
+        let episodes = episodeRecords |> Seq.toList
+        if List.isEmpty episodes then
+            return None
+        else
+            // Get season record if it exists
+            let! seasonRecord =
+                conn.QueryFirstOrDefaultAsync<SeasonRecord>(
+                    """SELECT * FROM seasons WHERE series_id = @SeriesId AND season_number = @SeasonNumber""",
+                    {| SeriesId = seriesIdVal; SeasonNumber = seasonNumber |}
+                ) |> Async.AwaitTask
+
+            let seasonDetails: TmdbSeasonDetails = {
+                TmdbSeriesId = s.TmdbId
+                SeasonNumber = seasonNumber
+                Name = if isNull (box seasonRecord) || isNull seasonRecord.name then None else Some seasonRecord.name
+                Overview = if isNull (box seasonRecord) || isNull seasonRecord.overview then None else Some seasonRecord.overview
+                PosterPath = if isNull (box seasonRecord) || isNull seasonRecord.poster_path then None else Some seasonRecord.poster_path
+                AirDate =
+                    if isNull (box seasonRecord) || isNull seasonRecord.air_date || seasonRecord.air_date = ""
+                    then None
+                    else parseDateTime seasonRecord.air_date
+                Episodes =
+                    episodes
+                    |> List.map (fun ep -> {
+                        EpisodeNumber = ep.episode_number
+                        Name = if isNull ep.name then $"Episode {ep.episode_number}" else ep.name
+                        Overview = if isNull ep.overview then None else Some ep.overview
+                        AirDate = if isNull ep.air_date || ep.air_date = "" then None else parseDateTime ep.air_date
+                        RuntimeMinutes = nullableToOption ep.runtime_minutes
+                        StillPath = if isNull ep.still_path then None else Some ep.still_path
+                    })
+            }
+            return Some seasonDetails
+}
+
+/// Save season and episode metadata from TMDB to the database
+/// This enables episode names to be shown in the timeline
+let saveSeasonEpisodes (seriesId: SeriesId) (season: TmdbSeasonDetails) : Async<unit> = async {
+    use conn = getConnection()
+    let seriesIdVal = SeriesId.value seriesId
+
+    // First, upsert the season
+    let! existingSeasonId =
+        conn.ExecuteScalarAsync<Nullable<int64>>(
+            """SELECT id FROM seasons WHERE series_id = @SeriesId AND season_number = @SeasonNumber""",
+            {| SeriesId = seriesIdVal; SeasonNumber = season.SeasonNumber |}
+        ) |> Async.AwaitTask
+
+    let! seasonId =
+        if existingSeasonId.HasValue then
+            async { return existingSeasonId.Value }
+        else
+            conn.ExecuteScalarAsync<int64>(
+                """INSERT INTO seasons (series_id, tmdb_season_id, season_number, name, overview, poster_path, air_date, episode_count)
+                   VALUES (@SeriesId, 0, @SeasonNumber, @Name, @Overview, @PosterPath, @AirDate, @EpisodeCount);
+                   SELECT last_insert_rowid();""",
+                {| SeriesId = seriesIdVal
+                   SeasonNumber = season.SeasonNumber
+                   Name = season.Name |> Option.toObj
+                   Overview = season.Overview |> Option.toObj
+                   PosterPath = season.PosterPath |> Option.toObj
+                   AirDate = season.AirDate |> Option.map (fun d -> d.ToString("yyyy-MM-dd")) |> Option.toObj
+                   EpisodeCount = season.Episodes.Length |}
+            ) |> Async.AwaitTask
+
+    // Now upsert each episode
+    for ep in season.Episodes do
+        let! _ =
+            conn.ExecuteAsync(
+                """INSERT INTO episodes (series_id, season_id, tmdb_episode_id, season_number, episode_number, name, overview, air_date, runtime_minutes, still_path)
+                   VALUES (@SeriesId, @SeasonId, 0, @SeasonNumber, @EpisodeNumber, @Name, @Overview, @AirDate, @RuntimeMinutes, @StillPath)
+                   ON CONFLICT(series_id, season_number, episode_number) DO UPDATE SET
+                       name = excluded.name,
+                       overview = excluded.overview,
+                       air_date = excluded.air_date,
+                       runtime_minutes = excluded.runtime_minutes,
+                       still_path = excluded.still_path""",
+                {| SeriesId = seriesIdVal
+                   SeasonId = seasonId
+                   SeasonNumber = season.SeasonNumber
+                   EpisodeNumber = ep.EpisodeNumber
+                   Name = ep.Name
+                   Overview = ep.Overview |> Option.toObj
+                   AirDate = ep.AirDate |> Option.map (fun d -> d.ToString("yyyy-MM-dd")) |> Option.toObj
+                   RuntimeMinutes = ep.RuntimeMinutes |> Option.toNullable
+                   StillPath = ep.StillPath |> Option.toObj |}
+            ) |> Async.AwaitTask
+        ()
+    return ()
 }
 
 /// Count watched episodes for an entry (from default session)
@@ -2486,6 +2624,20 @@ let private resolveCollectionItemDisplay (item: CollectionItem) : Async<Collecti
         match series with
         | None -> return None
         | Some s ->
+            // Query episode name from database
+            use conn = getConnection()
+            let! episodeName =
+                conn.ExecuteScalarAsync<string>(
+                    """SELECT name FROM episodes
+                       WHERE series_id = @SeriesId
+                       AND season_number = @SeasonNumber
+                       AND episode_number = @EpisodeNumber""",
+                    {| SeriesId = SeriesId.value seriesId
+                       SeasonNumber = seasonNumber
+                       EpisodeNumber = episodeNumber |}
+                ) |> Async.AwaitTask
+            let name = if isNull episodeName then $"Episode {episodeNumber}" else episodeName
+
             // Create minimal summaries for season and episode
             let seasonSummary: TmdbSeasonSummary = {
                 SeasonNumber = seasonNumber
@@ -2497,7 +2649,7 @@ let private resolveCollectionItemDisplay (item: CollectionItem) : Async<Collecti
             }
             let episodeSummary: TmdbEpisodeSummary = {
                 EpisodeNumber = episodeNumber
-                Name = $"Episode {episodeNumber}"
+                Name = name
                 Overview = None
                 AirDate = None
                 RuntimeMinutes = s.EpisodeRunTimeMinutes
@@ -2768,4 +2920,229 @@ let updateTrackedContributorNotes (TrackedContributorId id) (notes: string optio
         else return Error "Tracked contributor not found"
     with
     | ex -> return Error $"Failed to update notes: {ex.Message}"
+}
+
+// =====================================
+// Timeline Queries
+// =====================================
+
+/// Record type for timeline queries (combines movie and episode watch events)
+[<CLIMutable>]
+type TimelineQueryRecord = {
+    mutable entry_id: int64
+    mutable watched_date: string
+    mutable event_type: string  // "movie", "episode", "season_completed", "series_completed"
+    mutable season_number: int64
+    mutable episode_number: int64
+    mutable session_id: int64  // movie_watch_session id or watch_session id (0 if no session)
+}
+
+/// Get timeline entries with filtering and pagination
+/// Returns entries sorted by watched_date DESC (most recent first)
+let getTimelineEntries (filter: TimelineFilter) (page: int) (pageSize: int) : Async<PagedResponse<TimelineEntry>> = async {
+    try
+        use conn = getConnection()
+
+        // Build filter conditions
+        let formatDate (dt: DateTime) = dt.ToString("yyyy-MM-dd")
+        let dateFilter =
+            match filter.StartDate, filter.EndDate with
+            | Some startDate, Some endDate ->
+                $"AND watched_date >= '{formatDate startDate}' AND watched_date <= '{formatDate endDate}'"
+            | Some startDate, None ->
+                $"AND watched_date >= '{formatDate startDate}'"
+            | None, Some endDate ->
+                $"AND watched_date <= '{formatDate endDate}'"
+            | None, None -> ""
+
+        let entryFilter =
+            filter.EntryId
+            |> Option.map (fun (EntryId id) -> $"AND entry_id = {id}")
+            |> Option.defaultValue ""
+
+        // MediaType filter - if Movies, only get movies; if Series, only get episodes
+        let mediaTypeFilter =
+            match filter.MediaType with
+            | Some MediaType.Movie -> "Movie"
+            | Some MediaType.Series -> "Series"
+            | None -> "All"
+
+        let offset = (page - 1) * pageSize
+
+        // Build queries based on media type filter
+        // Movies: use movie_watch_sessions table (each watch session is a timeline entry)
+        // Series: use episode_progress table (each watched episode is a timeline entry)
+        let movieQuery =
+            if mediaTypeFilter = "Series" then ""
+            else $"""
+                SELECT
+                    mws.entry_id as entry_id,
+                    mws.watched_date as watched_date,
+                    'movie' as event_type,
+                    0 as season_number,
+                    0 as episode_number,
+                    mws.id as session_id
+                FROM movie_watch_sessions mws
+                WHERE mws.watched_date IS NOT NULL
+                    AND mws.watched_date != ''
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let episodeQuery =
+            if mediaTypeFilter = "Movie" then ""
+            else $"""
+                SELECT
+                    ep.entry_id,
+                    ep.watched_date,
+                    'episode' as event_type,
+                    COALESCE(ep.season_number, 0) as season_number,
+                    COALESCE(ep.episode_number, 0) as episode_number,
+                    COALESCE(ep.session_id, 0) as session_id
+                FROM episode_progress ep
+                WHERE ep.is_watched = 1
+                    AND ep.watched_date IS NOT NULL
+                    AND ep.watched_date != ''
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let combinedQuery =
+            match movieQuery.Trim(), episodeQuery.Trim() with
+            | "", "" ->
+                // Neither movies nor episodes - return empty placeholder query
+                "SELECT 0 as entry_id, '' as watched_date, '' as event_type, 0 as season_number, 0 as episode_number, 0 as session_id WHERE 1=0"
+            | "", ep -> ep
+            | mv, "" -> mv
+            | mv, ep -> $"{mv} UNION ALL {ep}"
+
+        let query = $"""
+            WITH all_events AS ({combinedQuery})
+            SELECT entry_id, watched_date, event_type, season_number, episode_number, session_id FROM all_events
+            ORDER BY watched_date DESC
+            LIMIT @PageSize OFFSET @Offset
+        """
+
+        let countQuery = $"""
+            WITH all_events AS ({combinedQuery})
+            SELECT COUNT(*) FROM all_events
+        """
+
+        // Get total count
+        let! totalCount = conn.ExecuteScalarAsync<int>(countQuery) |> Async.AwaitTask
+
+        // Get page of records
+        let! records =
+            conn.QueryAsync<TimelineQueryRecord>(query, {| PageSize = pageSize; Offset = offset |})
+            |> Async.AwaitTask
+
+        // Convert records to TimelineEntry
+        let! entries =
+            records
+            |> Seq.map (fun r -> async {
+                let! entry = getLibraryEntryById (EntryId (int r.entry_id))
+                match entry, parseDateTime r.watched_date with
+                | Some e, Some dt ->
+                    let season = if r.season_number > 0L then int r.season_number else 1
+                    let episode = if r.episode_number > 0L then int r.episode_number else 1
+
+                    let detail =
+                        match r.event_type with
+                        | "movie" -> MovieWatched
+                        | "episode" -> EpisodeWatched (season, episode)
+                        | "season_completed" -> SeasonCompleted season
+                        | "series_completed" -> SeriesCompleted
+                        | _ -> MovieWatched
+
+                    // Get episode name for episode watches
+                    let! episodeName = async {
+                        match r.event_type, e.Media with
+                        | "episode", LibrarySeries series ->
+                            use conn2 = getConnection()
+                            let! name =
+                                conn2.ExecuteScalarAsync<string>(
+                                    """SELECT name FROM episodes
+                                       WHERE series_id = @SeriesId
+                                       AND season_number = @SeasonNumber
+                                       AND episode_number = @EpisodeNumber""",
+                                    {| SeriesId = SeriesId.value series.Id
+                                       SeasonNumber = season
+                                       EpisodeNumber = episode |}
+                                ) |> Async.AwaitTask
+                            return if isNull name then None else Some name
+                        | _ -> return None
+                    }
+
+                    // Get friends for this watch event
+                    let! friends = async {
+                        use conn2 = getConnection()
+                        match r.event_type with
+                        | "movie" when r.session_id > 0L ->
+                            // Get friends from movie_session_friends
+                            let! friendRecords =
+                                conn2.QueryAsync<FriendRecord>(
+                                    """SELECT f.* FROM friends f
+                                       JOIN movie_session_friends msf ON f.id = msf.friend_id
+                                       WHERE msf.session_id = @SessionId""",
+                                    {| SessionId = int r.session_id |}
+                                ) |> Async.AwaitTask
+                            return friendRecords |> Seq.map recordToFriend |> Seq.toList
+                        | "episode" when r.session_id > 0L ->
+                            // Get friends from session_friends (watch session)
+                            let! friendRecords =
+                                conn2.QueryAsync<FriendRecord>(
+                                    """SELECT f.* FROM friends f
+                                       JOIN session_friends sf ON f.id = sf.friend_id
+                                       WHERE sf.session_id = @SessionId""",
+                                    {| SessionId = int r.session_id |}
+                                ) |> Async.AwaitTask
+                            return friendRecords |> Seq.map recordToFriend |> Seq.toList
+                        | _ -> return []
+                    }
+
+                    return Some {
+                        WatchedDate = dt
+                        Entry = e
+                        Detail = detail
+                        EpisodeName = episodeName
+                        WatchedWithFriends = friends
+                    }
+                | _ -> return None
+            })
+            |> Async.Sequential
+
+        let items = entries |> Array.choose id |> Array.toList
+        let totalPages = if totalCount = 0 then 0 else (totalCount + pageSize - 1) / pageSize
+
+        return {
+            Items = items
+            Page = page
+            PageSize = pageSize
+            TotalCount = totalCount
+            TotalPages = totalPages
+            HasPreviousPage = page > 1
+            HasNextPage = page < totalPages
+        }
+    with
+    | ex ->
+        printfn "Timeline query error: %s" ex.Message
+        printfn "Stack trace: %s" ex.StackTrace
+        return raise ex
+}
+
+/// Get timeline entries for a specific month
+let getTimelineEntriesByMonth (year: int) (month: int) : Async<TimelineEntry list> = async {
+    let startDate = DateTime(year, month, 1)
+    let endDate = startDate.AddMonths(1).AddDays(-1.0)
+
+    let filter = {
+        StartDate = Some startDate
+        EndDate = Some endDate
+        MediaType = None
+        EntryId = None
+    }
+
+    // Get all entries for this month (up to 1000)
+    let! result = getTimelineEntries filter 1 1000
+    return result.Items
 }

@@ -799,6 +799,10 @@ type TimelineEntry = {
     WatchedDate: DateTime
     Entry: LibraryEntry
     Detail: TimelineDetail
+    /// Episode name (for EpisodeWatched entries)
+    EpisodeName: string option
+    /// Friends watched with (for this specific watch event)
+    WatchedWithFriends: Friend list
 }
 
 // =====================================

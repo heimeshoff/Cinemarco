@@ -144,10 +144,16 @@ let private EpisodeCheckbox (seasonNum: int) (epNum: int) (epName: string) (isWa
         ]
     ]
 
-/// Episode list item with proper name display
+/// Episode list item with proper name display and editable watched date
 [<ReactComponent>]
-let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bool) (dispatch: Msg -> unit) =
+let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bool) (watchedDate: System.DateTime option) (dispatch: Msg -> unit) =
     let (contextMenu, setContextMenu) = React.useState<ContextMenuPosition option> None
+    let (isEditingDate, setIsEditingDate) = React.useState false
+    let (pendingDate, setPendingDate) = React.useState<string>(
+        watchedDate
+        |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+        |> Option.defaultValue ""
+    )
 
     // Close context menu when clicking outside
     React.useEffect (fun () ->
@@ -197,15 +203,77 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
                                 prop.text ep.Name
                             ]
                             Html.div [
-                                prop.className "flex items-center gap-2 text-xs text-base-content/50 mt-0.5"
+                                prop.className "flex items-center gap-2 text-xs text-base-content/50 mt-0.5 flex-wrap"
                                 prop.children [
                                     match ep.RuntimeMinutes with
                                     | Some mins -> Html.span [ prop.text $"{mins} min" ]
                                     | None -> Html.none
-                                    match ep.AirDate with
-                                    | Some date ->
-                                        Html.span [ prop.text (date.ToString("MMM d, yyyy")) ]
-                                    | None -> Html.none
+                                    // Show watched date if watched
+                                    if isWatched then
+                                        Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
+                                        if isEditingDate then
+                                            Html.div [
+                                                prop.className "inline-flex items-center gap-1"
+                                                prop.onClick (fun e -> e.stopPropagation())
+                                                prop.children [
+                                                    Html.input [
+                                                        prop.className "input input-xs input-bordered w-32 bg-base-100"
+                                                        prop.type' "date"
+                                                        prop.value pendingDate
+                                                        prop.onClick (fun e -> e.stopPropagation())
+                                                        prop.onChange (fun (value: string) -> setPendingDate value)
+                                                        prop.autoFocus true
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-xs btn-ghost text-success"
+                                                        prop.title "Save date"
+                                                        prop.onClick (fun e ->
+                                                            e.stopPropagation()
+                                                            if System.String.IsNullOrEmpty(pendingDate) then
+                                                                dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, None))
+                                                            else
+                                                                match System.DateTime.TryParse(pendingDate) with
+                                                                | true, date ->
+                                                                    dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, Some date))
+                                                                | _ -> ()
+                                                            setIsEditingDate false)
+                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-xs btn-ghost text-error"
+                                                        prop.title "Cancel"
+                                                        prop.onClick (fun e ->
+                                                            e.stopPropagation()
+                                                            // Reset to original value
+                                                            setPendingDate (
+                                                                watchedDate
+                                                                |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+                                                                |> Option.defaultValue ""
+                                                            )
+                                                            setIsEditingDate false)
+                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
+                                                    ]
+                                                ]
+                                            ]
+                                        else
+                                            Html.span [
+                                                prop.className "hover:text-primary hover:underline cursor-pointer"
+                                                prop.title "Click to edit watched date"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    // Initialize pending date when opening editor
+                                                    setPendingDate (
+                                                        watchedDate
+                                                        |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+                                                        |> Option.defaultValue ""
+                                                    )
+                                                    setIsEditingDate true)
+                                                prop.text (
+                                                    match watchedDate with
+                                                    | Some d -> d.ToString("MMM d, yyyy")
+                                                    | None -> "Set date"
+                                                )
+                                            ]
                                 ]
                             ]
                         ]
@@ -278,13 +346,17 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
 
 /// Season episodes list with proper names
 [<ReactComponent>]
-let private SeasonEpisodesList (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (dispatch: Msg -> unit) =
+let private SeasonEpisodesList (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (episodeProgress: EpisodeProgress list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-2"
         prop.children [
             for ep in episodes |> List.sortBy (fun e -> e.EpisodeNumber) do
                 let isWatched = Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes
-                EpisodeListItem seasonNum ep isWatched dispatch
+                let watchedDate =
+                    episodeProgress
+                    |> List.tryFind (fun p -> p.SeasonNumber = seasonNum && p.EpisodeNumber = ep.EpisodeNumber)
+                    |> Option.bind (fun p -> p.WatchedDate)
+                EpisodeListItem seasonNum ep isWatched watchedDate dispatch
         ]
     ]
 
@@ -807,7 +879,7 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                     ]
                                                 ]
                                             ]
-                                            SeasonEpisodesList seasonNum seasonDetails.Episodes watchedEpisodes dispatch
+                                            SeasonEpisodesList seasonNum seasonDetails.Episodes watchedEpisodes model.EpisodeProgress dispatch
                                         | None when isLoading ->
                                             Html.div [
                                                 prop.className "flex items-center gap-2"

@@ -49,6 +49,8 @@ type Msg =
     | ToggleEpisodeWatched of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
+    | UpdateEpisodeWatchedDate of seasonNum: int * episodeNum: int * date: System.DateTime option
+    | EpisodeDateUpdateResult of Result<EpisodeProgress list, string>
     | ToggleRatingDropdown
     | SetRating of int
     | UpdateNotes of string

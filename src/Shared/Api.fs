@@ -61,6 +61,9 @@ type ICinemarcoApi = {
     /// Update episode progress for a series (toggle watched state)
     libraryUpdateEpisodeProgress: EntryId * int * int * bool -> Async<Result<unit, string>>
 
+    /// Update episode watched date for a specific session
+    sessionsUpdateEpisodeWatchedDate: SessionId * int * int * System.DateTime option -> Async<Result<unit, string>>
+
     /// Mark an entire season as watched
     libraryMarkSeasonWatched: EntryId * int -> Async<Result<unit, string>>
 
@@ -315,4 +318,14 @@ type ICinemarcoApi = {
 
     /// Get top series by time investment
     statsGetTopSeriesByTime: int -> Async<SeriesTimeInvestment list>
+
+    // =====================================
+    // Timeline Operations
+    // =====================================
+
+    /// Get timeline entries (paged, chronological watch history)
+    timelineGetEntries: TimelineFilter * int * int -> Async<PagedResponse<TimelineEntry>>
+
+    /// Get timeline entries grouped by month (year, month)
+    timelineGetByMonth: int * int -> Async<TimelineEntry list>
 }

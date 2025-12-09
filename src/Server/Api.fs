@@ -131,6 +131,14 @@ let cinemarcoApi : ICinemarcoApi = {
         | ex -> return Error $"Failed to update episode progress: {ex.Message}"
     }
 
+    sessionsUpdateEpisodeWatchedDate = fun (sessionId, seasonNumber, episodeNumber, watchedDate) -> async {
+        try
+            do! Persistence.updateSessionEpisodeWatchedDate sessionId seasonNumber episodeNumber watchedDate
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to update episode watched date: {ex.Message}"
+    }
+
     libraryMarkSeasonWatched = fun (entryId, seasonNumber) -> async {
         try
             match! Persistence.getSeriesInfoForEntry entryId with
@@ -147,6 +155,8 @@ let cinemarcoApi : ICinemarcoApi = {
                         match seasonResult with
                         | Error err -> return Error $"Failed to get season details: {err}"
                         | Ok season ->
+                            // Save episode metadata to DB so names show in timeline
+                            do! Persistence.saveSeasonEpisodes series.Id season
                             let episodeCount = season.Episodes.Length
                             do! Persistence.markSeasonWatched entryId seriesId seasonNumber episodeCount
                             do! Persistence.updateSeriesWatchStatusFromProgress entryId
@@ -519,6 +529,8 @@ let cinemarcoApi : ICinemarcoApi = {
                         match seasonResult with
                         | Error err -> return Error $"Failed to get season details: {err}"
                         | Ok season ->
+                            // Save episode metadata to DB so names show in timeline
+                            do! Persistence.saveSeasonEpisodes series.Id season
                             let episodeCount = season.Episodes.Length
                             match! Persistence.getSeriesInfoForEntry s.EntryId with
                             | None -> return Error "Series info not found"
@@ -721,8 +733,35 @@ let cinemarcoApi : ICinemarcoApi = {
 
     tmdbGetSeriesDetails = fun tmdbId -> TmdbClient.getSeriesDetails tmdbId
 
-    tmdbGetSeasonDetails = fun (tmdbId, seasonNumber) ->
-        TmdbClient.getSeasonDetails tmdbId seasonNumber
+    tmdbGetSeasonDetails = fun (tmdbId, seasonNumber) -> async {
+        // First check if series is in our library
+        let! series = Persistence.getSeriesByTmdbId tmdbId
+        match series with
+        | Some s ->
+            // Try to get from local database first
+            let! localData = Persistence.getLocalSeasonDetails s.Id seasonNumber
+            match localData with
+            | Some cachedSeason ->
+                // Return cached data immediately, but refresh from TMDB in background
+                Async.Start (async {
+                    let! result = TmdbClient.getSeasonDetails tmdbId seasonNumber
+                    match result with
+                    | Ok freshSeason -> do! Persistence.saveSeasonEpisodes s.Id freshSeason
+                    | Error _ -> () // Ignore errors during background refresh
+                })
+                return Ok cachedSeason
+            | None ->
+                // No local data, fetch from TMDB and save
+                let! result = TmdbClient.getSeasonDetails tmdbId seasonNumber
+                match result with
+                | Ok season ->
+                    do! Persistence.saveSeasonEpisodes s.Id season
+                    return Ok season
+                | Error err -> return Error err
+        | None ->
+            // Series not in library, just fetch from TMDB without caching
+            return! TmdbClient.getSeasonDetails tmdbId seasonNumber
+    }
 
     tmdbGetPersonDetails = fun tmdbId -> TmdbClient.getPersonDetails tmdbId
 
@@ -877,6 +916,20 @@ let cinemarcoApi : ICinemarcoApi = {
             Persistence.countWatchedEpisodes entryId
             |> Async.RunSynchronously
         return Stats.getTopSeriesByTime entries countWatchedEpisodes limit
+    }
+
+    // =====================================
+    // Timeline Operations
+    // =====================================
+
+    timelineGetEntries = fun (filter, page, pageSize) -> async {
+        let pageSize' = min pageSize 100 |> max 1  // Clamp between 1 and 100
+        let page' = max 1 page
+        return! Persistence.getTimelineEntries filter page' pageSize'
+    }
+
+    timelineGetByMonth = fun (year, month) -> async {
+        return! Persistence.getTimelineEntriesByMonth year month
     }
 }
 
