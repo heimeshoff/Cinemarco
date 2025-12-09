@@ -1,6 +1,7 @@
 module Pages.ContributorDetail.View
 
 open Feliz
+open Browser.Dom
 open Common.Types
 open Shared.Domain
 open Types
@@ -194,8 +195,8 @@ let private workCard (work: TmdbWork) (isInLibrary: bool) (entryId: EntryId opti
         match entryId with
         | Some id ->
             match work.MediaType with
-            | MediaType.Movie -> dispatch (ViewMovieDetail id)
-            | MediaType.Series -> dispatch (ViewSeriesDetail id)
+            | MediaType.Movie -> dispatch (ViewMovieDetail (id, work.Title))
+            | MediaType.Series -> dispatch (ViewSeriesDetail (id, work.Title))
         | None ->
             dispatch (AddToLibrary work)
 
@@ -463,10 +464,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.button [
                 prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> dispatch GoBack)
+                prop.onClick (fun _ -> window.history.back())
                 prop.children [
                     Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
                     Html.span [ prop.text "Back" ]

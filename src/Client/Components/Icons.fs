@@ -98,6 +98,10 @@ let plus =
 let close =
     icon [ roundPath "M6 18L18 6M6 6l12 12" ]
 
+/// Camera icon (for photo upload)
+let camera =
+    icon [ roundPath "M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"; roundPath "M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" ]
+
 /// Check icon
 let check =
     icon [ roundPath "M4.5 12.75l6 6 9-13.5" ]
@@ -236,6 +240,10 @@ let trophy =
 /// User plus icon (add friend/person)
 let userPlus =
     icon [ roundPath "M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" ]
+
+/// Circle outline icon
+let circle =
+    icon [ roundPath "M21 12a9 9 0 11-18 0 9 9 0 0118 0z" ]
 
 /// Clapperboard/Cinemarco logo icon
 let clapperboard =

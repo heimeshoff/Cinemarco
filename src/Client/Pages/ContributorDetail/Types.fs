@@ -44,8 +44,8 @@ type Msg =
     | SetRoleFilter of RoleFilter
     | AddToLibrary of TmdbWork
     | AddToLibraryResult of Result<LibraryEntry, string>
-    | ViewMovieDetail of EntryId
-    | ViewSeriesDetail of EntryId
+    | ViewMovieDetail of entryId: EntryId * title: string
+    | ViewSeriesDetail of entryId: EntryId * name: string
     | GoBack
     | CheckIsTracked
     | TrackedStatusLoaded of TrackedContributor option
@@ -57,8 +57,8 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToMovieDetail of EntryId
-    | NavigateToSeriesDetail of EntryId
+    | NavigateToMovieDetail of entryId: EntryId * title: string
+    | NavigateToSeriesDetail of entryId: EntryId * name: string
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

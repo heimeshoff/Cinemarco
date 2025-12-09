@@ -36,8 +36,8 @@ let update (api: ContributorsApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> *
     | SetSearchQuery query ->
         { model with SearchQuery = query }, Cmd.none, NoOp
 
-    | ViewContributorDetail personId ->
-        model, Cmd.none, NavigateToContributorDetail personId
+    | ViewContributorDetail (personId, name) ->
+        model, Cmd.none, NavigateToContributorDetail (personId, name)
 
     | UntrackContributor trackedId ->
         let cmd =

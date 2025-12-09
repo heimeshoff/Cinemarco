@@ -26,7 +26,6 @@ let update (api: Api) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg
         let request : CreateFriendRequest = {
             Name = name
             Nickname = None
-            Notes = None
         }
         let cmd =
             Cmd.OfAsync.either

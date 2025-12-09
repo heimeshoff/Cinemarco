@@ -14,6 +14,7 @@ type ActiveModal =
     | WatchSessionModal of Components.WatchSessionModal.Types.Model
     | CollectionModal of Components.CollectionModal.Types.Model
     | AddToCollectionModal of Components.AddToCollectionModal.Types.Model
+    | ProfileImageModal of Components.ProfileImageEditor.Types.Model * FriendId
 
 /// Main application model
 type Model = {
@@ -51,6 +52,7 @@ type Model = {
 type Msg =
     // Navigation
     | NavigateTo of Page
+    | UrlChanged of Page  // Triggered by browser back/forward
 
     // Global data
     | LoadFriends
@@ -77,6 +79,9 @@ type Msg =
     | CollectionModalMsg of Components.CollectionModal.Types.Msg
     | OpenAddToCollectionModal of CollectionItemRef * title: string
     | AddToCollectionModalMsg of Components.AddToCollectionModal.Types.Msg
+    | OpenProfileImageModal of Friend
+    | ProfileImageModalMsg of Components.ProfileImageEditor.Types.Msg
+    | ProfileImageConfirmed of FriendId * base64Image: string
 
     // Notification
     | ShowNotification of message: string * isSuccess: bool
@@ -107,6 +112,18 @@ type Msg =
     | CollectionSaved of Collection
     | CollectionDeleted of CollectionId
     | AddedToCollection of Collection
+
+    // Slug-based entity loading (for URL navigation)
+    | LoadEntryBySlug of slug: string * isMovie: bool
+    | EntryBySlugLoaded of Result<LibraryEntry, string> * isMovie: bool
+    | LoadFriendBySlug of slug: string
+    | FriendBySlugLoaded of Result<Friend, string>
+    | LoadSessionBySlug of slug: string
+    | SessionBySlugLoaded of Result<WatchSessionWithProgress, string>
+    | LoadCollectionBySlug of slug: string
+    | CollectionBySlugLoaded of Result<CollectionWithItems, string>
+    | LoadContributorBySlug of slug: string
+    | ContributorBySlugLoaded of Result<TrackedContributor, string>
 
 module Model =
     let empty = {

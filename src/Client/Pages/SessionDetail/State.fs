@@ -130,7 +130,6 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
         let request : CreateFriendRequest = {
             Name = name
             Nickname = None
-            Notes = None
         }
         let cmd =
             Cmd.OfAsync.either
@@ -198,5 +197,7 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
 
     | GoBack ->
         match model.SessionData with
-        | Success data -> model, Cmd.none, NavigateToSeries data.Session.EntryId
+        | Success data ->
+            let name = match data.Entry.Media with LibrarySeries s -> s.Name | LibraryMovie m -> m.Title
+            model, Cmd.none, NavigateToSeries (data.Session.EntryId, name)
         | _ -> model, Cmd.none, NavigateBack

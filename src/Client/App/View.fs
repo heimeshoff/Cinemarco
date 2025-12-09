@@ -54,9 +54,10 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
-    | FriendDetailPage friendId ->
+    | FriendDetailPage _ ->
         match model.FriendDetailPage with
         | Some pageModel ->
+            let friendId = pageModel.FriendId
             let friend = friends |> List.tryFind (fun f -> f.Id = friendId)
             Pages.FriendDetail.View.view pageModel friend (FriendDetailMsg >> dispatch)
         | None ->
@@ -146,6 +147,30 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | AddToCollectionModal modalModel ->
         Components.AddToCollectionModal.View.view modalModel (AddToCollectionModalMsg >> dispatch)
 
+    | ProfileImageModal (modalModel, friendId) ->
+        Components.ProfileImageEditor.View.View
+            modalModel
+            (ProfileImageModalMsg >> dispatch)
+            (fun base64 -> dispatch (ProfileImageConfirmed (friendId, base64)))
+
+/// Browser history listener component - handles back/forward navigation
+[<ReactComponent>]
+let private BrowserHistoryListener (dispatch: Msg -> unit) (children: ReactElement) =
+    React.useEffect(fun () ->
+        let handler _ =
+            let page = Router.parseCurrentUrl ()
+            dispatch (UrlChanged page)
+
+        Browser.Dom.window.addEventListener("popstate", handler)
+
+        // Cleanup
+        React.createDisposable(fun () ->
+            Browser.Dom.window.removeEventListener("popstate", handler)
+        )
+    , [||])
+
+    children
+
 /// Global keyboard shortcut handler component
 [<ReactComponent>]
 let private KeyboardShortcuts (model: Model) (dispatch: Msg -> unit) (children: ReactElement) =
@@ -215,7 +240,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     let onNavigate = fun page -> dispatch (NavigateTo page)
     let onSearch = fun () -> dispatch OpenSearchModal
 
-    KeyboardShortcuts model dispatch (Html.div [
+    BrowserHistoryListener dispatch (KeyboardShortcuts model dispatch (Html.div [
         prop.className "min-h-screen bg-transparent"
         prop.children [
             // Animated backdrop
@@ -262,4 +287,4 @@ let view (model: Model) (dispatch: Msg -> unit) =
             // Notification
             Components.Notification.View.view model.Notification (NotificationMsg >> dispatch)
         ]
-    ])
+    ]))

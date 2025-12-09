@@ -23,9 +23,6 @@ let update (api: SaveApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Externa
     | NicknameChanged nickname ->
         { model with Nickname = nickname }, Cmd.none, NoOp
 
-    | NotesChanged notes ->
-        { model with Notes = notes }, Cmd.none, NoOp
-
     | Submit ->
         if model.Name.Trim().Length = 0 then
             { model with Error = Some "Name is required" }, Cmd.none, NoOp
@@ -36,7 +33,6 @@ let update (api: SaveApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Externa
                     let request : CreateFriendRequest = {
                         Name = model.Name.Trim()
                         Nickname = if model.Nickname.Trim().Length > 0 then Some (model.Nickname.Trim()) else None
-                        Notes = if model.Notes.Trim().Length > 0 then Some (model.Notes.Trim()) else None
                     }
                     Cmd.OfAsync.either
                         api.Create
@@ -48,7 +44,7 @@ let update (api: SaveApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Externa
                         Id = existing.Id
                         Name = Some (model.Name.Trim())
                         Nickname = if model.Nickname.Trim().Length > 0 then Some (model.Nickname.Trim()) else None
-                        Notes = if model.Notes.Trim().Length > 0 then Some (model.Notes.Trim()) else None
+                        AvatarBase64 = None  // Don't change avatar from here
                     }
                     Cmd.OfAsync.either
                         api.Update

@@ -48,7 +48,7 @@ let private filterContributors (model: Model) (contributors: TrackedContributor 
 let private contributorCard (contributor: TrackedContributor) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "group cursor-pointer"
-        prop.onClick (fun _ -> dispatch (ViewContributorDetail contributor.TmdbPersonId))
+        prop.onClick (fun _ -> dispatch (ViewContributorDetail (contributor.TmdbPersonId, contributor.Name)))
         prop.children [
             GlassPanel.standard [
                 Html.div [

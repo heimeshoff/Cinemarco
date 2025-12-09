@@ -30,14 +30,14 @@ let update (api: FriendsApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | SetSearchQuery query ->
         { model with SearchQuery = query }, Cmd.none, NoOp
 
-    | ViewFriendDetail friendId ->
-        model, Cmd.none, NavigateToFriendDetail friendId
+    | ViewFriendDetail (friendId, name) ->
+        model, Cmd.none, NavigateToFriendDetail (friendId, name)
 
     | OpenAddFriendModal ->
         model, Cmd.none, RequestOpenAddModal
 
-    | OpenEditFriendModal friend ->
-        model, Cmd.none, RequestOpenEditModal friend
-
     | OpenDeleteFriendModal friend ->
         model, Cmd.none, RequestOpenDeleteModal friend
+
+    | OpenProfileImageModal friend ->
+        model, Cmd.none, RequestOpenProfileImageModal friend

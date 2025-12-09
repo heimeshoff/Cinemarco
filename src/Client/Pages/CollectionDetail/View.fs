@@ -1,10 +1,21 @@
 module Pages.CollectionDetail.View
 
 open Feliz
+open Browser.Dom
 open Browser.Types
 open Common.Types
 open Shared.Domain
 open Types
+
+let private handleFileSelect (dispatch: Msg -> unit) (e: Event) =
+    let input = e.target :?> HTMLInputElement
+    if input.files.length > 0 then
+        let file = input.files.[0]
+        let reader = FileReader.Create()
+        reader.onload <- fun _ ->
+            let result = reader.result :?> string
+            dispatch (LogoSelected result)
+        reader.readAsDataURL(file)
 
 let private progressBar (progress: CollectionProgress) =
     Html.div [
@@ -78,16 +89,16 @@ let private collectionItemView (model: Model) (dispatch: Msg -> unit) (position:
             match entry.Media with
             | LibraryMovie m ->
                 let year = m.ReleaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                (m.Title, m.PosterPath, year, "🎬", fun () -> dispatch (ViewMovieDetail entry.Id))
+                (m.Title, m.PosterPath, year, "🎬", fun () -> dispatch (ViewMovieDetail (entry.Id, m.Title)))
             | LibrarySeries s ->
                 let year = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                (s.Name, s.PosterPath, year, "📺", fun () -> dispatch (ViewSeriesDetail entry.Id))
+                (s.Name, s.PosterPath, year, "📺", fun () -> dispatch (ViewSeriesDetail (entry.Id, s.Name)))
         | SeasonDisplay (series, season) ->
             let seasonName = season.Name |> Option.defaultValue $"Season {season.SeasonNumber}"
-            (seasonName, series.PosterPath, series.Name, "📀", fun () -> dispatch (ViewSeasonDetail (series.Id, season.SeasonNumber)))
+            (seasonName, series.PosterPath, series.Name, "📀", fun () -> dispatch (ViewSeasonDetail series.Name))
         | EpisodeDisplay (series, season, episode) ->
             let epTitle = $"S{season.SeasonNumber}E{episode.EpisodeNumber}: {episode.Name}"
-            (epTitle, series.PosterPath, series.Name, "▶", fun () -> dispatch (ViewEpisodeDetail (series.Id, season.SeasonNumber, episode.EpisodeNumber)))
+            (epTitle, series.PosterPath, series.Name, "▶", fun () -> dispatch (ViewEpisodeDetail series.Name))
 
     // Watch status badge only for library entries
     let statusBadge =
@@ -223,16 +234,16 @@ let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-4"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [
                     Html.button [
                         prop.className "btn btn-ghost btn-sm gap-1"
-                        prop.onClick (fun _ -> dispatch GoBack)
+                        prop.onClick (fun _ -> window.history.back())
                         prop.children [
                             Html.span [ prop.text "←" ]
-                            Html.span [ prop.text "Back to Collections" ]
+                            Html.span [ prop.text "Back" ]
                         ]
                     ]
                 ]
@@ -261,42 +272,111 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "flex items-start gap-4"
                             prop.children [
-                                // Collection logo
-                                match cwi.Collection.CoverImagePath with
-                                | Some path ->
-                                    Html.img [
-                                        prop.src $"/images/collections{path}"
-                                        prop.className "w-24 h-24 object-cover rounded-lg"
-                                        prop.alt cwi.Collection.Name
-                                    ]
-                                | None ->
-                                    Html.div [
-                                        prop.className "w-24 h-24 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center"
-                                        prop.children [
-                                            Html.span [
-                                                prop.className "text-3xl opacity-50"
-                                                prop.text "📁"
+                                // Collection logo - clickable to upload new logo
+                                Html.label [
+                                    prop.className "relative cursor-pointer group"
+                                    prop.children [
+                                        match cwi.Collection.CoverImagePath with
+                                        | Some path ->
+                                            Html.img [
+                                                prop.src $"/images/collections{path}"
+                                                prop.className "w-24 h-24 object-cover rounded-lg transition-opacity group-hover:opacity-75"
+                                                prop.alt cwi.Collection.Name
+                                            ]
+                                        | None ->
+                                            Html.div [
+                                                prop.className "w-24 h-24 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg flex items-center justify-center transition-opacity group-hover:opacity-75"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "text-3xl opacity-50"
+                                                        prop.text "📁"
+                                                    ]
+                                                ]
+                                            ]
+                                        // Upload overlay
+                                        Html.div [
+                                            prop.className "absolute inset-0 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 transition-opacity"
+                                            prop.children [
+                                                if model.UploadingLogo then
+                                                    Html.span [ prop.className "loading loading-spinner loading-sm text-white" ]
+                                                else
+                                                    Html.span [
+                                                        prop.className "text-white text-xs font-medium"
+                                                        prop.text "Change"
+                                                    ]
                                             ]
                                         ]
+                                        // Hidden file input
+                                        Html.input [
+                                            prop.type'.file
+                                            prop.accept "image/png,image/jpeg,image/gif,image/webp"
+                                            prop.className "hidden"
+                                            prop.onChange (handleFileSelect dispatch)
+                                            prop.disabled model.UploadingLogo
+                                        ]
                                     ]
+                                ]
 
                                 Html.div [
                                     prop.className "flex-1"
                                     prop.children [
-                                        Html.div [
-                                            prop.className "flex items-center gap-2"
-                                            prop.children [
-                                                Html.h1 [
-                                                    prop.className "text-2xl font-bold"
-                                                    prop.text cwi.Collection.Name
-                                                ]
-                                                if cwi.Collection.IsPublicFranchise then
-                                                    Html.span [
-                                                        prop.className "badge badge-secondary"
-                                                        prop.text "Franchise"
+                                        // Editable name
+                                        if model.EditingName then
+                                            Html.div [
+                                                prop.className "flex items-center gap-2"
+                                                prop.children [
+                                                    Html.input [
+                                                        prop.className "input input-bordered text-2xl font-bold h-auto py-1 px-2"
+                                                        prop.ref (fun el -> if not (isNull el) then (el :?> HTMLElement).focus())
+                                                        prop.value model.NameText
+                                                        prop.onChange (fun (v: string) -> dispatch (NameChanged v))
+                                                        prop.disabled model.SavingName
+                                                        prop.onKeyDown (fun e ->
+                                                            if e.key = "Enter" then dispatch SaveName
+                                                            elif e.key = "Escape" then dispatch CancelEditName
+                                                        )
                                                     ]
+                                                    Html.button [
+                                                        prop.className "btn btn-sm btn-primary"
+                                                        prop.onClick (fun _ -> dispatch SaveName)
+                                                        prop.disabled model.SavingName
+                                                        prop.children [
+                                                            if model.SavingName then
+                                                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                            else
+                                                                Html.span [ prop.text "Save" ]
+                                                        ]
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-sm btn-ghost"
+                                                        prop.onClick (fun _ -> dispatch CancelEditName)
+                                                        prop.disabled model.SavingName
+                                                        prop.text "Cancel"
+                                                    ]
+                                                    if cwi.Collection.IsPublicFranchise then
+                                                        Html.span [
+                                                            prop.className "badge badge-secondary"
+                                                            prop.text "Franchise"
+                                                        ]
+                                                ]
                                             ]
-                                        ]
+                                        else
+                                            Html.div [
+                                                prop.className "flex items-center gap-2"
+                                                prop.children [
+                                                    Html.h1 [
+                                                        prop.className "text-2xl font-bold cursor-pointer hover:text-primary transition-colors"
+                                                        prop.title "Click to rename"
+                                                        prop.onClick (fun _ -> dispatch StartEditName)
+                                                        prop.text cwi.Collection.Name
+                                                    ]
+                                                    if cwi.Collection.IsPublicFranchise then
+                                                        Html.span [
+                                                            prop.className "badge badge-secondary"
+                                                            prop.text "Franchise"
+                                                        ]
+                                                ]
+                                            ]
                                         // Editable note below name
                                         if model.EditingNote then
                                             Html.div [
@@ -305,9 +385,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                     Html.textarea [
                                                         prop.className "textarea textarea-bordered w-full text-sm resize-none"
                                                         prop.placeholder "Add a note about this collection..."
+                                                        prop.ref (fun el -> if not (isNull el) then (el :?> HTMLElement).focus())
                                                         prop.value model.NoteText
                                                         prop.onChange (fun (v: string) -> dispatch (NoteChanged v))
                                                         prop.disabled model.SavingNote
+                                                        prop.onKeyDown (fun e ->
+                                                            if e.ctrlKey && e.key = "Enter" then dispatch SaveNote
+                                                            elif e.key = "Escape" then dispatch CancelEditNote
+                                                        )
                                                         prop.style [
                                                             style.custom ("fieldSizing", "content")
                                                             style.minHeight (length.rem 3)

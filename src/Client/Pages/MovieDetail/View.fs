@@ -1,6 +1,7 @@
 module Pages.MovieDetail.View
 
 open Feliz
+open Browser.Dom
 open Common.Types
 open Shared.Domain
 open Types
@@ -231,15 +232,19 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             match model.Credits with
             | Success credits ->
-                // Cast section
-                if not (List.isEmpty credits.Cast) then
+                // Cast section - sort tracked contributors first
+                let trackedCast, untrackedCast =
+                    credits.Cast |> List.partition (fun c -> Set.contains c.TmdbPersonId model.TrackedPersonIds)
+                let sortedCast = trackedCast @ untrackedCast
+
+                if not (List.isEmpty sortedCast) then
                     Html.div [
                         prop.children [
                             Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
                             Html.div [
                                 prop.className "flex flex-wrap gap-2"
                                 prop.children [
-                                    for castMember in credits.Cast do
+                                    for castMember in sortedCast do
                                         let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
                                         Html.button [
                                             prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
@@ -249,7 +254,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                                 else
                                                     "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
                                             )
-                                            prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (castMember.TmdbPersonId, castMember.Name)))
                                             prop.children [
                                                 // Profile image with tracked indicator
                                                 Html.div [
@@ -311,7 +316,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                         Html.button [
                                             prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
                                             prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                            prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (crewMember.TmdbPersonId, crewMember.Name)))
                                             prop.children [
                                                 match crewMember.ProfilePath with
                                                 | Some path ->
@@ -403,16 +408,45 @@ let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriend
                     ]
                 ]
 
-            // Friend pills
+            // Friend pills (clickable to navigate to friend detail)
             if not (List.isEmpty selectedFriendsList) then
                 Html.div [
-                    prop.className "flex flex-wrap items-center gap-2 mt-4"
+                    prop.className "flex flex-wrap items-center gap-3 mt-4"
                     prop.children [
                         for friend in selectedFriendsList do
-                            Html.span [
+                            Html.div [
                                 prop.key (FriendId.value friend.Id |> string)
-                                prop.className "friend-pill"
-                                prop.text friend.Name
+                                prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
+                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+                                prop.children [
+                                    // Friend avatar (same size as friends list)
+                                    match friend.AvatarUrl with
+                                    | Some url ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+                                            prop.children [
+                                                Html.img [
+                                                    prop.src $"/images/avatars{url}"
+                                                    prop.alt friend.Name
+                                                    prop.className "w-full h-full object-cover"
+                                                ]
+                                            ]
+                                        ]
+                                    | None ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "text-sm font-medium"
+                                                    prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
+                                                ]
+                                            ]
+                                        ]
+                                    Html.span [
+                                        prop.className "text-sm font-medium whitespace-nowrap"
+                                        prop.text friend.Name
+                                    ]
+                                ]
                             ]
                     ]
                 ]
@@ -448,13 +482,13 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.button [
                 prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> dispatch GoBack)
+                prop.onClick (fun _ -> window.history.back())
                 prop.children [
                     Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back to Library" ]
+                    Html.span [ prop.text "Back" ]
                 ]
             ]
 

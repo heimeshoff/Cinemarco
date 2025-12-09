@@ -128,11 +128,11 @@ let update (api: ContributorApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
     | AddToLibraryResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
 
-    | ViewMovieDetail entryId ->
-        model, Cmd.none, NavigateToMovieDetail entryId
+    | ViewMovieDetail (entryId, title) ->
+        model, Cmd.none, NavigateToMovieDetail (entryId, title)
 
-    | ViewSeriesDetail entryId ->
-        model, Cmd.none, NavigateToSeriesDetail entryId
+    | ViewSeriesDetail (entryId, name) ->
+        model, Cmd.none, NavigateToSeriesDetail (entryId, name)
 
     | GoBack ->
         model, Cmd.none, NavigateBack

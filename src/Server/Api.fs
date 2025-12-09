@@ -58,6 +58,32 @@ let cinemarcoApi : ICinemarcoApi = {
         | None -> return Error "Entry not found"
     }
 
+    libraryGetBySlug = fun slug -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        // Parse the slug to handle duplicates
+        let (baseSlug, suffixIndex) = Slug.parseSlugWithSuffix slug
+        let index = suffixIndex |> Option.defaultValue 0
+        // Find all entries matching the base slug, sorted by ID
+        let matchingEntries =
+            entries
+            |> List.filter (fun entry ->
+                let entrySlug =
+                    match entry.Media with
+                    | LibraryMovie m -> Slug.forMovie m.Title m.ReleaseDate
+                    | LibrarySeries s -> Slug.forSeries s.Name s.FirstAirDate
+                Slug.matches baseSlug entrySlug)
+            |> List.sortBy (fun e -> EntryId.value e.Id)
+        // Get the entry at the specified index
+        let entryOpt =
+            if index < List.length matchingEntries then
+                Some (List.item index matchingEntries)
+            else
+                None
+        match entryOpt with
+        | Some e -> return Ok e
+        | None -> return Error $"Entry not found for slug: {slug}"
+    }
+
     libraryIsMovieInLibrary = fun tmdbId -> Persistence.isMovieInLibrary tmdbId
 
     libraryIsSeriesInLibrary = fun tmdbId -> Persistence.isSeriesInLibrary tmdbId
@@ -258,6 +284,27 @@ let cinemarcoApi : ICinemarcoApi = {
         | None -> return Error "Friend not found"
     }
 
+    friendsGetBySlug = fun slug -> async {
+        let! friends = Persistence.getAllFriends()
+        // Parse the slug to handle duplicates
+        let (baseSlug, suffixIndex) = Slug.parseSlugWithSuffix slug
+        let index = suffixIndex |> Option.defaultValue 0
+        // Find all friends matching the base slug, sorted by ID
+        let matchingFriends =
+            friends
+            |> List.filter (fun f -> Slug.matches baseSlug (Slug.forFriend f.Name))
+            |> List.sortBy (fun f -> FriendId.value f.Id)
+        // Get the friend at the specified index
+        let friendOpt =
+            if index < List.length matchingFriends then
+                Some (List.item index matchingFriends)
+            else
+                None
+        match friendOpt with
+        | Some f -> return Ok f
+        | None -> return Error $"Friend not found for slug: {slug}"
+    }
+
     friendsCreate = fun request -> async {
         try
             let! friend = Persistence.insertFriend request
@@ -323,6 +370,60 @@ let cinemarcoApi : ICinemarcoApi = {
                         float watchedCount / float totalEpisodes * 100.0
                     else 0.0
 
+                return Ok {
+                    Session = s
+                    Entry = e
+                    EpisodeProgress = progress
+                    TotalEpisodes = totalEpisodes
+                    WatchedEpisodes = watchedCount
+                    CompletionPercentage = completionPct
+                }
+    }
+
+    sessionsGetBySlug = fun slug -> async {
+        // Sessions don't have standalone names, so we need to find by series slug + session index
+        // Format: {series-slug}-session-{n}
+        let! entries = Persistence.getAllLibraryEntries()
+        // Try to find a matching session by iterating through entries and their sessions
+        let! allSessions =
+            entries
+            |> List.choose (fun e ->
+                match e.Media with
+                | LibrarySeries _ -> Some e.Id
+                | _ -> None)
+            |> List.map Persistence.getSessionsForEntry
+            |> Async.Sequential
+        let flatSessions = allSessions |> Array.toList |> List.concat
+
+        let matchingSession =
+            flatSessions
+            |> List.indexed
+            |> List.tryPick (fun (_, session) ->
+                // Find the entry for this session to get the series name
+                entries
+                |> List.tryFind (fun e -> e.Id = session.EntryId)
+                |> Option.bind (fun entry ->
+                    match entry.Media with
+                    | LibrarySeries s ->
+                        let sessionSlug = Slug.forSession s.Name (SessionId.value session.Id)
+                        if Slug.matches slug sessionSlug then Some session else None
+                    | _ -> None))
+
+        match matchingSession with
+        | None -> return Error $"Session not found for slug: {slug}"
+        | Some s ->
+            let! entry = Persistence.getLibraryEntryById s.EntryId
+            match entry with
+            | None -> return Error "Entry not found for session"
+            | Some e ->
+                let! progress = Persistence.getSessionEpisodeProgress s.Id
+                let watchedCount = progress |> List.filter (fun p -> p.IsWatched) |> List.length
+                let totalEpisodes =
+                    match e.Media with
+                    | LibrarySeries series -> series.NumberOfEpisodes
+                    | LibraryMovie _ -> 0
+                let completionPct =
+                    if totalEpisodes > 0 then float watchedCount / float totalEpisodes * 100.0 else 0.0
                 return Ok {
                     Session = s
                     Entry = e
@@ -442,6 +543,31 @@ let cinemarcoApi : ICinemarcoApi = {
         match result with
         | Some cwi -> return Ok cwi
         | None -> return Error "Collection not found"
+    }
+
+    collectionsGetBySlug = fun slug -> async {
+        let! collections = Persistence.getAllCollections()
+        // Parse the slug to handle duplicates (e.g., "my-collection_1")
+        let (baseSlug, suffixIndex) = Slug.parseSlugWithSuffix slug
+        let index = suffixIndex |> Option.defaultValue 0
+        // Find all collections matching the base slug, sorted by ID
+        let matchingCollections =
+            collections
+            |> List.filter (fun c -> Slug.matches baseSlug (Slug.forCollection c.Name))
+            |> List.sortBy (fun c -> CollectionId.value c.Id)
+        // Get the collection at the specified index
+        let collectionOpt =
+            if index < List.length matchingCollections then
+                Some (List.item index matchingCollections)
+            else
+                None
+        match collectionOpt with
+        | None -> return Error $"Collection not found for slug: {slug}"
+        | Some c ->
+            let! result = Persistence.getCollectionWithItems c.Id
+            match result with
+            | Some cwi -> return Ok cwi
+            | None -> return Error "Collection not found"
     }
 
     collectionsCreate = fun request -> async {
@@ -587,6 +713,27 @@ let cinemarcoApi : ICinemarcoApi = {
         | None -> return Error "Tracked contributor not found"
     }
 
+    contributorsGetBySlug = fun slug -> async {
+        let! contributors = Persistence.getAllTrackedContributors()
+        // Parse the slug to handle duplicates
+        let (baseSlug, suffixIndex) = Slug.parseSlugWithSuffix slug
+        let index = suffixIndex |> Option.defaultValue 0
+        // Find all contributors matching the base slug, sorted by TMDB ID
+        let matchingContributors =
+            contributors
+            |> List.filter (fun c -> Slug.matches baseSlug (Slug.forContributor c.Name))
+            |> List.sortBy (fun c -> TmdbPersonId.value c.TmdbPersonId)
+        // Get the contributor at the specified index
+        let contributorOpt =
+            if index < List.length matchingContributors then
+                Some (List.item index matchingContributors)
+            else
+                None
+        match contributorOpt with
+        | Some tc -> return Ok tc
+        | None -> return Error $"Tracked contributor not found for slug: {slug}"
+    }
+
     contributorsTrack = fun request -> Persistence.trackContributor request
 
     contributorsUntrack = fun trackedId -> Persistence.untrackContributor trackedId
@@ -632,6 +779,7 @@ let private imageRoutes : HttpHandler =
         GET >=> routef "/images/backdrops/%s" (serveImage "backdrops")
         GET >=> routef "/images/profiles/%s" (serveImage "profiles")
         GET >=> routef "/images/collections/%s" (serveImage "collections")
+        GET >=> routef "/images/avatars/%s" (serveImage "avatars")
     ]
 
 // =====================================

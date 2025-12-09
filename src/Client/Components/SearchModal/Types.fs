@@ -14,13 +14,13 @@ type Msg =
     | SearchDebounced of string  // Carries the query that triggered it
     | SearchResults of Result<TmdbSearchResult list, string>
     | SelectTmdbItem of TmdbSearchResult
-    | SelectLibraryItem of EntryId * MediaType
+    | SelectLibraryItem of EntryId * MediaType * title: string
     | Close
 
 type ExternalMsg =
     | NoOp
     | TmdbItemSelected of TmdbSearchResult
-    | LibraryItemSelected of EntryId * MediaType
+    | LibraryItemSelected of EntryId * MediaType * title: string
     | CloseRequested
 
 module Model =

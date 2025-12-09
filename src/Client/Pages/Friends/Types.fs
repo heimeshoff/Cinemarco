@@ -12,17 +12,17 @@ type Msg =
     | LoadFriends
     | FriendsLoaded of Result<Friend list, string>
     | SetSearchQuery of string
-    | ViewFriendDetail of FriendId
+    | ViewFriendDetail of friendId: FriendId * name: string
     | OpenAddFriendModal
-    | OpenEditFriendModal of Friend
     | OpenDeleteFriendModal of Friend
+    | OpenProfileImageModal of Friend
 
 type ExternalMsg =
     | NoOp
-    | NavigateToFriendDetail of FriendId
+    | NavigateToFriendDetail of friendId: FriendId * name: string
     | RequestOpenAddModal
-    | RequestOpenEditModal of Friend
     | RequestOpenDeleteModal of Friend
+    | RequestOpenProfileImageModal of Friend
 
 module Model =
     let empty = { Friends = NotAsked; SearchQuery = "" }

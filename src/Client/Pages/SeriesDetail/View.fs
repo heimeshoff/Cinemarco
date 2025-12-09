@@ -144,7 +144,151 @@ let private EpisodeCheckbox (seasonNum: int) (epNum: int) (epName: string) (isWa
         ]
     ]
 
-/// Season episodes grid with Ctrl+hover preview
+/// Episode list item with proper name display
+[<ReactComponent>]
+let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bool) (dispatch: Msg -> unit) =
+    let (contextMenu, setContextMenu) = React.useState<ContextMenuPosition option> None
+
+    // Close context menu when clicking outside
+    React.useEffect (fun () ->
+        let closeMenu _ = setContextMenu None
+        Browser.Dom.document.addEventListener("click", closeMenu)
+        { new System.IDisposable with
+            member _.Dispose() =
+                Browser.Dom.document.removeEventListener("click", closeMenu)
+        }
+    , [| box contextMenu |])
+
+    Html.div [
+        prop.className "relative"
+        prop.children [
+            Html.div [
+                prop.className (
+                    "flex items-center gap-3 p-3 rounded-lg transition-all duration-150 cursor-pointer " +
+                    if isWatched then "bg-success/10 hover:bg-success/20 border border-success/20"
+                    else "bg-base-200 hover:bg-base-300 border border-base-300"
+                )
+                prop.onClick (fun e ->
+                    e.preventDefault()
+                    let newWatchedState = not isWatched
+                    if e.ctrlKey then
+                        dispatch (MarkEpisodesUpTo (seasonNum, ep.EpisodeNumber, newWatchedState))
+                    else
+                        dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, newWatchedState)))
+                prop.onContextMenu (fun e ->
+                    e.preventDefault()
+                    setContextMenu (Some { X = e.clientX; Y = e.clientY }))
+                prop.children [
+                    // Episode number badge
+                    Html.div [
+                        prop.className (
+                            "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm " +
+                            if isWatched then "bg-success/20 text-success"
+                            else "bg-base-300 text-base-content/60"
+                        )
+                        prop.text $"{ep.EpisodeNumber}"
+                    ]
+                    // Episode info
+                    Html.div [
+                        prop.className "flex-1 min-w-0"
+                        prop.children [
+                            Html.div [
+                                prop.className "font-medium text-sm truncate"
+                                prop.text ep.Name
+                            ]
+                            Html.div [
+                                prop.className "flex items-center gap-2 text-xs text-base-content/50 mt-0.5"
+                                prop.children [
+                                    match ep.RuntimeMinutes with
+                                    | Some mins -> Html.span [ prop.text $"{mins} min" ]
+                                    | None -> Html.none
+                                    match ep.AirDate with
+                                    | Some date ->
+                                        Html.span [ prop.text (date.ToString("MMM d, yyyy")) ]
+                                    | None -> Html.none
+                                ]
+                            ]
+                        ]
+                    ]
+                    // Watch indicator
+                    Html.div [
+                        prop.className "flex-shrink-0"
+                        prop.children [
+                            if isWatched then
+                                Html.span [
+                                    prop.className "w-5 h-5 text-success"
+                                    prop.children [ check ]
+                                ]
+                            else
+                                Html.span [
+                                    prop.className "w-5 h-5 text-base-content/30"
+                                    prop.children [ circle ]
+                                ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Context menu - rendered as portal to body
+            match contextMenu with
+            | Some pos ->
+                ReactDOM.createPortal(
+                    Html.div [
+                        prop.className "fixed z-[9999] glass border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] backdrop-blur-xl"
+                        prop.style [
+                            style.left (length.px pos.X)
+                            style.top (length.px pos.Y)
+                        ]
+                        prop.onClick (fun e -> e.stopPropagation())
+                        prop.children [
+                            Html.div [
+                                prop.className "px-3 py-1.5 text-xs text-base-content/50 border-b border-white/10"
+                                prop.text $"S{seasonNum}E{ep.EpisodeNumber}: {ep.Name}"
+                            ]
+                            Html.button [
+                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                prop.onClick (fun e ->
+                                    e.stopPropagation()
+                                    setContextMenu None
+                                    dispatch (AddEpisodeToCollection (seasonNum, ep.EpisodeNumber)))
+                                prop.children [
+                                    Html.span [ prop.text "+" ]
+                                    Html.span [ prop.text "Add to Collection" ]
+                                ]
+                            ]
+                            Html.button [
+                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                prop.onClick (fun e ->
+                                    e.stopPropagation()
+                                    setContextMenu None
+                                    let newWatchedState = not isWatched
+                                    dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, newWatchedState)))
+                                prop.children [
+                                    Html.span [ prop.text (if isWatched then "✗" else "✓") ]
+                                    Html.span [ prop.text (if isWatched then "Mark Unwatched" else "Mark Watched") ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    Browser.Dom.document.body
+                )
+            | None -> Html.none
+        ]
+    ]
+
+/// Season episodes list with proper names
+[<ReactComponent>]
+let private SeasonEpisodesList (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-2"
+        prop.children [
+            for ep in episodes |> List.sortBy (fun e -> e.EpisodeNumber) do
+                let isWatched = Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes
+                EpisodeListItem seasonNum ep isWatched dispatch
+        ]
+    ]
+
+/// Season episodes grid with Ctrl+hover preview (compact view)
 [<ReactComponent>]
 let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (dispatch: Msg -> unit) =
     let (hoveredEp, setHoveredEp) = React.useState<int option> None
@@ -393,15 +537,19 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             match model.Credits with
             | Success credits ->
-                // Cast section
-                if not (List.isEmpty credits.Cast) then
+                // Cast section - sort tracked contributors first
+                let trackedCast, untrackedCast =
+                    credits.Cast |> List.partition (fun c -> Set.contains c.TmdbPersonId model.TrackedPersonIds)
+                let sortedCast = trackedCast @ untrackedCast
+
+                if not (List.isEmpty sortedCast) then
                     Html.div [
                         prop.children [
                             Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
                             Html.div [
                                 prop.className "flex flex-wrap gap-2"
                                 prop.children [
-                                    for castMember in credits.Cast do
+                                    for castMember in sortedCast do
                                         let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
                                         Html.button [
                                             prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
@@ -411,7 +559,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                                 else
                                                     "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
                                             )
-                                            prop.onClick (fun _ -> dispatch (ViewContributor castMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (castMember.TmdbPersonId, castMember.Name)))
                                             prop.children [
                                                 Html.div [
                                                     prop.className "relative"
@@ -471,7 +619,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                                         Html.button [
                                             prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
                                             prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                            prop.onClick (fun _ -> dispatch (ViewContributor crewMember.TmdbPersonId))
+                                            prop.onClick (fun _ -> dispatch (ViewContributor (crewMember.TmdbPersonId, crewMember.Name)))
                                             prop.children [
                                                 match crewMember.ProfilePath with
                                                 | Some path ->
@@ -632,7 +780,7 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                     ]
                                                 ]
                                             ]
-                                            SeasonEpisodesGrid seasonNum seasonDetails.Episodes watchedEpisodes dispatch
+                                            SeasonEpisodesList seasonNum seasonDetails.Episodes watchedEpisodes dispatch
                                         | None when isLoading ->
                                             Html.div [
                                                 prop.className "flex items-center gap-2"
@@ -714,16 +862,45 @@ let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriend
                     ]
                 ]
 
-            // Friend pills
+            // Friend pills (clickable to navigate to friend detail)
             if not (List.isEmpty selectedFriendsList) then
                 Html.div [
-                    prop.className "flex flex-wrap items-center gap-2 mt-4"
+                    prop.className "flex flex-wrap items-center gap-3 mt-4"
                     prop.children [
                         for friend in selectedFriendsList do
-                            Html.span [
+                            Html.div [
                                 prop.key (FriendId.value friend.Id |> string)
-                                prop.className "friend-pill"
-                                prop.text friend.Name
+                                prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
+                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+                                prop.children [
+                                    // Friend avatar (same size as friends list)
+                                    match friend.AvatarUrl with
+                                    | Some url ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+                                            prop.children [
+                                                Html.img [
+                                                    prop.src $"/images/avatars{url}"
+                                                    prop.alt friend.Name
+                                                    prop.className "w-full h-full object-cover"
+                                                ]
+                                            ]
+                                        ]
+                                    | None ->
+                                        Html.div [
+                                            prop.className "w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "text-sm font-medium"
+                                                    prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
+                                                ]
+                                            ]
+                                        ]
+                                    Html.span [
+                                        prop.className "text-sm font-medium whitespace-nowrap"
+                                        prop.text friend.Name
+                                    ]
+                                ]
                             ]
                     ]
                 ]
@@ -762,13 +939,13 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button
+            // Back button - uses browser history for proper navigation
             Html.button [
                 prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> dispatch GoBack)
+                prop.onClick (fun _ -> Browser.Dom.window.history.back())
                 prop.children [
                     Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back to Library" ]
+                    Html.span [ prop.text "Back" ]
                 ]
             ]
 

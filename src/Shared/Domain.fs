@@ -272,7 +272,6 @@ type Friend = {
     Name: string
     Nickname: string option
     AvatarUrl: string option
-    Notes: string option
     CreatedAt: DateTime
 }
 
@@ -631,7 +630,6 @@ type UpdateEntryRequest = {
 type CreateFriendRequest = {
     Name: string
     Nickname: string option
-    Notes: string option
 }
 
 /// Request to update a friend
@@ -639,7 +637,8 @@ type UpdateFriendRequest = {
     Id: FriendId
     Name: string option
     Nickname: string option
-    Notes: string option
+    /// Base64 encoded avatar image (PNG/JPG), None = keep existing, Some "" = remove
+    AvatarBase64: string option
 }
 
 /// Request to create a collection
@@ -934,3 +933,85 @@ type ClearCacheResult = {
     EntriesRemoved: int
     BytesFreed: int
 }
+
+// =====================================
+// URL Slug Utilities
+// =====================================
+
+/// Utilities for generating and matching URL slugs
+module Slug =
+    open System.Text.RegularExpressions
+
+    /// Generate a URL-friendly slug from text
+    let generate (text: string) : string =
+        text.ToLowerInvariant()
+        |> fun s -> Regex.Replace(s, @"[^a-z0-9\s-]", "")
+        |> fun s -> Regex.Replace(s, @"\s+", "-")
+        |> fun s -> Regex.Replace(s, @"-+", "-")
+        |> fun s -> s.Trim('-')
+        |> fun s -> if String.IsNullOrEmpty(s) then "item" else s
+
+    /// Generate slug for a movie (includes year to avoid duplicates)
+    let forMovie (title: string) (releaseDate: DateTime option) : string =
+        let year = releaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
+        let base' = generate title
+        if String.IsNullOrEmpty(year) then base' else $"{base'}-{year}"
+
+    /// Generate slug for a series (includes year to avoid duplicates)
+    let forSeries (name: string) (firstAirDate: DateTime option) : string =
+        let year = firstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
+        let base' = generate name
+        if String.IsNullOrEmpty(year) then base' else $"{base'}-{year}"
+
+    /// Generate slug for a friend
+    let forFriend (name: string) : string = generate name
+
+    /// Generate slug for a collection
+    let forCollection (name: string) : string = generate name
+
+    /// Generate slug for a contributor
+    let forContributor (name: string) : string = generate name
+
+    /// Generate slug for a session (based on series name and session number or date)
+    let forSession (seriesName: string) (sessionIndex: int) : string =
+        let base' = generate seriesName
+        $"{base'}-session-{sessionIndex}"
+
+    /// Generate a unique slug by appending _1, _2, etc. if the base slug is taken
+    let makeUnique (baseSlug: string) (existingSlugs: string list) : string =
+        if not (List.contains baseSlug existingSlugs) then
+            baseSlug
+        else
+            let rec findAvailable n =
+                let candidate = $"{baseSlug}_{n}"
+                if List.contains candidate existingSlugs then
+                    findAvailable (n + 1)
+                else
+                    candidate
+            findAvailable 1
+
+    /// Check if a slug matches (case-insensitive)
+    let matches (slug: string) (target: string) : bool =
+        String.Equals(slug, target, StringComparison.OrdinalIgnoreCase)
+
+    /// Extract base slug and suffix from a slug (e.g., "my-collection_2" -> ("my-collection", Some 2))
+    let parseSlugWithSuffix (slug: string) : string * int option =
+        let regex = Regex(@"^(.+)_(\d+)$")
+        let m = regex.Match(slug)
+        if m.Success then
+            (m.Groups.[1].Value, Some (int m.Groups.[2].Value))
+        else
+            (slug, None)
+
+    /// Given items sorted by ID (oldest first), compute unique slug for item at given index
+    /// Index 0 gets base slug, index 1 gets base_1, index 2 gets base_2, etc.
+    let slugForIndex (baseSlug: string) (index: int) : string =
+        if index = 0 then baseSlug
+        else $"{baseSlug}_{index}"
+
+    /// Find the index of an item in a duplicate group based on slug suffix
+    /// Returns None for base slug (index 0), Some n for _n suffix
+    let indexFromSlug (slug: string) : int =
+        match parseSlugWithSuffix slug with
+        | (_, None) -> 0
+        | (_, Some n) -> n

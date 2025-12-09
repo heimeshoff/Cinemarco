@@ -46,13 +46,15 @@ type Msg =
     | AddNewFriend of string
     | FriendCreated of Result<Friend, string>
     | ActionResult of Result<LibraryEntry, string>
-    | ViewContributor of TmdbPersonId
+    | ViewContributor of personId: TmdbPersonId * name: string
+    | ViewFriendDetail of friendId: FriendId * name: string
     | GoBack
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToContributor of TmdbPersonId
+    | NavigateToContributor of personId: TmdbPersonId * name: string * isTracked: bool
+    | NavigateToFriendDetail of friendId: FriendId * name: string
     | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
