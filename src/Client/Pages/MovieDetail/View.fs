@@ -88,61 +88,38 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
     ]
 
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
-let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (watchSessions: RemoteData<MovieWatchSession list>) (dispatch: Msg -> unit) =
+    // Determine if any watch sessions exist
+    let hasWatchSessions =
+        match watchSessions with
+        | Success sessions -> not (List.isEmpty sessions)
+        | _ -> false
+
     Html.div [
         prop.className "flex flex-wrap items-center gap-3 mt-4"
         prop.children [
-            // Watch status button
-            match entry.WatchStatus with
-            | NotStarted ->
+            // Watch status button - visual state based on watch sessions, always adds a new session
+            if hasWatchSessions then
                 Html.div [
                     prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Mark as Watched")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn detail-action-btn-success"
-                            prop.onClick (fun _ -> dispatch MarkWatched)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
-                            ]
-                        ]
-                    ]
-                ]
-            | InProgress _ ->
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Mark as Completed")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn detail-action-btn-success"
-                            prop.onClick (fun _ -> dispatch MarkWatched)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
-                            ]
-                        ]
-                    ]
-                ]
-            | Completed ->
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Mark as Unwatched")
+                    prop.custom ("data-tip", "Add Watch Session")
                     prop.children [
                         Html.button [
                             prop.className "detail-action-btn detail-action-btn-success-active"
-                            prop.onClick (fun _ -> dispatch MarkUnwatched)
+                            prop.onClick (fun _ -> dispatch MarkWatched)
                             prop.children [
                                 Html.span [ prop.className "w-5 h-5"; prop.children [ checkCircleSolid ] ]
                             ]
                         ]
                     ]
                 ]
-            | Abandoned _ ->
+            else
                 Html.div [
                     prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Mark as Completed")
+                    prop.custom ("data-tip", "Mark as Watched")
                     prop.children [
                         Html.button [
-                            prop.className "detail-action-btn detail-action-btn-success"
+                            prop.className "detail-action-btn"
                             prop.onClick (fun _ -> dispatch MarkWatched)
                             prop.children [
                                 Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
@@ -359,99 +336,212 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
     ]
 
 /// Friends tab content
-let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriendSelectorOpen: bool) (isAddingFriend: bool) (dispatch: Msg -> unit) =
-    let selectedFriendsList =
-        entry.Friends
-        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+let private friendsTab (sessions: RemoteData<MovieWatchSession list>) (allFriends: Friend list) (editingSession: (SessionId * System.DateTime) option) (dispatch: Msg -> unit) =
+    let renderFriendPill (friend: Friend) =
+        Html.div [
+            prop.key (FriendId.value friend.Id |> string)
+            prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
+            prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+            prop.children [
+                match friend.AvatarUrl with
+                | Some url ->
+                    Html.div [
+                        prop.className "w-6 h-6 rounded-full overflow-hidden flex-shrink-0"
+                        prop.children [
+                            Html.img [
+                                prop.src $"/images/avatars{url}"
+                                prop.alt friend.Name
+                                prop.className "w-full h-full object-cover"
+                            ]
+                        ]
+                    ]
+                | None ->
+                    Html.div [
+                        prop.className "w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-xs font-medium"
+                                prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
+                            ]
+                        ]
+                    ]
+                Html.span [
+                    prop.className "text-sm font-medium whitespace-nowrap"
+                    prop.text friend.Name
+                ]
+            ]
+        ]
+
+    let renderMyselfPill () =
+        Html.div [
+            prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300"
+            prop.children [
+                Html.div [
+                    prop.className "w-6 h-6 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
+                    prop.children [
+                        Html.span [ prop.className "text-xs font-medium"; prop.text "M" ]
+                    ]
+                ]
+                Html.span [
+                    prop.className "text-sm font-medium whitespace-nowrap"
+                    prop.text "Myself"
+                ]
+            ]
+        ]
+
+    let renderSession (session: MovieWatchSession) =
+        let friends =
+            session.Friends
+            |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+
+        let isEditing =
+            match editingSession with
+            | Some (editingId, _) -> editingId = session.Id
+            | None -> false
+
+        let editingDate =
+            match editingSession with
+            | Some (editingId, date) when editingId = session.Id -> Some date
+            | _ -> None
+
+        Html.div [
+            prop.key (SessionId.value session.Id |> string)
+            prop.className "flex flex-wrap items-center gap-2"
+            prop.children [
+                // Inline date display/editor
+                if isEditing then
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
+                            Html.input [
+                                prop.type' "date"
+                                prop.className "input input-bordered input-xs w-auto"
+                                prop.value ((editingDate |> Option.defaultValue session.WatchedDate).ToString("yyyy-MM-dd"))
+                                prop.onChange (fun (value: string) ->
+                                    match System.DateTime.TryParse(value) with
+                                    | true, date -> dispatch (UpdateEditingDate date)
+                                    | false, _ -> ()
+                                )
+                                prop.autoFocus true
+                            ]
+                            Html.button [
+                                prop.className "btn btn-ghost btn-xs text-success"
+                                prop.onClick (fun _ -> dispatch SaveSessionDate)
+                                prop.title "Save"
+                                prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
+                            ]
+                            Html.button [
+                                prop.className "btn btn-ghost btn-xs text-error"
+                                prop.onClick (fun _ -> dispatch CancelEditingSessionDate)
+                                prop.title "Cancel"
+                                prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
+                            ]
+                        ]
+                    ]
+                else
+                    Html.span [
+                        prop.className "text-sm font-medium text-base-content/70 cursor-pointer hover:text-primary hover:underline"
+                        prop.title "Click to edit date"
+                        prop.onClick (fun _ -> dispatch (StartEditingSessionDate (session.Id, session.WatchedDate)))
+                        prop.text (session.WatchedDate.ToString("MMM d, yyyy"))
+                    ]
+
+                Html.span [
+                    prop.className "text-base-content/40"
+                    prop.text "·"
+                ]
+
+                // Show "Myself" if no friends, otherwise show friends
+                if List.isEmpty friends then
+                    renderMyselfPill ()
+                else
+                    for friend in friends do
+                        renderFriendPill friend
+
+                // Optional session name
+                match session.Name with
+                | Some name ->
+                    Html.span [
+                        prop.className "text-sm text-base-content/60 italic ml-2"
+                        prop.text $"({name})"
+                    ]
+                | None -> ()
+
+                // Action buttons
+                Html.div [
+                    prop.className "flex items-center gap-1 ml-auto"
+                    prop.children [
+                        // Edit button
+                        Html.button [
+                            prop.className "btn btn-ghost btn-xs opacity-50 hover:opacity-100"
+                            prop.onClick (fun _ -> dispatch (EditWatchSession session))
+                            prop.title "Edit session"
+                            prop.children [
+                                Html.span [ prop.className "w-3 h-3"; prop.children [ edit ] ]
+                            ]
+                        ]
+                        // Delete button
+                        Html.button [
+                            prop.className "btn btn-ghost btn-xs opacity-50 hover:opacity-100"
+                            prop.onClick (fun _ -> dispatch (DeleteWatchSession session.Id))
+                            prop.title "Delete session"
+                            prop.children [
+                                Html.span [ prop.className "w-3 h-3"; prop.children [ trash ] ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
 
     Html.div [
         prop.className "space-y-4"
         prop.children [
-            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
-
-            // Toggle button to open/close friend selector
-            Html.button [
-                prop.className "btn btn-sm btn-ghost gap-2"
-                prop.onClick (fun _ -> dispatch ToggleFriendSelector)
+            // Header with add button
+            Html.div [
+                prop.className "flex items-center justify-between"
                 prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ userPlus ] ]
-                    Html.span [ prop.text (if isFriendSelectorOpen then "Close" else "Add Friends") ]
+                    Html.h3 [ prop.className "font-semibold"; prop.text "Watch Sessions" ]
+                    Html.button [
+                        prop.className "btn btn-sm btn-ghost gap-2"
+                        prop.onClick (fun _ -> dispatch OpenWatchSessionModal)
+                        prop.children [
+                            Html.span [ prop.className "w-4 h-4"; prop.children [ plus ] ]
+                            Html.span [ prop.text "Add Watch Session" ]
+                        ]
+                    ]
                 ]
             ]
 
-            if isFriendSelectorOpen then
-                // Friend selector input (when open)
+            // Sessions list
+            match sessions with
+            | NotAsked | Loading ->
                 Html.div [
+                    prop.className "flex items-center justify-center py-4"
                     prop.children [
-                        FriendSelector {
-                            AllFriends = allFriends
-                            SelectedFriends = entry.Friends
-                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
-                            OnAddNew = fun name -> dispatch (AddNewFriend name)
-                            OnSubmit = Some (fun () -> dispatch ToggleFriendSelector)
-                            IsDisabled = isAddingFriend
-                            Placeholder = "Search or add friends..."
-                            IsRequired = false
-                            AutoFocus = true
-                        }
-                        if isAddingFriend then
-                            Html.div [
-                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
-                                prop.children [
-                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                    Html.span [ prop.text "Adding friend..." ]
-                                ]
-                            ]
+                        Html.span [ prop.className "loading loading-spinner loading-sm" ]
                     ]
                 ]
-
-            // Friend pills (clickable to navigate to friend detail)
-            if not (List.isEmpty selectedFriendsList) then
-                Html.div [
-                    prop.className "flex flex-wrap items-center gap-3 mt-4"
-                    prop.children [
-                        for friend in selectedFriendsList do
-                            Html.div [
-                                prop.key (FriendId.value friend.Id |> string)
-                                prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
-                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
-                                prop.children [
-                                    // Friend avatar (same size as friends list)
-                                    match friend.AvatarUrl with
-                                    | Some url ->
-                                        Html.div [
-                                            prop.className "w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
-                                            prop.children [
-                                                Html.img [
-                                                    prop.src $"/images/avatars{url}"
-                                                    prop.alt friend.Name
-                                                    prop.className "w-full h-full object-cover"
-                                                ]
-                                            ]
-                                        ]
-                                    | None ->
-                                        Html.div [
-                                            prop.className "w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "text-sm font-medium"
-                                                    prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
-                                                ]
-                                            ]
-                                        ]
-                                    Html.span [
-                                        prop.className "text-sm font-medium whitespace-nowrap"
-                                        prop.text friend.Name
-                                    ]
-                                ]
-                            ]
-                    ]
-                ]
-            elif not isFriendSelectorOpen then
+            | Failure err ->
                 Html.p [
-                    prop.className "text-base-content/60 text-sm"
-                    prop.text "No friends added yet. Click 'Add Friends' to track who you watched with."
+                    prop.className "text-error text-sm"
+                    prop.text $"Failed to load watch sessions: {err}"
                 ]
+            | Success sessionList ->
+                if List.isEmpty sessionList then
+                    Html.p [
+                        prop.className "text-base-content/60 text-sm"
+                        prop.text "No watch sessions yet. Click 'Mark as watched' or add a watch session to track when you watched this movie."
+                    ]
+                else
+                    Html.div [
+                        prop.className "space-y-2"
+                        prop.children [
+                            // Sort sessions by date descending
+                            for session in sessionList |> List.sortByDescending (fun s -> s.WatchedDate) do
+                                renderSession session
+                        ]
+                    ]
         ]
     ]
 
@@ -459,20 +549,20 @@ let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriend
 let private movieTabs : Common.Components.Tabs.Types.Tab list = [
     { Id = "overview"; Label = "Overview"; Icon = Some info }
     { Id = "cast-crew"; Label = "Cast & Crew"; Icon = Some friends }
-    { Id = "friends"; Label = "Friends"; Icon = Some userPlus }
+    { Id = "watched"; Label = "Watched"; Icon = Some userPlus }
 ]
 
 /// Map MovieTab to string ID
 let private tabToId = function
     | Overview -> "overview"
     | CastCrew -> "cast-crew"
-    | Friends -> "friends"
+    | Friends -> "watched"
 
 /// Map string ID to MovieTab
 let private idToTab = function
     | "overview" -> Overview
     | "cast-crew" -> CastCrew
-    | "friends" -> Friends
+    | "watched" -> Friends
     | _ -> Overview
 
 let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
@@ -565,7 +655,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                 ]
                                             ]
                                             // Action buttons row
-                                            actionButtonsRow entry model.IsRatingOpen model.Collections dispatch
+                                            actionButtonsRow entry model.IsRatingOpen model.Collections model.WatchSessions dispatch
 
                                             // Tab bar and content (hidden on mobile, shown on md+)
                                             Html.div [
@@ -578,7 +668,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                         (match model.ActiveTab with
                                                          | Overview -> overviewTab movie entry model dispatch
                                                          | CastCrew -> castCrewTab model dispatch
-                                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                                         | Friends -> friendsTab model.WatchSessions friends model.EditingSessionDate dispatch)
                                                 ]
                                             ]
                                         ]
@@ -597,7 +687,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                         (match model.ActiveTab with
                                          | Overview -> overviewTab movie entry model dispatch
                                          | CastCrew -> castCrewTab model dispatch
-                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                         | Friends -> friendsTab model.WatchSessions friends model.EditingSessionDate dispatch)
                                 ]
                             ]
                         ]

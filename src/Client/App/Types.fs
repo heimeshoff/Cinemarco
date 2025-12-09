@@ -12,6 +12,7 @@ type ActiveModal =
     | AbandonModal of Components.AbandonModal.Types.Model
     | ConfirmDeleteModal of Components.ConfirmModal.Types.Model
     | WatchSessionModal of Components.WatchSessionModal.Types.Model
+    | MovieWatchSessionModal of Components.MovieWatchSessionModal.Types.Model
     | CollectionModal of Components.CollectionModal.Types.Model
     | AddToCollectionModal of Components.AddToCollectionModal.Types.Model
     | ProfileImageModal of Components.ProfileImageEditor.Types.Model * FriendId
@@ -75,6 +76,9 @@ type Msg =
     | ConfirmModalMsg of Components.ConfirmModal.Types.Msg
     | OpenWatchSessionModal of EntryId
     | WatchSessionModalMsg of Components.WatchSessionModal.Types.Msg
+    | OpenMovieWatchSessionModal of EntryId
+    | EditMovieWatchSessionModal of MovieWatchSession
+    | MovieWatchSessionModalMsg of Components.MovieWatchSessionModal.Types.Msg
     | OpenCollectionModal of Collection option
     | CollectionModalMsg of Components.CollectionModal.Types.Msg
     | OpenAddToCollectionModal of CollectionItemRef * title: string

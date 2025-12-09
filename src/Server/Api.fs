@@ -533,6 +533,56 @@ let cinemarcoApi : ICinemarcoApi = {
     sessionsGetProgress = fun sessionId -> Persistence.getSessionEpisodeProgress sessionId
 
     // =====================================
+    // Movie Watch Session Operations
+    // =====================================
+
+    movieSessionsGetForEntry = fun entryId -> Persistence.getMovieWatchSessionsForEntry entryId
+
+    movieSessionsCreate = fun request -> async {
+        try
+            // Verify entry exists and is a movie
+            let! entry = Persistence.getLibraryEntryById request.EntryId
+            match entry with
+            | None -> return Error "Entry not found"
+            | Some e ->
+                match e.Media with
+                | LibrarySeries _ -> return Error "Watch sessions are for movies, use watch logs for series"
+                | LibraryMovie _ ->
+                    let! session = Persistence.insertMovieWatchSession request
+                    return Ok session
+        with
+        | ex -> return Error $"Failed to create movie watch session: {ex.Message}"
+    }
+
+    movieSessionsDelete = fun sessionId -> async {
+        try
+            do! Persistence.deleteMovieWatchSession sessionId
+            return Ok ()
+        with
+        | ex -> return Error $"Failed to delete movie watch session: {ex.Message}"
+    }
+
+    movieSessionsUpdateDate = fun request -> async {
+        try
+            let! result = Persistence.updateMovieWatchSessionDate request
+            match result with
+            | Some session -> return Ok session
+            | None -> return Error "Watch session not found"
+        with
+        | ex -> return Error $"Failed to update watch session date: {ex.Message}"
+    }
+
+    movieSessionsUpdate = fun request -> async {
+        try
+            let! result = Persistence.updateMovieWatchSession request
+            match result with
+            | Some session -> return Ok session
+            | None -> return Error "Watch session not found"
+        with
+        | ex -> return Error $"Failed to update watch session: {ex.Message}"
+    }
+
+    // =====================================
     // Collection Operations
     // =====================================
 

@@ -8,7 +8,6 @@ type SeriesTab =
     | Overview
     | CastCrew
     | Episodes
-    | Friends
 
 type Model = {
     EntryId: EntryId
@@ -85,6 +84,7 @@ type ExternalMsg =
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
     | FriendCreatedInline of Friend
+    | WatchSessionRemoved
 
 module Model =
     let create entryId = {

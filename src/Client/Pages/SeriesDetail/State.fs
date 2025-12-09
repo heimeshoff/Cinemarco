@@ -394,7 +394,7 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
             match newSelectedId with
             | Some id when model.SelectedSessionId = Some deletedId -> Cmd.ofMsg (LoadSessionProgress id)
             | _ -> Cmd.none
-        { model with Sessions = updatedSessions; SelectedSessionId = newSelectedId }, loadProgressCmd, ShowNotification ("Session deleted", true)
+        { model with Sessions = updatedSessions; SelectedSessionId = newSelectedId }, loadProgressCmd, WatchSessionRemoved
 
     | SessionDeleteResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)

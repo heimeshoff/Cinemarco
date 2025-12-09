@@ -1,5 +1,6 @@
 module Pages.MovieDetail.State
 
+open System
 open Elmish
 open Common.Types
 open Shared.Domain
@@ -10,6 +11,10 @@ type MovieApi = {
     GetCollections: EntryId -> Async<Collection list>
     GetCredits: TmdbMovieId -> Async<Result<TmdbCredits, string>>
     GetTrackedContributors: unit -> Async<TrackedContributor list>
+    GetWatchSessions: EntryId -> Async<MovieWatchSession list>
+    CreateWatchSession: CreateMovieWatchSessionRequest -> Async<Result<MovieWatchSession, string>>
+    DeleteWatchSession: SessionId -> Async<Result<unit, string>>
+    UpdateWatchSessionDate: UpdateMovieWatchSessionDateRequest -> Async<Result<MovieWatchSession, string>>
     MarkWatched: EntryId -> Async<Result<LibraryEntry, string>>
     MarkUnwatched: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
@@ -20,7 +25,7 @@ type MovieApi = {
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
-    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadTrackedContributors ]
+    Model.create entryId, Cmd.batch [ Cmd.ofMsg LoadEntry; Cmd.ofMsg LoadCollections; Cmd.ofMsg LoadTrackedContributors; Cmd.ofMsg LoadWatchSessions ]
 
 let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -92,17 +97,45 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             |> Set.ofList
         { model with TrackedPersonIds = trackedIds }, Cmd.none, NoOp
 
+    | LoadWatchSessions ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetWatchSessions
+                model.EntryId
+                (Ok >> WatchSessionsLoaded)
+                (fun ex -> Error ex.Message |> WatchSessionsLoaded)
+        { model with WatchSessions = Loading }, cmd, NoOp
+
+    | WatchSessionsLoaded (Ok sessions) ->
+        { model with WatchSessions = Success sessions }, Cmd.none, NoOp
+
+    | WatchSessionsLoaded (Error _) ->
+        { model with WatchSessions = Success [] }, Cmd.none, NoOp
+
     | SetActiveTab tab ->
         { model with ActiveTab = tab }, Cmd.none, NoOp
 
     | MarkWatched ->
-        let cmd =
+        // When marking as watched, create a watch session with "Myself" (no friends) and today's date
+        let request : CreateMovieWatchSessionRequest = {
+            EntryId = model.EntryId
+            WatchedDate = System.DateTime.UtcNow
+            Friends = []  // Empty = watched by myself
+            Name = None
+        }
+        let sessionCmd =
+            Cmd.OfAsync.either
+                api.CreateWatchSession
+                request
+                WatchSessionCreated
+                (fun ex -> Error ex.Message |> WatchSessionCreated)
+        let markWatchedCmd =
             Cmd.OfAsync.either
                 api.MarkWatched
                 model.EntryId
                 ActionResult
                 (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+        model, Cmd.batch [sessionCmd; markWatchedCmd], NoOp
 
     | MarkUnwatched ->
         let cmd =
@@ -210,6 +243,99 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | FriendCreated (Error err) ->
         { model with IsAddingFriend = false }, Cmd.none, ShowNotification (err, false)
 
+    | OpenWatchSessionModal ->
+        model, Cmd.none, RequestOpenMovieWatchSessionModal model.EntryId
+
+    | CloseWatchSessionModal ->
+        model, Cmd.none, NoOp
+
+    | CreateWatchSession (watchedDate, friends, name) ->
+        let request : CreateMovieWatchSessionRequest = {
+            EntryId = model.EntryId
+            WatchedDate = watchedDate
+            Friends = friends
+            Name = name
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                api.CreateWatchSession
+                request
+                WatchSessionCreated
+                (fun ex -> Error ex.Message |> WatchSessionCreated)
+        { model with IsAddingWatchSession = true }, cmd, NoOp
+
+    | WatchSessionCreated (Ok session) ->
+        let updatedSessions =
+            model.WatchSessions
+            |> RemoteData.map (fun sessions -> session :: sessions)
+        { model with
+            WatchSessions = updatedSessions
+            IsAddingWatchSession = false
+            IsWatchSessionModalOpen = false }, Cmd.none, NoOp
+
+    | WatchSessionCreated (Error err) ->
+        { model with IsAddingWatchSession = false }, Cmd.none, ShowNotification (err, false)
+
+    | DeleteWatchSession sessionId ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.DeleteWatchSession
+                sessionId
+                (fun result -> WatchSessionDeleted (sessionId, result))
+                (fun ex -> WatchSessionDeleted (sessionId, Error ex.Message))
+        model, cmd, NoOp
+
+    | WatchSessionDeleted (sessionId, Ok ()) ->
+        let updatedSessions =
+            model.WatchSessions
+            |> RemoteData.map (List.filter (fun s -> s.Id <> sessionId))
+        { model with WatchSessions = updatedSessions }, Cmd.none, MovieWatchSessionRemoved
+
+    | WatchSessionDeleted (_, Error err) ->
+        model, Cmd.none, ShowNotification (err, false)
+
+    | StartEditingSessionDate (sessionId, currentDate) ->
+        { model with EditingSessionDate = Some (sessionId, currentDate) }, Cmd.none, NoOp
+
+    | UpdateEditingDate newDate ->
+        match model.EditingSessionDate with
+        | Some (sessionId, _) ->
+            { model with EditingSessionDate = Some (sessionId, newDate) }, Cmd.none, NoOp
+        | None ->
+            model, Cmd.none, NoOp
+
+    | CancelEditingSessionDate ->
+        { model with EditingSessionDate = None }, Cmd.none, NoOp
+
+    | SaveSessionDate ->
+        match model.EditingSessionDate with
+        | Some (sessionId, newDate) ->
+            let request : UpdateMovieWatchSessionDateRequest = {
+                SessionId = sessionId
+                NewDate = newDate
+            }
+            let cmd =
+                Cmd.OfAsync.either
+                    api.UpdateWatchSessionDate
+                    request
+                    SessionDateUpdated
+                    (fun ex -> SessionDateUpdated (Error ex.Message))
+            model, cmd, NoOp
+        | None ->
+            model, Cmd.none, NoOp
+
+    | SessionDateUpdated (Ok updatedSession) ->
+        let updatedSessions =
+            model.WatchSessions
+            |> RemoteData.map (List.map (fun s ->
+                if s.Id = updatedSession.Id then updatedSession else s))
+        { model with
+            WatchSessions = updatedSessions
+            EditingSessionDate = None }, Cmd.none, NoOp
+
+    | SessionDateUpdated (Error err) ->
+        { model with EditingSessionDate = None }, Cmd.none, ShowNotification (err, false)
+
     | ActionResult (Ok entry) ->
         { model with Entry = Success entry }, Cmd.none, EntryUpdated entry
 
@@ -225,6 +351,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | ViewCollectionDetail (collectionId, name) ->
         model, Cmd.none, NavigateToCollectionDetail (collectionId, name)
+
+    | EditWatchSession session ->
+        model, Cmd.none, RequestEditMovieWatchSession session
 
     | GoBack ->
         model, Cmd.none, NavigateBack

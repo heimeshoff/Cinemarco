@@ -195,6 +195,25 @@ type ICinemarcoApi = {
     sessionsGetProgress: SessionId -> Async<EpisodeProgress list>
 
     // =====================================
+    // Movie Watch Session Operations
+    // =====================================
+
+    /// Get all watch sessions for a movie entry
+    movieSessionsGetForEntry: EntryId -> Async<MovieWatchSession list>
+
+    /// Create a new movie watch session
+    movieSessionsCreate: CreateMovieWatchSessionRequest -> Async<Result<MovieWatchSession, string>>
+
+    /// Delete a movie watch session
+    movieSessionsDelete: SessionId -> Async<Result<unit, string>>
+
+    /// Update the date of a movie watch session
+    movieSessionsUpdateDate: UpdateMovieWatchSessionDateRequest -> Async<Result<MovieWatchSession, string>>
+
+    /// Update a movie watch session (date, friends, name)
+    movieSessionsUpdate: UpdateMovieWatchSessionRequest -> Async<Result<MovieWatchSession, string>>
+
+    // =====================================
     // Collection Operations
     // =====================================
 

@@ -104,6 +104,11 @@
     <Compile Include="Components/ProfileImageEditor/State.fs" />
     <Compile Include="Components/ProfileImageEditor/View.fs" />
 
+    <!-- MovieWatchSessionModal Component -->
+    <Compile Include="Components/MovieWatchSessionModal/Types.fs" />
+    <Compile Include="Components/MovieWatchSessionModal/State.fs" />
+    <Compile Include="Components/MovieWatchSessionModal/View.fs" />
+
     <!-- Layout Component -->
     <Compile Include="Components/Layout/Types.fs" />
     <Compile Include="Components/Layout/State.fs" />

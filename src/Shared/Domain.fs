@@ -390,6 +390,16 @@ type WatchSession = {
     IsDefault: bool
 }
 
+/// A watch session for a movie (tracking when and with whom you watched)
+type MovieWatchSession = {
+    Id: SessionId
+    EntryId: EntryId
+    WatchedDate: DateTime
+    Friends: FriendId list
+    Name: string option  // Optional session name like "Movie night with Sarah"
+    CreatedAt: DateTime
+}
+
 /// Tracks individual episode watch status (always tied to a session)
 type EpisodeProgress = {
     EntryId: EntryId
@@ -662,6 +672,28 @@ type UpdateCollectionRequest = {
 type CreateSessionRequest = {
     EntryId: EntryId
     Friends: FriendId list
+}
+
+/// Request to create a movie watch session
+type CreateMovieWatchSessionRequest = {
+    EntryId: EntryId
+    WatchedDate: DateTime
+    Friends: FriendId list
+    Name: string option
+}
+
+/// Request to update a movie watch session's date
+type UpdateMovieWatchSessionDateRequest = {
+    SessionId: SessionId
+    NewDate: DateTime
+}
+
+/// Request to update a movie watch session (full update: date, friends, name)
+type UpdateMovieWatchSessionRequest = {
+    SessionId: SessionId
+    WatchedDate: DateTime
+    Friends: FriendId list
+    Name: string option
 }
 
 /// Request to abandon an entry

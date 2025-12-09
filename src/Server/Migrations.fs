@@ -564,6 +564,38 @@ CREATE INDEX IF NOT EXISTS idx_collection_items_item_type ON collection_items(it
 -- Actually, we'll handle uniqueness in application logic for now since the CHECK constraint covers validity
 """
     }
+
+    // Migration 10: Movie watch sessions
+    {
+        Version = 10
+        Name = "Add movie watch sessions table"
+        Up = """
+-- Movie watch sessions table (for tracking individual viewings of a movie)
+CREATE TABLE IF NOT EXISTS movie_watch_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL,
+    watched_date TEXT NOT NULL,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_entry_id ON movie_watch_sessions(entry_id);
+CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_watched_date ON movie_watch_sessions(watched_date);
+
+-- Movie watch session friends junction table
+CREATE TABLE IF NOT EXISTS movie_session_friends (
+    session_id INTEGER NOT NULL,
+    friend_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (session_id, friend_id),
+    FOREIGN KEY (session_id) REFERENCES movie_watch_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_id) REFERENCES friends(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_session_friends_friend_id ON movie_session_friends(friend_id);
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

@@ -482,7 +482,7 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCo
         ]
     ]
 
-/// Generate a display name for a session based on its friends
+/// Generate a display name for a session based on its friends (simple string version for button text)
 let private sessionDisplayName (session: WatchSession) (allFriends: Friend list) =
     if session.IsDefault then
         "Personal"
@@ -498,6 +498,36 @@ let private sessionDisplayName (session: WatchSession) (allFriends: Friend list)
             let allButLast = names |> List.take (names.Length - 1) |> String.concat ", "
             let last = List.last names
             $"with {allButLast} and {last}"
+
+/// Generate clickable friend links for a session (for display with navigation)
+let private sessionFriendLinks (session: WatchSession) (allFriends: Friend list) (dispatch: Msg -> unit) =
+    if session.IsDefault then
+        [ Html.span [ prop.text "Personal" ] ]
+    else
+        let sessionFriends =
+            session.Friends
+            |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+        match sessionFriends with
+        | [] -> [ Html.span [ prop.text "Personal" ] ]
+        | friends ->
+            let friendLink (f: Friend) =
+                Html.span [
+                    prop.className "underline cursor-pointer hover:text-primary"
+                    prop.onClick (fun e ->
+                        e.stopPropagation()
+                        dispatch (ViewFriendDetail (f.Id, f.Name)))
+                    prop.text f.Name
+                ]
+            let elements = ResizeArray<ReactElement>()
+            elements.Add(Html.span [ prop.text "with " ])
+            for i, friend in friends |> List.indexed do
+                if i > 0 then
+                    if i = friends.Length - 1 then
+                        elements.Add(Html.span [ prop.text " and " ])
+                    else
+                        elements.Add(Html.span [ prop.text ", " ])
+                elements.Add(friendLink friend)
+            elements |> Seq.toList
 
 /// Overview tab content
 let private overviewTab (series: Series) (entry: LibraryEntry) (model: Model) (dispatch: Msg -> unit) =
@@ -688,7 +718,7 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                             if isSelected then "btn-primary" else "btn-ghost"
                                         )
                                         prop.onClick (fun _ -> dispatch (SelectSession session.Id))
-                                        prop.text (sessionDisplayName session friends)
+                                        prop.children (sessionFriendLinks session friends dispatch)
                                     ]
                                     if not session.IsDefault then
                                         Html.button [
@@ -813,108 +843,11 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
         ]
     ]
 
-/// Friends tab content
-let private friendsTab (entry: LibraryEntry) (allFriends: Friend list) (isFriendSelectorOpen: bool) (isAddingFriend: bool) (dispatch: Msg -> unit) =
-    let selectedFriendsList =
-        entry.Friends
-        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
-
-    Html.div [
-        prop.className "space-y-4"
-        prop.children [
-            Html.h3 [ prop.className "font-semibold mb-2"; prop.text "Watched With" ]
-
-            // Toggle button to open/close friend selector
-            Html.button [
-                prop.className "btn btn-sm btn-ghost gap-2"
-                prop.onClick (fun _ -> dispatch ToggleFriendSelector)
-                prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ userPlus ] ]
-                    Html.span [ prop.text (if isFriendSelectorOpen then "Close" else "Add Friends") ]
-                ]
-            ]
-
-            if isFriendSelectorOpen then
-                Html.div [
-                    prop.children [
-                        FriendSelector {
-                            AllFriends = allFriends
-                            SelectedFriends = entry.Friends
-                            OnToggle = fun friendId -> dispatch (ToggleFriend friendId)
-                            OnAddNew = fun name -> dispatch (AddNewFriend name)
-                            OnSubmit = Some (fun () -> dispatch ToggleFriendSelector)
-                            IsDisabled = isAddingFriend
-                            Placeholder = "Search or add friends..."
-                            IsRequired = false
-                            AutoFocus = true
-                        }
-                        if isAddingFriend then
-                            Html.div [
-                                prop.className "flex items-center gap-2 mt-2 text-sm text-base-content/60"
-                                prop.children [
-                                    Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                    Html.span [ prop.text "Adding friend..." ]
-                                ]
-                            ]
-                    ]
-                ]
-
-            // Friend pills (clickable to navigate to friend detail)
-            if not (List.isEmpty selectedFriendsList) then
-                Html.div [
-                    prop.className "flex flex-wrap items-center gap-3 mt-4"
-                    prop.children [
-                        for friend in selectedFriendsList do
-                            Html.div [
-                                prop.key (FriendId.value friend.Id |> string)
-                                prop.className "inline-flex flex-row items-center gap-2 px-3 py-1.5 rounded-full bg-base-200 border border-base-300 cursor-pointer hover:bg-base-300 transition-colors"
-                                prop.onClick (fun _ -> dispatch (ViewFriendDetail (friend.Id, friend.Name)))
-                                prop.children [
-                                    // Friend avatar (same size as friends list)
-                                    match friend.AvatarUrl with
-                                    | Some url ->
-                                        Html.div [
-                                            prop.className "w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
-                                            prop.children [
-                                                Html.img [
-                                                    prop.src $"/images/avatars{url}"
-                                                    prop.alt friend.Name
-                                                    prop.className "w-full h-full object-cover"
-                                                ]
-                                            ]
-                                        ]
-                                    | None ->
-                                        Html.div [
-                                            prop.className "w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center flex-shrink-0"
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "text-sm font-medium"
-                                                    prop.text (friend.Name.Substring(0, 1).ToUpperInvariant())
-                                                ]
-                                            ]
-                                        ]
-                                    Html.span [
-                                        prop.className "text-sm font-medium whitespace-nowrap"
-                                        prop.text friend.Name
-                                    ]
-                                ]
-                            ]
-                    ]
-                ]
-            elif not isFriendSelectorOpen then
-                Html.p [
-                    prop.className "text-base-content/60 text-sm"
-                    prop.text "No friends added yet. Click 'Add Friends' to track who you watched with."
-                ]
-        ]
-    ]
-
 /// Get the tab definitions
 let private seriesTabs : Common.Components.Tabs.Types.Tab list = [
     { Id = "overview"; Label = "Overview"; Icon = Some info }
     { Id = "cast-crew"; Label = "Cast & Crew"; Icon = Some friends }
     { Id = "episodes"; Label = "Episodes"; Icon = Some tv }
-    { Id = "friends"; Label = "Friends"; Icon = Some userPlus }
 ]
 
 /// Map SeriesTab to string ID
@@ -922,14 +855,12 @@ let private tabToId = function
     | Overview -> "overview"
     | CastCrew -> "cast-crew"
     | Episodes -> "episodes"
-    | Friends -> "friends"
 
 /// Map string ID to SeriesTab
 let private idToTab = function
     | "overview" -> Overview
     | "cast-crew" -> CastCrew
     | "episodes" -> Episodes
-    | "friends" -> Friends
     | _ -> Overview
 
 let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
@@ -1053,8 +984,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                         (match model.ActiveTab with
                                                          | Overview -> overviewTab series entry model dispatch
                                                          | CastCrew -> castCrewTab model dispatch
-                                                         | Episodes -> episodesTab series model friends dispatch
-                                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                                         | Episodes -> episodesTab series model friends dispatch)
                                                 ]
                                             ]
                                         ]
@@ -1073,8 +1003,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                         (match model.ActiveTab with
                                          | Overview -> overviewTab series entry model dispatch
                                          | CastCrew -> castCrewTab model dispatch
-                                         | Episodes -> episodesTab series model friends dispatch
-                                         | Friends -> friendsTab entry friends model.IsFriendSelectorOpen model.IsAddingFriend dispatch)
+                                         | Episodes -> episodesTab series model friends dispatch)
                                 ]
                             ]
                         ]

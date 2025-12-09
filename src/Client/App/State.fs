@@ -370,6 +370,53 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 { model'' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
 
+    | OpenMovieWatchSessionModal entryId ->
+        let modalModel = Components.MovieWatchSessionModal.State.init entryId
+        { model with Modal = MovieWatchSessionModal modalModel }, Cmd.none
+
+    | EditMovieWatchSessionModal session ->
+        let modalModel = Components.MovieWatchSessionModal.State.initEdit session
+        { model with Modal = MovieWatchSessionModal modalModel }, Cmd.none
+
+    | MovieWatchSessionModalMsg movieSessionModalMsg ->
+        match model.Modal with
+        | MovieWatchSessionModal modalModel ->
+            let sessionApi : Components.MovieWatchSessionModal.State.Api = {
+                CreateSession = fun req -> Api.api.movieSessionsCreate req
+                UpdateSession = fun req -> Api.api.movieSessionsUpdate req
+                CreateFriend = fun req -> Api.api.friendsCreate req
+            }
+            let newModal, modalCmd, extMsg = Components.MovieWatchSessionModal.State.update sessionApi movieSessionModalMsg modalModel
+            let model' = { model with Modal = MovieWatchSessionModal newModal }
+            let cmd = Cmd.map MovieWatchSessionModalMsg modalCmd
+            match extMsg with
+            | Components.MovieWatchSessionModal.Types.NoOp -> model', cmd
+            | Components.MovieWatchSessionModal.Types.Created session ->
+                // Reload watch sessions on the MovieDetail page
+                let reloadMovieDetailCmd =
+                    match model'.MovieDetailPage with
+                    | Some _ -> Cmd.ofMsg (MovieDetailMsg Pages.MovieDetail.Types.LoadWatchSessions)
+                    | None -> Cmd.none
+                // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+                { model' with Modal = NoModal; FriendDetailPage = None }, Cmd.batch [cmd; reloadMovieDetailCmd]
+            | Components.MovieWatchSessionModal.Types.Updated session ->
+                // Reload watch sessions on the MovieDetail page
+                let reloadMovieDetailCmd =
+                    match model'.MovieDetailPage with
+                    | Some _ -> Cmd.ofMsg (MovieDetailMsg Pages.MovieDetail.Types.LoadWatchSessions)
+                    | None -> Cmd.none
+                // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+                { model' with Modal = NoModal; FriendDetailPage = None }, Cmd.batch [cmd; reloadMovieDetailCmd]
+            | Components.MovieWatchSessionModal.Types.FriendCreatedInline friend ->
+                let updatedFriends =
+                    match model'.Friends with
+                    | Success friends -> Success (friend :: friends)
+                    | other -> other
+                { model' with Friends = updatedFriends }, cmd
+            | Components.MovieWatchSessionModal.Types.CloseRequested ->
+                { model' with Modal = NoModal }, cmd
+        | _ -> model, Cmd.none
+
     | OpenCollectionModal collection ->
         let modalModel = Components.CollectionModal.State.init collection
         { model with Modal = CollectionModal modalModel }, Cmd.none
@@ -659,6 +706,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetCollections = fun entryId -> Api.api.collectionsGetForEntry entryId
                 GetCredits = fun tmdbId -> Api.api.tmdbGetMovieCredits tmdbId
                 GetTrackedContributors = fun () -> Api.api.contributorsGetAll ()
+                GetWatchSessions = fun entryId -> Api.api.movieSessionsGetForEntry entryId
+                CreateWatchSession = fun request -> Api.api.movieSessionsCreate request
+                DeleteWatchSession = fun sessionId -> Api.api.movieSessionsDelete sessionId
+                UpdateWatchSessionDate = fun request -> Api.api.movieSessionsUpdateDate request
                 MarkWatched = fun entryId -> Api.api.libraryMarkMovieWatched (entryId, None)
                 MarkUnwatched = fun entryId -> Api.api.libraryMarkMovieUnwatched entryId
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
@@ -690,6 +741,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
+            | Pages.MovieDetail.Types.RequestOpenMovieWatchSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenMovieWatchSessionModal entryId)]
+            | Pages.MovieDetail.Types.RequestEditMovieWatchSession session -> model', Cmd.batch [cmd; Cmd.ofMsg (EditMovieWatchSessionModal session)]
             | Pages.MovieDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
@@ -703,6 +756,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Success friends -> Success (friend :: friends)
                     | other -> other
                 { model' with Friends = updatedFriends }, cmd
+            | Pages.MovieDetail.Types.MovieWatchSessionRemoved ->
+                // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+                { model' with FriendDetailPage = None }, cmd
         | None -> model, Cmd.none
 
     // Page messages - SeriesDetail
@@ -771,6 +827,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Success friends -> Success (friend :: friends)
                     | other -> other
                 { model' with Friends = updatedFriends }, cmd
+            | Pages.SeriesDetail.Types.WatchSessionRemoved ->
+                // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+                { model' with FriendDetailPage = None }, cmd
         | None -> model, Cmd.none
 
     // Page messages - SessionDetail
@@ -850,10 +909,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     Cmd.ofMsg (SeriesDetailMsg (Pages.SeriesDetail.Types.SelectSession session.Id))
                 ]
             | None -> Cmd.none
-        model, reloadAndSelectCmd
+        // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+        { model with FriendDetailPage = None }, reloadAndSelectCmd
 
     | SessionDeleted _ ->
-        { model with SessionDetailPage = None },
+        // Invalidate FriendDetail page cache so it reloads fresh data on next visit
+        { model with SessionDetailPage = None; FriendDetailPage = None },
         Cmd.ofMsg (NavigateTo LibraryPage)
 
     | CollectionSaved _ ->

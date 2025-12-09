@@ -240,6 +240,15 @@ type EpisodeProgressRecord = {
 }
 
 [<CLIMutable>]
+type MovieWatchSessionRecord = {
+    id: int
+    entry_id: int
+    watched_date: string
+    name: string
+    created_at: string
+}
+
+[<CLIMutable>]
 type CacheEntryRecord = {
     cache_key: string
     expires_at: string
@@ -967,11 +976,27 @@ let removeFriendFromEntry (EntryId entryId) (FriendId friendId) : Async<unit> = 
 }
 
 /// Get all library entries watched with a specific friend
+/// For movies: uses movie_watch_sessions (the new watch session model)
+/// For series: uses session_friends (series watch sessions)
 let getEntriesWatchedWithFriend (FriendId friendId) : Async<int list> = async {
     use conn = getConnection()
     let! entryIds =
         conn.QueryAsync<int>(
-            "SELECT entry_id FROM entry_friends WHERE friend_id = @FriendId",
+            """
+            SELECT DISTINCT entry_id FROM (
+                -- Movie watch session friend associations
+                SELECT mws.entry_id
+                FROM movie_watch_sessions mws
+                INNER JOIN movie_session_friends msf ON mws.id = msf.session_id
+                WHERE msf.friend_id = @FriendId
+                UNION
+                -- Series watch session friend associations
+                SELECT ws.entry_id
+                FROM watch_sessions ws
+                INNER JOIN session_friends sf ON ws.id = sf.session_id
+                WHERE sf.friend_id = @FriendId
+            )
+            """,
             {| FriendId = friendId |}
         ) |> Async.AwaitTask
     return entryIds |> Seq.toList
@@ -1227,6 +1252,176 @@ let removeFriendFromSession (SessionId sessionId) (FriendId friendId) : Async<un
     let param = {| SessionId = sessionId; FriendId = friendId |}
     let! _ = conn.ExecuteAsync("DELETE FROM session_friends WHERE session_id = @SessionId AND friend_id = @FriendId", param) |> Async.AwaitTask
     return ()
+}
+
+// =====================================
+// Movie Watch Sessions
+// =====================================
+
+/// Get friends for a movie watch session
+let getMovieSessionFriends (SessionId sessionId) : Async<FriendId list> = async {
+    use conn = getConnection()
+    let! ids =
+        conn.QueryAsync<int>(
+            "SELECT friend_id FROM movie_session_friends WHERE session_id = @SessionId",
+            {| SessionId = sessionId |}
+        ) |> Async.AwaitTask
+    return ids |> Seq.map FriendId |> Seq.toList
+}
+
+/// Get all movie watch sessions for an entry
+let getMovieWatchSessionsForEntry (EntryId entryId) : Async<MovieWatchSession list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<MovieWatchSessionRecord>(
+            "SELECT * FROM movie_watch_sessions WHERE entry_id = @EntryId ORDER BY watched_date DESC",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+
+    let mapRecord (r: MovieWatchSessionRecord) = async {
+        let! friendIds = getMovieSessionFriends (SessionId r.id)
+        return {
+            Id = SessionId r.id
+            EntryId = EntryId r.entry_id
+            WatchedDate = DateTime.Parse(r.watched_date)
+            Friends = friendIds
+            Name = if String.IsNullOrEmpty(r.name) then None else Some r.name
+            CreatedAt = DateTime.Parse(r.created_at)
+        }
+    }
+
+    let! sessions = records |> Seq.map mapRecord |> Async.Sequential
+    return sessions |> Array.toList
+}
+
+/// Add a friend to a movie watch session
+let addFriendToMovieSession (SessionId sessionId) (FriendId friendId) : Async<unit> = async {
+    use conn = getConnection()
+    do! conn.ExecuteAsync("""
+        INSERT OR IGNORE INTO movie_session_friends (session_id, friend_id) VALUES (@SessionId, @FriendId)
+    """, {| SessionId = sessionId; FriendId = friendId |}) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Create a movie watch session
+let insertMovieWatchSession (request: CreateMovieWatchSessionRequest) : Async<MovieWatchSession> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let watchedDate = request.WatchedDate.ToString("o")
+
+    let! sessionId =
+        conn.ExecuteScalarAsync<int64>("""
+            INSERT INTO movie_watch_sessions (entry_id, watched_date, name, created_at)
+            VALUES (@EntryId, @WatchedDate, @Name, @CreatedAt);
+            SELECT last_insert_rowid();
+        """, {|
+            EntryId = EntryId.value request.EntryId
+            WatchedDate = watchedDate
+            Name = request.Name |> Option.toObj
+            CreatedAt = now
+        |}) |> Async.AwaitTask
+
+    let sessionIdInt = int sessionId
+
+    // Add friends to session
+    for friendId in request.Friends do
+        do! addFriendToMovieSession (SessionId sessionIdInt) friendId
+
+    return {
+        Id = SessionId sessionIdInt
+        EntryId = request.EntryId
+        WatchedDate = request.WatchedDate
+        Friends = request.Friends
+        Name = request.Name
+        CreatedAt = DateTime.UtcNow
+    }
+}
+
+/// Delete a movie watch session
+let deleteMovieWatchSession (SessionId sessionId) : Async<unit> = async {
+    use conn = getConnection()
+    // Friends are deleted by cascade
+    do! conn.ExecuteAsync("DELETE FROM movie_watch_sessions WHERE id = @Id", {| Id = sessionId |})
+        |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Update the date of a movie watch session
+let updateMovieWatchSessionDate (request: UpdateMovieWatchSessionDateRequest) : Async<MovieWatchSession option> = async {
+    use conn = getConnection()
+    let sessionId = SessionId.value request.SessionId
+    let newDateStr = request.NewDate.ToString("o")
+
+    // Update the date
+    let! _ =
+        conn.ExecuteAsync(
+            "UPDATE movie_watch_sessions SET watched_date = @WatchedDate WHERE id = @Id",
+            {| Id = sessionId; WatchedDate = newDateStr |}
+        ) |> Async.AwaitTask
+
+    // Fetch the updated session
+    let! record =
+        conn.QuerySingleOrDefaultAsync<MovieWatchSessionRecord>(
+            "SELECT * FROM movie_watch_sessions WHERE id = @Id",
+            {| Id = sessionId |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then
+        return None
+    else
+        // Get friends for this session
+        let! friendIds = getMovieSessionFriends (SessionId record.id)
+
+        return Some {
+            Id = SessionId record.id
+            EntryId = EntryId record.entry_id
+            WatchedDate = DateTime.Parse(record.watched_date)
+            Friends = friendIds
+            Name = if String.IsNullOrWhiteSpace record.name then None else Some record.name
+            CreatedAt = DateTime.Parse(record.created_at)
+        }
+}
+
+/// Update a movie watch session (date, friends, name)
+let updateMovieWatchSession (request: UpdateMovieWatchSessionRequest) : Async<MovieWatchSession option> = async {
+    use conn = getConnection()
+    let sessionId = SessionId.value request.SessionId
+    let watchedDateStr = request.WatchedDate.ToString("o")
+
+    // First check the session exists and get entry_id
+    let! existingRecord =
+        conn.QuerySingleOrDefaultAsync<MovieWatchSessionRecord>(
+            "SELECT * FROM movie_watch_sessions WHERE id = @Id",
+            {| Id = sessionId |}
+        ) |> Async.AwaitTask
+
+    if isNull (box existingRecord) then
+        return None
+    else
+        // Update the session fields
+        let! _ =
+            conn.ExecuteAsync(
+                "UPDATE movie_watch_sessions SET watched_date = @WatchedDate, name = @Name WHERE id = @Id",
+                {| Id = sessionId; WatchedDate = watchedDateStr; Name = request.Name |> Option.toObj |}
+            ) |> Async.AwaitTask
+
+        // Replace friends: delete existing, add new ones
+        let! _ =
+            conn.ExecuteAsync(
+                "DELETE FROM movie_session_friends WHERE session_id = @SessionId",
+                {| SessionId = sessionId |}
+            ) |> Async.AwaitTask
+
+        // Add new friends
+        for friendId in request.Friends do
+            do! addFriendToMovieSession request.SessionId friendId
+
+        return Some {
+            Id = request.SessionId
+            EntryId = EntryId existingRecord.entry_id
+            WatchedDate = request.WatchedDate
+            Friends = request.Friends
+            Name = request.Name
+            CreatedAt = DateTime.Parse(existingRecord.created_at)
+        }
 }
 
 // =====================================

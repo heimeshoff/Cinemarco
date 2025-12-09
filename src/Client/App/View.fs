@@ -141,6 +141,9 @@ let private modalContent (model: Model) (dispatch: Msg -> unit) =
     | WatchSessionModal modalModel ->
         Components.WatchSessionModal.View.view modalModel friends (WatchSessionModalMsg >> dispatch)
 
+    | MovieWatchSessionModal modalModel ->
+        Components.MovieWatchSessionModal.View.view modalModel friends (MovieWatchSessionModalMsg >> dispatch)
+
     | CollectionModal modalModel ->
         Components.CollectionModal.View.view modalModel (CollectionModalMsg >> dispatch)
 
