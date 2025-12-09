@@ -61,6 +61,26 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 ]
                         ]
                     ]
+
+                    // Year in Review link
+                    Html.button [
+                        prop.className "mt-8 group flex items-center gap-3 mx-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 transition-all duration-300"
+                        prop.onClick (fun _ -> dispatch ViewYearInReview)
+                        prop.children [
+                            Html.span [
+                                prop.className "w-6 h-6 text-amber-400"
+                                prop.children [ sparkles ]
+                            ]
+                            Html.span [
+                                prop.className "font-medium text-amber-200"
+                                prop.text "View Your Year in Review"
+                            ]
+                            Html.span [
+                                prop.className "w-5 h-5 text-amber-400/70 group-hover:translate-x-1 transition-transform"
+                                prop.children [ arrowRight ]
+                            ]
+                        ]
+                    ]
                 ]
             ]
 

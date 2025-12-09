@@ -21,6 +21,7 @@ let private getPageIcon (page: Page) =
     | CollectionsPage -> collections
     | CollectionDetailPage _ -> collections
     | StatsPage -> stats
+    | YearInReviewPage _ -> sparkles
     | TimelinePage -> timeline
     | GraphPage -> graph
     | ImportPage -> import
@@ -42,6 +43,7 @@ let private getIconColor (page: Page) =
     | CollectionsPage -> "text-nav-collections" // Pink - curated
     | CollectionDetailPage _ -> "text-nav-collections"
     | StatsPage -> "text-nav-stats"         // Orange - metrics
+    | YearInReviewPage _ -> "text-amber-400" // Amber - celebration/year
     | TimelinePage -> "text-nav-timeline"   // Sky - time
     | GraphPage -> "text-nav-graph"         // Violet - connections
     | ImportPage -> "text-nav-import"       // Lime - fresh data
@@ -345,7 +347,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                         Html.li [ prop.className "my-3 border-t border-base-300" ]
 
                                         // Secondary navigation
-                                        for page in [ StatsPage; TimelinePage; GraphPage ] do
+                                        for page in [ StatsPage; YearInReviewPage None; TimelinePage; GraphPage ] do
                                             let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [

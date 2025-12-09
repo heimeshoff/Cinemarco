@@ -48,6 +48,7 @@ type Model = {
     CollectionDetailPage: Pages.CollectionDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
     StatsPage: Pages.Stats.Types.Model option
+    YearInReviewPage: Pages.YearInReview.Types.Model option
     TimelinePage: Pages.Timeline.Types.Model option
 }
 
@@ -107,6 +108,7 @@ type Msg =
     | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
     | StatsMsg of Pages.Stats.Types.Msg
+    | YearInReviewMsg of Pages.YearInReview.Types.Msg
     | TimelineMsg of Pages.Timeline.Types.Msg
 
     // API result handlers
@@ -153,5 +155,6 @@ module Model =
         CollectionDetailPage = None
         CachePage = None
         StatsPage = None
+        YearInReviewPage = None
         TimelinePage = None
     }

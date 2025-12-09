@@ -919,6 +919,47 @@ let cinemarcoApi : ICinemarcoApi = {
     }
 
     // =====================================
+    // Year-in-Review Operations
+    // =====================================
+
+    yearInReviewGetStats = fun year -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! movieSessions = Persistence.getAllMovieWatchSessions()
+        let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
+        let! friends = Persistence.getAllFriends()
+        let! collections = Persistence.getAllCollections()
+
+        let countWatchedEpisodes entryId =
+            Persistence.countWatchedEpisodes entryId
+            |> Async.RunSynchronously
+
+        let friendsByEntry entryId =
+            Persistence.getFriendsForEntry entryId
+            |> Async.RunSynchronously
+
+        // For now, we pass empty completed collections (future: track collection completion dates)
+        let completedCollections = []
+
+        return Stats.calculateYearInReviewStats
+            year
+            entries
+            countWatchedEpisodes
+            movieSessions
+            episodeWatchData
+            friends
+            friendsByEntry
+            completedCollections
+    }
+
+    yearInReviewGetAvailableYears = fun () -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! movieSessions = Persistence.getAllMovieWatchSessions()
+        let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
+
+        return Stats.getAvailableYears entries movieSessions episodeWatchData
+    }
+
+    // =====================================
     // Timeline Operations
     // =====================================
 

@@ -182,6 +182,11 @@
     <Compile Include="Pages/Stats/State.fs" />
     <Compile Include="Pages/Stats/View.fs" />
 
+    <!-- YearInReview Page -->
+    <Compile Include="Pages/YearInReview/Types.fs" />
+    <Compile Include="Pages/YearInReview/State.fs" />
+    <Compile Include="Pages/YearInReview/View.fs" />
+
     <!-- Timeline Page -->
     <Compile Include="Pages/Timeline/Types.fs" />
     <Compile Include="Pages/Timeline/State.fs" />

@@ -906,6 +906,98 @@ type TimeIntelligenceStats = {
     TopCollectionsByTime: (Collection * CollectionProgress) list
 }
 
+/// Rating distribution for Year-in-Review
+type RatingDistribution = {
+    Outstanding: int
+    Entertaining: int
+    Decent: int
+    Meh: int
+    Waste: int
+    Unrated: int
+}
+
+module RatingDistribution =
+    let empty = {
+        Outstanding = 0
+        Entertaining = 0
+        Decent = 0
+        Meh = 0
+        Waste = 0
+        Unrated = 0
+    }
+
+    let add (rating: PersonalRating option) (dist: RatingDistribution) =
+        match rating with
+        | Some Outstanding -> { dist with Outstanding = dist.Outstanding + 1 }
+        | Some Entertaining -> { dist with Entertaining = dist.Entertaining + 1 }
+        | Some Decent -> { dist with Decent = dist.Decent + 1 }
+        | Some Meh -> { dist with Meh = dist.Meh + 1 }
+        | Some Waste -> { dist with Waste = dist.Waste + 1 }
+        | None -> { dist with Unrated = dist.Unrated + 1 }
+
+    let total (dist: RatingDistribution) =
+        dist.Outstanding + dist.Entertaining + dist.Decent + dist.Meh + dist.Waste + dist.Unrated
+
+/// Friend watch count for Year-in-Review
+type FriendWatchCount = {
+    Friend: Friend
+    WatchCount: int
+}
+
+/// Year-in-Review statistics for a single year
+type YearInReviewStats = {
+    /// The year these stats are for
+    Year: int
+    /// Total hours watched this year
+    TotalMinutes: int
+    /// Minutes spent watching movies
+    MovieMinutes: int
+    /// Minutes spent watching series
+    SeriesMinutes: int
+    /// Number of movies watched
+    MoviesWatched: int
+    /// Number of series watched (completed or in progress)
+    SeriesWatched: int
+    /// Number of episodes watched
+    EpisodesWatched: int
+    /// Distribution of ratings given this year
+    RatingDistribution: RatingDistribution
+    /// Collections/franchises completed this year
+    CollectionsCompleted: Collection list
+    /// Friends watched with most this year
+    TopFriends: FriendWatchCount list
+    /// Top rated movies/series this year
+    TopRated: LibraryEntry list
+    /// Average rating given (if any ratings)
+    AverageRating: float option
+    /// Whether this year has any data
+    HasData: bool
+}
+
+module YearInReviewStats =
+    let empty year = {
+        Year = year
+        TotalMinutes = 0
+        MovieMinutes = 0
+        SeriesMinutes = 0
+        MoviesWatched = 0
+        SeriesWatched = 0
+        EpisodesWatched = 0
+        RatingDistribution = RatingDistribution.empty
+        CollectionsCompleted = []
+        TopFriends = []
+        TopRated = []
+        AverageRating = None
+        HasData = false
+    }
+
+/// List of available years with watch data
+type AvailableYears = {
+    Years: int list
+    EarliestYear: int option
+    LatestYear: int option
+}
+
 /// Session with full progress information
 type WatchSessionWithProgress = {
     Session: WatchSession

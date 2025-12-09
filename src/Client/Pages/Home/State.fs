@@ -35,3 +35,6 @@ let update (api: LibraryApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
 
     | ViewLibrary ->
         model, Cmd.none, NavigateToLibrary
+
+    | ViewYearInReview ->
+        model, Cmd.none, NavigateToYearInReview

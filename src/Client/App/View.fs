@@ -105,6 +105,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | YearInReviewPage _ ->
+        match model.YearInReviewPage with
+        | Some pageModel ->
+            Pages.YearInReview.View.view pageModel (YearInReviewMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | TimelinePage ->
         match model.TimelinePage with
         | Some pageModel ->

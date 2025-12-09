@@ -320,6 +320,16 @@ type ICinemarcoApi = {
     statsGetTopSeriesByTime: int -> Async<SeriesTimeInvestment list>
 
     // =====================================
+    // Year-in-Review Operations
+    // =====================================
+
+    /// Get Year-in-Review stats for a specific year
+    yearInReviewGetStats: int -> Async<YearInReviewStats>
+
+    /// Get list of years that have watch data
+    yearInReviewGetAvailableYears: unit -> Async<AvailableYears>
+
+    // =====================================
     // Timeline Operations
     // =====================================
 

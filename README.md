@@ -82,6 +82,16 @@ docker run -p 5000:5000 -v $(pwd)/data:/app/data cinemarco
 docker-compose up -d
 ```
 
+# Deploy to Portainer:
+
+```markdown
+docker-compose build
+```
+
+```markdown
+docker save fsharp-counter-app:latest | gzip > fsharp-counter-app.tar.gz
+```
+
 Your app is now accessible on your Tailnet at `https://cinemarco`.
 
 ## Project Structure

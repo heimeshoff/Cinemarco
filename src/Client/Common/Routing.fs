@@ -17,6 +17,7 @@ type Page =
     | CollectionsPage
     | CollectionDetailPage of slug: string
     | StatsPage
+    | YearInReviewPage of year: int option  // Optional year, defaults to current year
     | TimelinePage
     | GraphPage
     | ImportPage
@@ -50,6 +51,8 @@ module Page =
         | CollectionsPage -> "/collections"
         | CollectionDetailPage slug -> $"/collection/{slug}"
         | StatsPage -> "/stats"
+        | YearInReviewPage (Some year) -> $"/year-in-review/{year}"
+        | YearInReviewPage None -> "/year-in-review"
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
         | ImportPage -> "/import"
@@ -79,6 +82,11 @@ module Page =
         | ["collections"] -> CollectionsPage
         | ["collection"; slug] -> CollectionDetailPage slug
         | ["stats"] -> StatsPage
+        | ["year-in-review"] -> YearInReviewPage None
+        | ["year-in-review"; yearStr] ->
+            match Int32.TryParse yearStr with
+            | true, year -> YearInReviewPage (Some year)
+            | _ -> NotFoundPage
         | ["timeline"] -> TimelinePage
         | ["graph"] -> GraphPage
         | ["import"] -> ImportPage
@@ -99,6 +107,7 @@ module Page =
         | CollectionsPage -> "Collections"
         | CollectionDetailPage _ -> "Collection"
         | StatsPage -> "Stats"
+        | YearInReviewPage _ -> "Year in Review"
         | TimelinePage -> "Timeline"
         | GraphPage -> "Graph"
         | ImportPage -> "Import"

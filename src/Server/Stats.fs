@@ -233,3 +233,174 @@ let formatMinutesLong (minutes: int) : string =
     | [] -> "0 minutes"
     | [single] -> single
     | _ -> String.Join(", ", parts)
+
+// =====================================
+// Year-in-Review Calculations
+// =====================================
+
+/// Get available years that have watch data
+let getAvailableYears
+    (entries: LibraryEntry list)
+    (movieSessions: MovieWatchSession list)
+    (episodeWatchData: (EntryId * int * DateTime) list)
+    : AvailableYears =
+
+    // Years from movie sessions
+    let movieYears =
+        movieSessions
+        |> List.map (fun s -> s.WatchedDate.Year)
+
+    // Years from episode watches
+    let episodeYears =
+        episodeWatchData
+        |> List.map (fun (_, _, date) -> date.Year)
+
+    // Also consider DateLastWatched from entries for backwards compatibility
+    let entryYears =
+        entries
+        |> List.choose (fun e -> e.DateLastWatched |> Option.map (fun d -> d.Year))
+
+    let allYears =
+        movieYears @ episodeYears @ entryYears
+        |> List.distinct
+        |> List.sort
+
+    {
+        Years = allYears
+        EarliestYear = List.tryHead allYears
+        LatestYear = List.tryLast allYears
+    }
+
+/// Calculate year-in-review statistics for a specific year
+let calculateYearInReviewStats
+    (year: int)
+    (entries: LibraryEntry list)
+    (getWatchedEpisodeCount: EntryId -> int)
+    (movieSessions: MovieWatchSession list)
+    (episodeWatchData: (EntryId * int * DateTime) list)
+    (friends: Friend list)
+    (friendsByEntry: EntryId -> FriendId list)
+    (completedCollections: Collection list)
+    : YearInReviewStats =
+
+    // Build entry ID to entry lookup
+    let entryById =
+        entries
+        |> List.map (fun e -> (e.Id, e))
+        |> Map.ofList
+
+    // Find movie sessions from this year
+    let yearMovieSessions =
+        movieSessions
+        |> List.filter (fun s -> s.WatchedDate.Year = year)
+
+    // Find episode watches from this year
+    let yearEpisodeWatches =
+        episodeWatchData
+        |> List.filter (fun (_, _, date) -> date.Year = year)
+
+    // Unique movie entry IDs watched this year
+    let movieEntryIds =
+        yearMovieSessions
+        |> List.map (fun s -> s.EntryId)
+        |> List.distinct
+
+    // Unique series entry IDs with episodes watched this year
+    let seriesEntryIds =
+        yearEpisodeWatches
+        |> List.map (fun (entryId, _, _) -> entryId)
+        |> List.distinct
+
+    // Movies watched this year (with their runtime)
+    let moviesWatchedEntries =
+        movieEntryIds
+        |> List.choose (fun id -> Map.tryFind id entryById)
+
+    let movieMinutes =
+        yearMovieSessions
+        |> List.choose (fun session ->
+            Map.tryFind session.EntryId entryById
+            |> Option.bind (fun entry ->
+                match entry.Media with
+                | LibraryMovie m -> m.RuntimeMinutes
+                | _ -> None))
+        |> List.sum
+
+    // Series watched this year
+    let seriesWatchedEntries =
+        seriesEntryIds
+        |> List.choose (fun id -> Map.tryFind id entryById)
+
+    // Episode minutes this year
+    let episodesWatched = List.length yearEpisodeWatches
+    let seriesMinutes =
+        yearEpisodeWatches
+        |> List.sumBy (fun (_, runtime, _) -> runtime)
+
+    // Rating distribution from entries watched this year
+    let entriesWatchedThisYear =
+        (moviesWatchedEntries @ seriesWatchedEntries)
+        |> List.distinctBy (fun e -> e.Id)
+
+    let ratingDistribution =
+        entriesWatchedThisYear
+        |> List.fold (fun dist entry ->
+            RatingDistribution.add entry.PersonalRating dist
+        ) RatingDistribution.empty
+
+    // Calculate average rating
+    let ratedEntries =
+        entriesWatchedThisYear
+        |> List.choose (fun e -> e.PersonalRating |> Option.map PersonalRating.toInt)
+
+    let averageRating =
+        if List.isEmpty ratedEntries then None
+        else Some (List.averageBy float ratedEntries)
+
+    // Top rated entries (4 or 5 stars)
+    let topRated =
+        entriesWatchedThisYear
+        |> List.filter (fun e ->
+            match e.PersonalRating with
+            | Some Outstanding | Some Entertaining -> true
+            | _ -> false)
+        |> List.sortByDescending (fun e ->
+            e.PersonalRating
+            |> Option.map PersonalRating.toInt
+            |> Option.defaultValue 0)
+        |> List.truncate 10
+
+    // Count watches per friend
+    let friendIdToFriend =
+        friends
+        |> List.map (fun f -> (f.Id, f))
+        |> Map.ofList
+
+    let friendWatchCounts =
+        entriesWatchedThisYear
+        |> List.collect (fun entry -> friendsByEntry entry.Id)
+        |> List.countBy id
+        |> List.choose (fun (friendId, count) ->
+            Map.tryFind friendId friendIdToFriend
+            |> Option.map (fun friend -> { Friend = friend; WatchCount = count }))
+        |> List.sortByDescending (fun fwc -> fwc.WatchCount)
+        |> List.truncate 5
+
+    let hasData =
+        not (List.isEmpty yearMovieSessions && List.isEmpty yearEpisodeWatches)
+
+    {
+        Year = year
+        TotalMinutes = movieMinutes + seriesMinutes
+        MovieMinutes = movieMinutes
+        SeriesMinutes = seriesMinutes
+        MoviesWatched = List.length movieEntryIds
+        SeriesWatched = List.length seriesEntryIds
+        EpisodesWatched = episodesWatched
+        RatingDistribution = ratingDistribution
+        CollectionsCompleted = completedCollections
+        TopFriends = friendWatchCounts
+        TopRated = topRated
+        AverageRating = averageRating
+        HasData = hasData
+    }

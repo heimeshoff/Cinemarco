@@ -76,6 +76,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh stats when navigating to the page
         let pageModel, pageCmd = Pages.Stats.State.init ()
         { model' with StatsPage = Some pageModel }, Cmd.map StatsMsg pageCmd
+    | YearInReviewPage year ->
+        // Always refresh year-in-review when navigating to the page
+        let pageModel, pageCmd = Pages.YearInReview.State.init year
+        { model' with YearInReviewPage = Some pageModel }, Cmd.map YearInReviewMsg pageCmd
     | TimelinePage ->
         // Always refresh timeline when navigating to the page
         let pageModel, pageCmd = Pages.Timeline.State.init ()
@@ -545,6 +549,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Home.Types.NavigateToSeriesDetail (_, name) ->
                 let slug = Slug.generate name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.Home.Types.NavigateToYearInReview ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (YearInReviewPage None))]
         | None -> model, Cmd.none
 
     // Page messages - Library
@@ -1019,6 +1025,27 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Stats.Types.NavigateToCollection (collectionId, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
+        | None -> model, Cmd.none
+
+    // Page messages - Year in Review
+    | YearInReviewMsg yearMsg ->
+        match model.YearInReviewPage with
+        | Some pageModel ->
+            let yearApi : Pages.YearInReview.State.YearInReviewApi = {
+                GetStats = Api.api.yearInReviewGetStats
+                GetAvailableYears = Api.api.yearInReviewGetAvailableYears
+            }
+            let newPage, pageCmd, extMsg = Pages.YearInReview.State.update yearApi yearMsg pageModel
+            let model' = { model with YearInReviewPage = Some newPage }
+            let cmd = Cmd.map YearInReviewMsg pageCmd
+            match extMsg with
+            | Pages.YearInReview.Types.NoOp -> model', cmd
+            | Pages.YearInReview.Types.NavigateToMovieDetail (entryId, title) ->
+                let slug = Slug.forMovie title None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.YearInReview.Types.NavigateToSeriesDetail (entryId, name) ->
+                let slug = Slug.forSeries name None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
     // Page messages - Timeline
