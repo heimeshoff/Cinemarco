@@ -177,6 +177,11 @@
     <Compile Include="Pages/Cache/State.fs" />
     <Compile Include="Pages/Cache/View.fs" />
 
+    <!-- Stats Page -->
+    <Compile Include="Pages/Stats/Types.fs" />
+    <Compile Include="Pages/Stats/State.fs" />
+    <Compile Include="Pages/Stats/View.fs" />
+
     <!-- API Client -->
     <Compile Include="Api.fs" />
 

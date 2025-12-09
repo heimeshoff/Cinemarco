@@ -878,6 +878,30 @@ type CollectionProgress = {
     CompletionPercentage: float
 }
 
+/// Time investment for a single series
+type SeriesTimeInvestment = {
+    Entry: LibraryEntry
+    Series: Series
+    TotalMinutes: int
+    WatchedMinutes: int
+    RemainingMinutes: int
+    CompletionPercentage: float
+}
+
+/// Combined time intelligence dashboard data
+type TimeIntelligenceStats = {
+    /// Total lifetime watch time stats
+    LifetimeStats: WatchTimeStats
+    /// This year's watch time stats
+    ThisYearStats: WatchTimeStats
+    /// Backlog stats (unwatched items)
+    Backlog: BacklogStats
+    /// Top series by time investment
+    TopSeriesByTime: SeriesTimeInvestment list
+    /// Top collections by watched time
+    TopCollectionsByTime: (Collection * CollectionProgress) list
+}
+
 /// Session with full progress information
 type WatchSessionWithProgress = {
     Session: WatchSession

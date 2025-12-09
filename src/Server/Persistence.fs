@@ -1294,6 +1294,30 @@ let getMovieWatchSessionsForEntry (EntryId entryId) : Async<MovieWatchSession li
     return sessions |> Array.toList
 }
 
+/// Get all movie watch sessions (for stats calculation)
+let getAllMovieWatchSessions () : Async<MovieWatchSession list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<MovieWatchSessionRecord>(
+            "SELECT * FROM movie_watch_sessions ORDER BY watched_date DESC"
+        ) |> Async.AwaitTask
+
+    let mapRecord (r: MovieWatchSessionRecord) = async {
+        let! friendIds = getMovieSessionFriends (SessionId r.id)
+        return {
+            Id = SessionId r.id
+            EntryId = EntryId r.entry_id
+            WatchedDate = DateTime.Parse(r.watched_date)
+            Friends = friendIds
+            Name = if String.IsNullOrEmpty(r.name) then None else Some r.name
+            CreatedAt = DateTime.Parse(r.created_at)
+        }
+    }
+
+    let! sessions = records |> Seq.map mapRecord |> Async.Sequential
+    return sessions |> Array.toList
+}
+
 /// Add a friend to a movie watch session
 let addFriendToMovieSession (SessionId sessionId) (FriendId friendId) : Async<unit> = async {
     use conn = getConnection()
@@ -1447,6 +1471,37 @@ let getSessionEpisodeProgress (SessionId sessionId) : Async<EpisodeProgress list
         IsWatched = r.is_watched = 1
         WatchedDate = parseDateTime r.watched_date
     }) |> Seq.toList
+}
+
+/// Record type for episode watch data used in stats
+[<CLIMutable>]
+type private EpisodeWatchDataRecord = {
+    entry_id: int
+    series_id: int
+    watched_date: string
+    episode_runtime: Nullable<int>
+}
+
+/// Get all watched episodes with their dates (for stats calculation)
+/// Returns tuples of (EntryId, episodeRuntime, watchedDate)
+let getAllWatchedEpisodeData () : Async<(EntryId * int * DateTime) list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<EpisodeWatchDataRecord>(
+            """SELECT ep.entry_id, ep.series_id, ep.watched_date, s.episode_runtime_minutes as episode_runtime
+               FROM episode_progress ep
+               INNER JOIN series s ON s.id = ep.series_id
+               WHERE ep.is_watched = 1 AND ep.watched_date IS NOT NULL AND ep.watched_date != ''"""
+        ) |> Async.AwaitTask
+
+    return records
+        |> Seq.choose (fun r ->
+            match parseDateTime r.watched_date with
+            | Some dt ->
+                let runtime = if r.episode_runtime.HasValue then r.episode_runtime.Value else 45
+                Some (EntryId r.entry_id, runtime, dt)
+            | None -> None)
+        |> Seq.toList
 }
 
 /// Update episode progress for a session (insert or update)

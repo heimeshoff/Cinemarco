@@ -794,6 +794,90 @@ let cinemarcoApi : ICinemarcoApi = {
     contributorsIsTracked = fun tmdbPersonId -> Persistence.isContributorTracked tmdbPersonId
 
     contributorsGetByTmdbId = fun tmdbPersonId -> Persistence.getTrackedContributorByTmdbId tmdbPersonId
+
+    // =====================================
+    // Time Intelligence / Stats Operations
+    // =====================================
+
+    statsGetTimeIntelligence = fun () -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! movieSessions = Persistence.getAllMovieWatchSessions()
+        let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
+
+        // Helper to count watched episodes for an entry
+        let countWatchedEpisodes entryId =
+            Persistence.countWatchedEpisodes entryId
+            |> Async.RunSynchronously
+
+        let currentYear = DateTime.UtcNow.Year
+
+        let lifetimeStats = Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData None
+        let thisYearStats = Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData (Some currentYear)
+        let backlog = Stats.calculateBacklogStats entries
+        let topSeries = Stats.getTopSeriesByTime entries countWatchedEpisodes 10
+
+        // Get top collections by watched time
+        let! collections = Persistence.getAllCollections()
+        let! collectionsWithProgress = async {
+            let! progresses =
+                collections
+                |> List.map (fun c -> async {
+                    let! progress = Persistence.getCollectionProgress c.Id
+                    return (c, progress)
+                })
+                |> Async.Sequential
+
+            return
+                progresses
+                |> Array.toList
+                |> List.choose (fun (c, p) ->
+                    p |> Option.map (fun prog -> (c, prog)))
+                |> List.filter (fun (_, p) -> p.WatchedMinutes > 0)
+                |> List.sortByDescending (fun (_, p) -> p.WatchedMinutes)
+                |> List.truncate 5
+        }
+
+        return {
+            LifetimeStats = lifetimeStats
+            ThisYearStats = thisYearStats
+            Backlog = backlog
+            TopSeriesByTime = topSeries
+            TopCollectionsByTime = collectionsWithProgress
+        }
+    }
+
+    statsGetWatchTime = fun () -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! movieSessions = Persistence.getAllMovieWatchSessions()
+        let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
+        let countWatchedEpisodes entryId =
+            Persistence.countWatchedEpisodes entryId
+            |> Async.RunSynchronously
+        return Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData None
+    }
+
+    statsGetWatchTimeForYear = fun year -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! movieSessions = Persistence.getAllMovieWatchSessions()
+        let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
+        let countWatchedEpisodes entryId =
+            Persistence.countWatchedEpisodes entryId
+            |> Async.RunSynchronously
+        return Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData (Some year)
+    }
+
+    statsGetBacklog = fun () -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        return Stats.calculateBacklogStats entries
+    }
+
+    statsGetTopSeriesByTime = fun limit -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let countWatchedEpisodes entryId =
+            Persistence.countWatchedEpisodes entryId
+            |> Async.RunSynchronously
+        return Stats.getTopSeriesByTime entries countWatchedEpisodes limit
+    }
 }
 
 // =====================================

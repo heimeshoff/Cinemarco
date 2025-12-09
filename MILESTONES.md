@@ -479,37 +479,46 @@ type ITagApi = {
 
 ---
 
-## Milestone 12: Time Intelligence (Estimated: Day 13-14)
+## Milestone 12: Time Intelligence (COMPLETED)
 
 **Goal**: Calculate and display watch time statistics.
 
 ### Tasks
 
-- [ ] **M12.1** Calculate total lifetime watch time
-- [ ] **M12.2** Calculate time by tag
-- [ ] **M12.3** Calculate time by year watched
-- [ ] **M12.4** Calculate time by franchise
-- [ ] **M12.5** Show per-series time investment
-- [ ] **M12.6** Calculate backlog time estimate
-- [ ] **M12.7** Create stats dashboard component
+- [x] **M12.1** Calculate total lifetime watch time
+- [ ] **M12.2** Calculate time by tag (deferred - requires tag model changes)
+- [x] **M12.3** Calculate time by year watched
+- [x] **M12.4** Calculate time by franchise (via collections)
+- [x] **M12.5** Show per-series time investment
+- [x] **M12.6** Calculate backlog time estimate
+- [x] **M12.7** Create stats dashboard component
 
-### Stats to Display
-- Total lifetime watch time
+### Stats Displayed
+- Total lifetime watch time (movies + series)
 - This year's watch time
-- Breakdown by tag
-- Breakdown by year
-- Per-series commitment
-- Backlog: "847 hours in your watchlist"
+- Time breakdown by year chart
+- Time breakdown by rating
+- Breakdown by movies vs series
+- Per-series time investment (top series)
+- Top collections by watched time
+- Backlog stats (unwatched items + estimated time)
 
-### Files to Create/Modify
-- `src/Server/Stats.fs` (new) - Statistics calculations
-- `src/Client/Pages/Stats.fs` (new)
-- `src/Client/Components/TimeStatCard.fs` (new)
+### Files Created/Modified
+- `src/Shared/Domain.fs` - Added `SeriesTimeInvestment`, `TimeIntelligenceStats` types
+- `src/Shared/Api.fs` - Added stats API endpoints
+- `src/Server/Stats.fs` (new) - Pure statistics calculations
+- `src/Server/Api.fs` - Implemented stats API handlers
+- `src/Client/Pages/Stats/Types.fs` (new) - Page types
+- `src/Client/Pages/Stats/State.fs` (new) - Page state
+- `src/Client/Pages/Stats/View.fs` (new) - Dashboard UI
+- `src/Client/App/Types.fs` - Added StatsPage model
+- `src/Client/App/State.fs` - Added StatsMsg handler
+- `src/Client/App/View.fs` - Added Stats page rendering
 
 ### Definition of Done
-- Dashboard shows all time statistics
-- Calculations are accurate
-- Backlog estimation works
+- [x] Dashboard shows all time statistics
+- [x] Calculations are accurate
+- [x] Backlog estimation works
 
 ---
 

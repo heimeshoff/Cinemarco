@@ -47,6 +47,7 @@ type Model = {
     CollectionsPage: Pages.Collections.Types.Model option
     CollectionDetailPage: Pages.CollectionDetail.Types.Model option
     CachePage: Pages.Cache.Types.Model option
+    StatsPage: Pages.Stats.Types.Model option
 }
 
 /// Main application messages
@@ -104,6 +105,7 @@ type Msg =
     | CollectionsMsg of Pages.Collections.Types.Msg
     | CollectionDetailMsg of Pages.CollectionDetail.Types.Msg
     | CacheMsg of Pages.Cache.Types.Msg
+    | StatsMsg of Pages.Stats.Types.Msg
 
     // API result handlers
     | FriendSaved of Friend
@@ -148,4 +150,5 @@ module Model =
         CollectionsPage = None
         CollectionDetailPage = None
         CachePage = None
+        StatsPage = None
     }

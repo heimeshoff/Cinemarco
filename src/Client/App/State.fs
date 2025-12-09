@@ -72,6 +72,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
     | ContributorDetailPage (slug, None) ->
         // Tracked contributor - look up by slug
         model', Cmd.ofMsg (LoadContributorBySlug slug)
+    | StatsPage ->
+        // Always refresh stats when navigating to the page
+        let pageModel, pageCmd = Pages.Stats.State.init ()
+        { model' with StatsPage = Some pageModel }, Cmd.map StatsMsg pageCmd
     | _ -> model', Cmd.none
 
 /// Initialize movie detail page with an entry that's already been loaded
@@ -988,6 +992,27 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Cache.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
+        | None -> model, Cmd.none
+
+    // Page messages - Stats
+    | StatsMsg statsMsg ->
+        match model.StatsPage with
+        | Some pageModel ->
+            let statsApi : Pages.Stats.State.StatsApi = Api.api.statsGetTimeIntelligence
+            let newPage, pageCmd, extMsg = Pages.Stats.State.update statsApi statsMsg pageModel
+            let model' = { model with StatsPage = Some newPage }
+            let cmd = Cmd.map StatsMsg pageCmd
+            match extMsg with
+            | Pages.Stats.Types.NoOp -> model', cmd
+            | Pages.Stats.Types.NavigateToMovieDetail (entryId, title) ->
+                let slug = Slug.forMovie title None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.Stats.Types.NavigateToSeriesDetail (entryId, name) ->
+                let slug = Slug.forSeries name None
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.Stats.Types.NavigateToCollection (collectionId, name) ->
+                let slug = Slug.forCollection name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
         | None -> model, Cmd.none
 
     // Slug-based entity loading (for URL navigation)

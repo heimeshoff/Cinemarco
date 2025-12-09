@@ -98,7 +98,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
-    | StatsPage
+    | StatsPage ->
+        match model.StatsPage with
+        | Some pageModel ->
+            Pages.Stats.View.view pageModel (StatsMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | TimelinePage
     | GraphPage
     | ImportPage ->

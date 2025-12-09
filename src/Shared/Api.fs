@@ -296,4 +296,23 @@ type ICinemarcoApi = {
 
     /// Get a tracked contributor by TMDB person ID (returns None if not tracked)
     contributorsGetByTmdbId: TmdbPersonId -> Async<TrackedContributor option>
+
+    // =====================================
+    // Time Intelligence / Stats Operations
+    // =====================================
+
+    /// Get complete time intelligence dashboard stats
+    statsGetTimeIntelligence: unit -> Async<TimeIntelligenceStats>
+
+    /// Get watch time stats (lifetime)
+    statsGetWatchTime: unit -> Async<WatchTimeStats>
+
+    /// Get watch time stats for a specific year
+    statsGetWatchTimeForYear: int -> Async<WatchTimeStats>
+
+    /// Get backlog stats (unwatched items)
+    statsGetBacklog: unit -> Async<BacklogStats>
+
+    /// Get top series by time investment
+    statsGetTopSeriesByTime: int -> Async<SeriesTimeInvestment list>
 }
