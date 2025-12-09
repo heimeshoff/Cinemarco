@@ -544,7 +544,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                         prop.children [
                             Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
                             Html.div [
-                                prop.className "flex flex-wrap gap-2"
+                                prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
                                 prop.children [
                                     for castMember in sortedCast do
                                         let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
@@ -610,7 +610,7 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
                         prop.children [
                             Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Crew" ]
                             Html.div [
-                                prop.className "flex flex-wrap gap-2"
+                                prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
                                 prop.children [
                                     for crewMember in keyCrew |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId) do
                                         Html.button [
