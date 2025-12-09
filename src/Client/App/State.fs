@@ -401,15 +401,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | AddToCollectionModal modalModel ->
             let api : Components.AddToCollectionModal.State.Api = {
                 GetCollections = fun () -> Api.api.collectionsGetAll ()
+                GetCollectionsForItem = fun itemRef -> Api.api.collectionsGetForItem itemRef
                 AddToCollection = fun (collectionId, itemRef, notes) -> Api.api.collectionsAddItem (collectionId, itemRef, notes)
+                RemoveFromCollection = fun (collectionId, itemRef) -> Api.api.collectionsRemoveItem (collectionId, itemRef)
+                CreateCollection = fun req -> Api.api.collectionsCreate req
             }
             let newModal, modalCmd, extMsg = Components.AddToCollectionModal.State.update api addToCollectionMsg modalModel
             let model' = { model with Modal = AddToCollectionModal newModal }
             let cmd = Cmd.map AddToCollectionModalMsg modalCmd
             match extMsg with
             | Components.AddToCollectionModal.Types.NoOp -> model', cmd
-            | Components.AddToCollectionModal.Types.AddedToCollection collection ->
-                { model' with Modal = NoModal }, Cmd.batch [cmd; Cmd.ofMsg (AddedToCollection collection)]
+            | Components.AddToCollectionModal.Types.CollectionsUpdated ->
+                { model' with Modal = NoModal; CollectionsPage = None },
+                Cmd.batch [cmd; Cmd.ofMsg (ShowNotification ("Collections updated", true))]
             | Components.AddToCollectionModal.Types.CloseRequested ->
                 { model' with Modal = NoModal }, cmd
         | _ -> model, Cmd.none
