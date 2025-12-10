@@ -119,7 +119,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
-    | GraphPage
+    | GraphPage ->
+        match model.GraphPage with
+        | Some pageModel ->
+            Pages.Graph.View.view pageModel (GraphMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | ImportPage ->
         Html.div [
             prop.className "text-center py-16"

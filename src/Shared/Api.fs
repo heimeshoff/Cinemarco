@@ -338,4 +338,11 @@ type ICinemarcoApi = {
 
     /// Get timeline entries grouped by month (year, month)
     timelineGetByMonth: int * int -> Async<TimelineEntry list>
+
+    // =====================================
+    // Graph Operations
+    // =====================================
+
+    /// Get the relationship graph data
+    graphGetData: GraphFilter -> Async<RelationshipGraph>
 }

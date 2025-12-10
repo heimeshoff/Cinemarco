@@ -84,6 +84,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh timeline when navigating to the page
         let pageModel, pageCmd = Pages.Timeline.State.init ()
         { model' with TimelinePage = Some pageModel }, Cmd.map TimelineMsg pageCmd
+    | GraphPage ->
+        // Always refresh graph when navigating to the page
+        let pageModel, pageCmd = Pages.Graph.State.init ()
+        { model' with GraphPage = Some pageModel }, Cmd.map GraphMsg pageCmd
     | _ -> model', Cmd.none
 
 /// Initialize movie detail page with an entry that's already been loaded
@@ -1066,6 +1070,30 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Timeline.Types.NavigateToSeriesDetail (entryId, name) ->
                 let slug = Slug.forSeries name None
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+        | None -> model, Cmd.none
+
+    // Page messages - Graph
+    | GraphMsg graphMsg ->
+        match model.GraphPage with
+        | Some pageModel ->
+            let graphApi : Pages.Graph.State.GraphApi = Api.api.graphGetData
+            let newPage, pageCmd, extMsg = Pages.Graph.State.update graphApi graphMsg pageModel
+            let model' = { model with GraphPage = Some newPage }
+            let cmd = Cmd.map GraphMsg pageCmd
+            match extMsg with
+            | Pages.Graph.Types.NoOp -> model', cmd
+            | Pages.Graph.Types.NavigateToMovieDetail (_, title) ->
+                let slug = Slug.generate title
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
+            | Pages.Graph.Types.NavigateToSeriesDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.Graph.Types.NavigateToFriendDetail (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (FriendDetailPage slug))]
+            | Pages.Graph.Types.NavigateToContributor (_, name) ->
+                let slug = Slug.generate name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage (slug, None)))]
         | None -> model, Cmd.none
 
     // Slug-based entity loading (for URL navigation)

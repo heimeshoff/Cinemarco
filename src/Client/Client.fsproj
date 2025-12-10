@@ -192,6 +192,11 @@
     <Compile Include="Pages/Timeline/State.fs" />
     <Compile Include="Pages/Timeline/View.fs" />
 
+    <!-- Graph Page -->
+    <Compile Include="Pages/Graph/Types.fs" />
+    <Compile Include="Pages/Graph/State.fs" />
+    <Compile Include="Pages/Graph/View.fs" />
+
     <!-- API Client -->
     <Compile Include="Api.fs" />
 

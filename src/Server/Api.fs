@@ -972,6 +972,101 @@ let cinemarcoApi : ICinemarcoApi = {
     timelineGetByMonth = fun (year, month) -> async {
         return! Persistence.getTimelineEntriesByMonth year month
     }
+
+    // =====================================
+    // Graph Operations
+    // =====================================
+
+    graphGetData = fun filter -> async {
+        let! entries = Persistence.getAllLibraryEntries()
+        let! friends = Persistence.getAllFriends()
+
+        // Apply filter
+        let maxNodes = filter.MaxNodes |> Option.defaultValue 100
+
+        // Build nodes
+        let mutable nodes : GraphNode list = []
+        let mutable nodeSet = Set.empty<string>  // Track node IDs to avoid duplicates
+
+        // Add movie/series nodes
+        if filter.IncludeMovies || filter.IncludeSeries then
+            for entry in entries do
+                // Check watch status filter if specified
+                let passesStatusFilter =
+                    match filter.WatchStatusFilter with
+                    | None -> true
+                    | Some statuses -> statuses |> List.exists (fun s ->
+                        match s, entry.WatchStatus with
+                        | NotStarted, NotStarted -> true
+                        | InProgress _, InProgress _ -> true
+                        | Completed, Completed -> true
+                        | Abandoned _, Abandoned _ -> true
+                        | _ -> false)
+
+                if passesStatusFilter && List.length nodes < maxNodes then
+                    match entry.Media with
+                    | LibraryMovie m when filter.IncludeMovies ->
+                        let nodeKey = $"movie-{EntryId.value entry.Id}"
+                        if not (Set.contains nodeKey nodeSet) then
+                            nodes <- MovieNode (entry.Id, m.Title, m.PosterPath) :: nodes
+                            nodeSet <- Set.add nodeKey nodeSet
+                    | LibrarySeries s when filter.IncludeSeries ->
+                        let nodeKey = $"series-{EntryId.value entry.Id}"
+                        if not (Set.contains nodeKey nodeSet) then
+                            nodes <- SeriesNode (entry.Id, s.Name, s.PosterPath) :: nodes
+                            nodeSet <- Set.add nodeKey nodeSet
+                    | _ -> ()
+
+        // Add friend nodes
+        if filter.IncludeFriends then
+            for friend in friends do
+                if List.length nodes < maxNodes then
+                    let nodeKey = $"friend-{FriendId.value friend.Id}"
+                    if not (Set.contains nodeKey nodeSet) then
+                        nodes <- FriendNode (friend.Id, friend.Name) :: nodes
+                        nodeSet <- Set.add nodeKey nodeSet
+
+        // Build edges (relationships)
+        let mutable edges : GraphEdge list = []
+
+        // Get friends associated with each entry
+        for entry in entries do
+            let! entryFriends = Persistence.getFriendsForEntry entry.Id
+            let sourceNode =
+                match entry.Media with
+                | LibraryMovie m -> Some (MovieNode (entry.Id, m.Title, m.PosterPath))
+                | LibrarySeries s -> Some (SeriesNode (entry.Id, s.Name, s.PosterPath))
+
+            match sourceNode with
+            | Some source ->
+                // Only create edges if the source node exists in our filtered set
+                let sourceKey =
+                    match entry.Media with
+                    | LibraryMovie _ -> $"movie-{EntryId.value entry.Id}"
+                    | LibrarySeries _ -> $"series-{EntryId.value entry.Id}"
+
+                if Set.contains sourceKey nodeSet then
+                    // Add edges to friends
+                    for friendId in entryFriends do
+                        let friendKey = $"friend-{FriendId.value friendId}"
+                        if Set.contains friendKey nodeSet then
+                            let friend = friends |> List.tryFind (fun f -> f.Id = friendId)
+                            match friend with
+                            | Some f ->
+                                let edge = {
+                                    Source = source
+                                    Target = FriendNode (f.Id, f.Name)
+                                    Relationship = WatchedWith
+                                }
+                                edges <- edge :: edges
+                            | None -> ()
+            | None -> ()
+
+        return {
+            Nodes = nodes
+            Edges = edges
+        }
+    }
 }
 
 // =====================================
