@@ -83,13 +83,14 @@ docker-compose up -d
 ```
 
 # Deploy to Portainer:
+Start Docker, go into wsl {-d distributionname}
 
 ```markdown
 docker-compose build
 ```
 
 ```markdown
-docker save fsharp-counter-app:latest | gzip > fsharp-counter-app.tar.gz
+docker save cinemarco:latest | gzip > cinemarco.tar.gz
 ```
 
 Your app is now accessible on your Tailnet at `https://cinemarco`.

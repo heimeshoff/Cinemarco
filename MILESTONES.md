@@ -634,9 +634,8 @@ type ITagApi = {
 
 ### Node Types
 - Movies/Series (poster thumbnails)
-- Friends (avatar or initials)
-- Contributors (photo or initials)
-- Tags (colored circles)
+- Friends (avatar or name)
+- Tracked Contributors (photo or name)
 - Genres (colored circles)
 
 ### Interactions
@@ -679,7 +678,7 @@ type ITagApi = {
 ### Definition of Done
 - Can connect to Trakt account
 - Imports watched history
-- Avoids duplicates
+- Avoids duplicates, but traks multiple views on different dates as different watch sessions/logs
 - Maps ratings appropriately
 
 ---
