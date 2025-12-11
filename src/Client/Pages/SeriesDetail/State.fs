@@ -14,6 +14,7 @@ type SeriesApi = {
     GetSessionProgress: SessionId -> Async<EpisodeProgress list>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
     MarkCompleted: EntryId -> Async<Result<LibraryEntry, string>>
+    Abandon: EntryId -> Async<Result<LibraryEntry, string>>
     Resume: EntryId -> Async<Result<LibraryEntry, string>>
     SetRating: EntryId * int option -> Async<Result<LibraryEntry, string>>
     UpdateNotes: EntryId * string option -> Async<Result<LibraryEntry, string>>
@@ -194,17 +195,21 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
                 (fun ex -> Error ex.Message |> ActionResult)
         model, cmd, NoOp
 
-    | OpenAbandonModal ->
-        model, Cmd.none, RequestOpenAbandonModal model.EntryId
-
-    | ResumeEntry ->
-        let cmd =
-            Cmd.OfAsync.either
-                api.Resume
-                model.EntryId
-                ActionResult
-                (fun ex -> Error ex.Message |> ActionResult)
-        model, cmd, NoOp
+    | ToggleAbandoned ->
+        match model.Entry with
+        | Success entry ->
+            let apiCall =
+                match entry.WatchStatus with
+                | Abandoned _ -> api.Resume
+                | _ -> api.Abandon
+            let cmd =
+                Cmd.OfAsync.either
+                    apiCall
+                    model.EntryId
+                    ActionResult
+                    (fun ex -> Error ex.Message |> ActionResult)
+            model, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | ToggleEpisodeWatched (seasonNum, episodeNum, isWatched) ->
         match model.SelectedSessionId with

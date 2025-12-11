@@ -146,6 +146,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
 
                             navItem StatsPage currentPage onNavigate
+                            navItem (YearInReviewPage (None, YearInReviewViewMode.Overview)) currentPage onNavigate
                             navItem TimelinePage currentPage onNavigate
                             navItem GraphPage currentPage onNavigate
 
@@ -347,7 +348,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                         Html.li [ prop.className "my-3 border-t border-base-300" ]
 
                                         // Secondary navigation
-                                        for page in [ StatsPage; YearInReviewPage None; TimelinePage; GraphPage ] do
+                                        for page in [ StatsPage; YearInReviewPage (None, YearInReviewViewMode.Overview); TimelinePage; GraphPage ] do
                                             let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [

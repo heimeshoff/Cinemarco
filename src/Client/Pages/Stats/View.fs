@@ -633,21 +633,21 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     film
                                     "Movie Time"
                                     (formatHours stats.LifetimeStats.MovieMinutes + "h")
-                                    None
+                                    (Some (formatDuration stats.LifetimeStats.MovieMinutes))
                                     "from-blue-500 to-blue-400"
 
                                 bigStatCard
                                     tv
                                     "Series Time"
                                     (formatHours stats.LifetimeStats.SeriesMinutes + "h")
-                                    None
+                                    (Some (formatDuration stats.LifetimeStats.SeriesMinutes))
                                     "from-purple-500 to-purple-400"
 
                                 bigStatCard
                                     calendarDays
                                     "This Year"
-                                    (formatDuration stats.ThisYearStats.TotalMinutes)
-                                    None
+                                    (formatHours stats.ThisYearStats.TotalMinutes + "h")
+                                    (Some (formatDuration stats.ThisYearStats.TotalMinutes))
                                     "from-green-500 to-green-400"
                             ]
                         ]

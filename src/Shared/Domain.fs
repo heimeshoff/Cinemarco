@@ -944,6 +944,15 @@ type FriendWatchCount = {
     WatchCount: int
 }
 
+/// Series watched with flags indicating completion/abandonment status in that year
+type SeriesWithFinishedFlag = {
+    Entry: LibraryEntry
+    /// True if all episodes have been watched AND the last episode watch date was in this year
+    FinishedThisYear: bool
+    /// True if the series was abandoned AND the last episode watch date was in this year
+    AbandonedThisYear: bool
+}
+
 /// Year-in-Review statistics for a single year
 type YearInReviewStats = {
     /// The year these stats are for
@@ -972,6 +981,10 @@ type YearInReviewStats = {
     AverageRating: float option
     /// Whether this year has any data
     HasData: bool
+    /// All movies watched this year
+    AllMovies: LibraryEntry list
+    /// All series watched this year with finished flag
+    AllSeries: SeriesWithFinishedFlag list
 }
 
 module YearInReviewStats =
@@ -989,6 +1002,8 @@ module YearInReviewStats =
         TopRated = []
         AverageRating = None
         HasData = false
+        AllMovies = []
+        AllSeries = []
     }
 
 /// List of available years with watch data

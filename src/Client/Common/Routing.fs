@@ -3,6 +3,12 @@ module Common.Routing
 open System
 open Shared.Domain
 
+/// View mode for Year in Review page
+type YearInReviewViewMode =
+    | Overview
+    | MoviesOnly
+    | SeriesOnly
+
 /// Page routes for navigation - uses semantic slugs
 type Page =
     | HomePage
@@ -17,7 +23,7 @@ type Page =
     | CollectionsPage
     | CollectionDetailPage of slug: string
     | StatsPage
-    | YearInReviewPage of year: int option  // Optional year, defaults to current year
+    | YearInReviewPage of year: int option * viewMode: YearInReviewViewMode  // Optional year, defaults to current year
     | TimelinePage
     | GraphPage
     | ImportPage
@@ -51,8 +57,10 @@ module Page =
         | CollectionsPage -> "/collections"
         | CollectionDetailPage slug -> $"/collection/{slug}"
         | StatsPage -> "/stats"
-        | YearInReviewPage (Some year) -> $"/year-in-review/{year}"
-        | YearInReviewPage None -> "/year-in-review"
+        | YearInReviewPage (Some year, Overview) -> $"/year-in-review/{year}"
+        | YearInReviewPage (Some year, MoviesOnly) -> $"/year-in-review/{year}/movies"
+        | YearInReviewPage (Some year, SeriesOnly) -> $"/year-in-review/{year}/series"
+        | YearInReviewPage (None, _) -> "/year-in-review"
         | TimelinePage -> "/timeline"
         | GraphPage -> "/graph"
         | ImportPage -> "/import"
@@ -82,10 +90,18 @@ module Page =
         | ["collections"] -> CollectionsPage
         | ["collection"; slug] -> CollectionDetailPage slug
         | ["stats"] -> StatsPage
-        | ["year-in-review"] -> YearInReviewPage None
+        | ["year-in-review"] -> YearInReviewPage (None, Overview)
         | ["year-in-review"; yearStr] ->
             match Int32.TryParse yearStr with
-            | true, year -> YearInReviewPage (Some year)
+            | true, year -> YearInReviewPage (Some year, Overview)
+            | _ -> NotFoundPage
+        | ["year-in-review"; yearStr; "movies"] ->
+            match Int32.TryParse yearStr with
+            | true, year -> YearInReviewPage (Some year, MoviesOnly)
+            | _ -> NotFoundPage
+        | ["year-in-review"; yearStr; "series"] ->
+            match Int32.TryParse yearStr with
+            | true, year -> YearInReviewPage (Some year, SeriesOnly)
             | _ -> NotFoundPage
         | ["timeline"] -> TimelinePage
         | ["graph"] -> GraphPage

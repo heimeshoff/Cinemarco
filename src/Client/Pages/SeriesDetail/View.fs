@@ -474,7 +474,7 @@ let private ratingButton (current: int option) (isOpen: bool) (dispatch: Msg -> 
     ]
 
 /// Action buttons row for series (rating, abandon/resume, delete)
-let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (isFinished: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "flex flex-wrap items-center gap-3 mt-4"
         prop.children [
@@ -494,38 +494,37 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCo
                     ]
                 ]
             ]
-            // Abandon/Resume button
-            match entry.WatchStatus with
-            | NotStarted | InProgress _ ->
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Abandon Series")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn text-warning/70"
-                            prop.onClick (fun _ -> dispatch OpenAbandonModal)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ ban ] ]
+            // Abandon/Resume toggle button (hidden when finished)
+            if not isFinished then
+                match entry.WatchStatus with
+                | Abandoned _ ->
+                    Html.div [
+                        prop.className "tooltip tooltip-bottom detail-tooltip"
+                        prop.custom ("data-tip", "Resume Watching")
+                        prop.children [
+                            Html.button [
+                                prop.className "detail-action-btn detail-action-btn-success"
+                                prop.onClick (fun _ -> dispatch ToggleAbandoned)
+                                prop.children [
+                                    Html.span [ prop.className "w-5 h-5"; prop.children [ undo ] ]
+                                ]
                             ]
                         ]
                     ]
-                ]
-            | Completed ->
-                Html.none
-            | Abandoned _ ->
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Resume Watching")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn detail-action-btn-success"
-                            prop.onClick (fun _ -> dispatch ResumeEntry)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ undo ] ]
+                | _ ->
+                    Html.div [
+                        prop.className "tooltip tooltip-bottom detail-tooltip"
+                        prop.custom ("data-tip", "Abandon Series")
+                        prop.children [
+                            Html.button [
+                                prop.className "detail-action-btn text-warning/70"
+                                prop.onClick (fun _ -> dispatch ToggleAbandoned)
+                                prop.children [
+                                    Html.span [ prop.className "w-5 h-5"; prop.children [ ban ] ]
+                                ]
                             ]
                         ]
                     ]
-                ]
             // Delete button
             Html.div [
                 prop.className "tooltip tooltip-bottom detail-tooltip"
@@ -973,6 +972,49 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                 prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
                                 prop.children [
                                     // Left column - Poster + Progress
+                                    let allEpisodesWatched = watchedCount >= series.NumberOfEpisodes && series.NumberOfEpisodes > 0
+                                    let isAbandoned = match entry.WatchStatus with Abandoned _ -> true | _ -> false
+                                    let statusBadge =
+                                        if allEpisodesWatched then
+                                            Html.div [
+                                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/95 via-emerald-900/80 to-transparent pt-8 pb-3 px-2"
+                                                prop.children [
+                                                    Html.div [
+                                                        prop.className "flex items-center justify-center gap-1.5"
+                                                        prop.children [
+                                                            Html.span [
+                                                                prop.className "w-4 h-4 text-emerald-300"
+                                                                prop.children [ check ]
+                                                            ]
+                                                            Html.span [
+                                                                prop.className "text-sm font-semibold text-emerald-200 uppercase tracking-wider"
+                                                                prop.text "Finished"
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        elif isAbandoned then
+                                            Html.div [
+                                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-900/95 via-red-900/80 to-transparent pt-8 pb-3 px-2"
+                                                prop.children [
+                                                    Html.div [
+                                                        prop.className "flex items-center justify-center gap-1.5"
+                                                        prop.children [
+                                                            Html.span [
+                                                                prop.className "w-4 h-4 text-red-300"
+                                                                prop.children [ ban ]
+                                                            ]
+                                                            Html.span [
+                                                                prop.className "text-sm font-semibold text-red-200 uppercase tracking-wider"
+                                                                prop.text "Abandoned"
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        else
+                                            Html.none
                                     Html.div [
                                         prop.className "space-y-4"
                                         prop.children [
@@ -994,25 +1036,11 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                                 Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ tv ] ]
                                                             ]
                                                         ]
+                                                    statusBadge
                                                 ]
                                             ]
                                             // Progress
                                             progressBar watchedCount series.NumberOfEpisodes
-
-                                            // Mark as completed button (when all episodes watched)
-                                            match entry.WatchStatus with
-                                            | NotStarted | InProgress _ when watchedCount >= series.NumberOfEpisodes ->
-                                                Html.button [
-                                                    prop.className "btn btn-primary btn-sm w-full"
-                                                    prop.onClick (fun _ -> dispatch MarkSeriesCompleted)
-                                                    prop.text "Mark as Completed"
-                                                ]
-                                            | Completed ->
-                                                Html.div [
-                                                    prop.className "text-center text-success text-sm"
-                                                    prop.text "Series Completed"
-                                                ]
-                                            | _ -> Html.none
                                         ]
                                     ]
 
@@ -1043,7 +1071,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                 ]
                                             ]
                                             // Action buttons row
-                                            actionButtonsRow entry model.IsRatingOpen model.Collections dispatch
+                                            actionButtonsRow entry model.IsRatingOpen allEpisodesWatched model.Collections dispatch
 
                                             // Tab bar and content (hidden on mobile, shown on md+)
                                             Html.div [

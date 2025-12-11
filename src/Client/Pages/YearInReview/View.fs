@@ -2,6 +2,7 @@ module Pages.YearInReview.View
 
 open Feliz
 open Common.Types
+open Common.Routing
 open Shared.Domain
 open Types
 open Components.Icons
@@ -113,12 +114,21 @@ let private yearSelector (currentYear: int) (availableYears: AvailableYears) (di
 // Stats Cards
 // =====================================
 
-let private heroStatCard (value: string) (label: string) (icon: ReactElement) (gradientFrom: string) (gradientTo: string) =
+let private heroStatCard (value: string) (label: string) (icon: ReactElement) (gradientFrom: string) (gradientTo: string) (onClick: (unit -> unit) option) =
+    let baseClass = "relative overflow-hidden rounded-3xl p-6 min-h-[140px] flex flex-col justify-between"
+    let className =
+        match onClick with
+        | Some _ -> baseClass + " cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+        | None -> baseClass
+
     Html.div [
-        prop.className "relative overflow-hidden rounded-3xl p-6 min-h-[140px] flex flex-col justify-between"
+        prop.className className
         prop.style [
             style.backgroundImage $"linear-gradient(135deg, {gradientFrom}, {gradientTo})"
         ]
+        match onClick with
+        | Some handler -> prop.onClick (fun _ -> handler())
+        | None -> ()
         prop.children [
             Html.div [
                 prop.className "absolute top-4 right-4 w-10 h-10 opacity-30"
@@ -336,6 +346,193 @@ let private topRatedSection (entries: LibraryEntry list) (dispatch: Msg -> unit)
                                                     ]
                                                 ]
                                             Html.div [ prop.className "poster-shine" ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                    ]
+                ]
+        ]
+    ]
+
+// =====================================
+// All Movies Section
+// =====================================
+
+let private allMoviesSection (movies: LibraryEntry list) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "glass rounded-2xl p-6 space-y-4"
+        prop.children [
+            Html.h3 [
+                prop.className "text-lg font-semibold flex items-center gap-2"
+                prop.children [
+                    Html.span [
+                        prop.className "w-5 h-5 text-blue-400"
+                        prop.children [ film ]
+                    ]
+                    Html.span [ prop.text "All Movies" ]
+                    if not (List.isEmpty movies) then
+                        Html.span [
+                            prop.className "ml-auto text-sm text-base-content/50 font-normal"
+                            prop.text $"{List.length movies} movies"
+                        ]
+                ]
+            ]
+
+            if List.isEmpty movies then
+                Html.div [
+                    prop.className "text-center py-4 text-base-content/50"
+                    prop.text "No movies watched this year"
+                ]
+            else
+                Html.div [
+                    prop.className "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                    prop.children [
+                        for entry in movies do
+                            let title = getTitle entry
+                            Html.div [
+                                prop.className "cursor-pointer group"
+                                prop.onClick (fun _ ->
+                                    match entry.Media with
+                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                    | _ -> ()
+                                )
+                                prop.children [
+                                    Html.div [
+                                        prop.className "aspect-[2/3] rounded-lg overflow-hidden poster-shadow relative"
+                                        prop.children [
+                                            match getPosterUrl entry with
+                                            | Some url ->
+                                                Html.img [
+                                                    prop.className "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    prop.src url
+                                                    prop.alt title
+                                                ]
+                                            | None ->
+                                                Html.div [
+                                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-6 h-6 text-base-content/30"
+                                                            prop.children [ film ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            Html.div [ prop.className "poster-shine" ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                    ]
+                ]
+        ]
+    ]
+
+// =====================================
+// All Series Section
+// =====================================
+
+let private allSeriesSection (seriesWithFlags: SeriesWithFinishedFlag list) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "glass rounded-2xl p-6 space-y-4"
+        prop.children [
+            Html.h3 [
+                prop.className "text-lg font-semibold flex items-center gap-2"
+                prop.children [
+                    Html.span [
+                        prop.className "w-5 h-5 text-purple-400"
+                        prop.children [ tv ]
+                    ]
+                    Html.span [ prop.text "All Series" ]
+                    if not (List.isEmpty seriesWithFlags) then
+                        Html.span [
+                            prop.className "ml-auto text-sm text-base-content/50 font-normal"
+                            prop.text $"{List.length seriesWithFlags} series"
+                        ]
+                ]
+            ]
+
+            if List.isEmpty seriesWithFlags then
+                Html.div [
+                    prop.className "text-center py-4 text-base-content/50"
+                    prop.text "No series watched this year"
+                ]
+            else
+                Html.div [
+                    prop.className "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                    prop.children [
+                        for swf in seriesWithFlags do
+                            let entry = swf.Entry
+                            let title = getTitle entry
+                            Html.div [
+                                prop.className "cursor-pointer group"
+                                prop.onClick (fun _ ->
+                                    match entry.Media with
+                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                    | _ -> ()
+                                )
+                                prop.children [
+                                    Html.div [
+                                        prop.className "aspect-[2/3] rounded-lg overflow-hidden poster-shadow relative"
+                                        prop.children [
+                                            match getPosterUrl entry with
+                                            | Some url ->
+                                                Html.img [
+                                                    prop.className "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                    prop.src url
+                                                    prop.alt title
+                                                ]
+                                            | None ->
+                                                Html.div [
+                                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "w-6 h-6 text-base-content/30"
+                                                            prop.children [ tv ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            Html.div [ prop.className "poster-shine" ]
+                                            // "Finished" badge for series completed this year
+                                            if swf.FinishedThisYear then
+                                                Html.div [
+                                                    prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/95 via-emerald-900/80 to-transparent pt-6 pb-2 px-2"
+                                                    prop.children [
+                                                        Html.div [
+                                                            prop.className "flex items-center justify-center gap-1"
+                                                            prop.children [
+                                                                Html.span [
+                                                                    prop.className "w-3.5 h-3.5 text-emerald-300"
+                                                                    prop.children [ check ]
+                                                                ]
+                                                                Html.span [
+                                                                    prop.className "text-xs font-semibold text-emerald-200 uppercase tracking-wider"
+                                                                    prop.text "Finished"
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
+                                            // "Abandoned" badge for series abandoned this year
+                                            elif swf.AbandonedThisYear then
+                                                Html.div [
+                                                    prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-900/95 via-red-900/80 to-transparent pt-6 pb-2 px-2"
+                                                    prop.children [
+                                                        Html.div [
+                                                            prop.className "flex items-center justify-center gap-1"
+                                                            prop.children [
+                                                                Html.span [
+                                                                    prop.className "w-3.5 h-3.5 text-red-300"
+                                                                    prop.children [ ban ]
+                                                                ]
+                                                                Html.span [
+                                                                    prop.className "text-xs font-semibold text-red-200 uppercase tracking-wider"
+                                                                    prop.text "Abandoned"
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
                                         ]
                                     ]
                                 ]
@@ -564,74 +761,104 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "space-y-6"
                     prop.children [
-                        // Hero stat cards
-                        Html.div [
-                            prop.className "grid grid-cols-2 md:grid-cols-4 gap-4"
-                            prop.children [
-                                heroStatCard
-                                    (formatHours stats.TotalMinutes + "h")
-                                    "Total Watch Time"
-                                    clock
-                                    "#c9a227"
-                                    "#8b6914"
-
-                                heroStatCard
-                                    (string stats.MoviesWatched)
-                                    "Movies Watched"
-                                    film
-                                    "#3b82f6"
-                                    "#1d4ed8"
-
-                                heroStatCard
-                                    (string stats.SeriesWatched)
-                                    "Series Watched"
-                                    tv
-                                    "#a855f7"
-                                    "#7c3aed"
-
-                                heroStatCard
-                                    (string stats.EpisodesWatched)
-                                    "Episodes Watched"
-                                    playCircle
-                                    "#22c55e"
-                                    "#15803d"
+                        // Back button for detail views
+                        match model.ViewMode with
+                        | YearInReviewViewMode.Overview -> ()
+                        | YearInReviewViewMode.MoviesOnly | YearInReviewViewMode.SeriesOnly ->
+                            Html.button [
+                                prop.className "btn btn-ghost btn-sm gap-2"
+                                prop.onClick (fun _ -> dispatch (SetViewMode YearInReviewViewMode.Overview))
+                                prop.children [
+                                    Html.span [
+                                        prop.className "w-4 h-4"
+                                        prop.children [ chevronLeft ]
+                                    ]
+                                    Html.span [ prop.text "Back to Overview" ]
+                                ]
                             ]
-                        ]
 
-                        // Secondary stats
-                        Html.div [
-                            prop.className "grid grid-cols-2 sm:grid-cols-4 gap-3"
-                            prop.children [
-                                smallStatCard (formatDuration stats.MovieMinutes) "Movie Time"
-                                smallStatCard (formatDuration stats.SeriesMinutes) "Series Time"
-                                smallStatCard
-                                    (stats.AverageRating
-                                        |> Option.map (fun r -> $"%.1f{r}")
-                                        |> Option.defaultValue "-")
-                                    "Avg Rating"
-                                smallStatCard
-                                    (string (RatingDistribution.total stats.RatingDistribution))
-                                    "Titles Rated"
-                            ]
-                        ]
+                        match model.ViewMode with
+                        | YearInReviewViewMode.Overview ->
+                            // Hero stat cards
+                            Html.div [
+                                prop.className "grid grid-cols-2 md:grid-cols-4 gap-4"
+                                prop.children [
+                                    heroStatCard
+                                        (formatHours stats.TotalMinutes + "h")
+                                        "Total Watch Time"
+                                        clock
+                                        "#c9a227"
+                                        "#8b6914"
+                                        None
 
-                        // Charts row
-                        Html.div [
-                            prop.className "grid grid-cols-1 md:grid-cols-2 gap-6"
-                            prop.children [
-                                breakdownSection stats.MovieMinutes stats.SeriesMinutes stats.MoviesWatched stats.SeriesWatched
-                                ratingDistributionChart stats.RatingDistribution
-                            ]
-                        ]
+                                    heroStatCard
+                                        (string stats.MoviesWatched)
+                                        "Movies Watched"
+                                        film
+                                        "#3b82f6"
+                                        "#1d4ed8"
+                                        (if stats.MoviesWatched > 0 then Some (fun () -> dispatch (SetViewMode YearInReviewViewMode.MoviesOnly)) else None)
 
-                        // Top rated and friends
-                        Html.div [
-                            prop.className "grid grid-cols-1 md:grid-cols-2 gap-6"
-                            prop.children [
-                                topRatedSection stats.TopRated dispatch
-                                topFriendsSection stats.TopFriends
+                                    heroStatCard
+                                        (string stats.SeriesWatched)
+                                        "Series Watched"
+                                        tv
+                                        "#a855f7"
+                                        "#7c3aed"
+                                        (if stats.SeriesWatched > 0 then Some (fun () -> dispatch (SetViewMode YearInReviewViewMode.SeriesOnly)) else None)
+
+                                    heroStatCard
+                                        (string stats.EpisodesWatched)
+                                        "Episodes Watched"
+                                        playCircle
+                                        "#22c55e"
+                                        "#15803d"
+                                        None
+                                ]
                             ]
-                        ]
+
+                            // Secondary stats
+                            Html.div [
+                                prop.className "grid grid-cols-2 sm:grid-cols-4 gap-3"
+                                prop.children [
+                                    smallStatCard (formatDuration stats.MovieMinutes) "Movie Time"
+                                    smallStatCard (formatDuration stats.SeriesMinutes) "Series Time"
+                                    smallStatCard
+                                        (stats.AverageRating
+                                            |> Option.map (fun r -> $"%.1f{r}")
+                                            |> Option.defaultValue "-")
+                                        "Avg Rating"
+                                    smallStatCard
+                                        (string (RatingDistribution.total stats.RatingDistribution))
+                                        "Titles Rated"
+                                ]
+                            ]
+
+                            // Charts row
+                            Html.div [
+                                prop.className "grid grid-cols-1 md:grid-cols-2 gap-6"
+                                prop.children [
+                                    breakdownSection stats.MovieMinutes stats.SeriesMinutes stats.MoviesWatched stats.SeriesWatched
+                                    ratingDistributionChart stats.RatingDistribution
+                                ]
+                            ]
+
+                            // Top rated and friends
+                            Html.div [
+                                prop.className "grid grid-cols-1 md:grid-cols-2 gap-6"
+                                prop.children [
+                                    topRatedSection stats.TopRated dispatch
+                                    topFriendsSection stats.TopFriends
+                                ]
+                            ]
+
+                        | YearInReviewViewMode.MoviesOnly ->
+                            // Show only movies
+                            allMoviesSection stats.AllMovies dispatch
+
+                        | YearInReviewViewMode.SeriesOnly ->
+                            // Show only series
+                            allSeriesSection stats.AllSeries dispatch
                     ]
                 ]
         ]

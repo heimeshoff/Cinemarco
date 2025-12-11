@@ -82,9 +82,9 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh stats when navigating to the page
         let pageModel, pageCmd = Pages.Stats.State.init ()
         { model' with StatsPage = Some pageModel }, Cmd.map StatsMsg pageCmd
-    | YearInReviewPage year ->
+    | YearInReviewPage (year, viewMode) ->
         // Always refresh year-in-review when navigating to the page
-        let pageModel, pageCmd = Pages.YearInReview.State.init year
+        let pageModel, pageCmd = Pages.YearInReview.State.init year viewMode
         { model' with YearInReviewPage = Some pageModel }, Cmd.map YearInReviewMsg pageCmd
     | TimelinePage ->
         // Always refresh timeline when navigating to the page
@@ -568,7 +568,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.Home.Types.NavigateToYearInReview ->
-                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (YearInReviewPage None))]
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (YearInReviewPage (None, YearInReviewViewMode.Overview)))]
         | None -> model, Cmd.none
 
     // Page messages - Library
@@ -811,6 +811,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
                 MarkCompleted = fun entryId -> Api.api.libraryMarkSeriesCompleted entryId
+                Abandon = fun entryId -> Api.api.libraryAbandonEntry (entryId, { Reason = None; AbandonedAtSeason = None; AbandonedAtEpisode = None })
                 Resume = fun entryId -> Api.api.libraryResumeEntry entryId
                 SetRating = fun (entryId, ratingInt) ->
                     let rating = ratingInt |> Option.bind PersonalRating.fromInt
@@ -844,7 +845,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.NavigateToCollectionDetail (_, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
-            | Pages.SeriesDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
             | Pages.SeriesDetail.Types.RequestOpenNewSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenWatchSessionModal entryId)]
@@ -1064,6 +1064,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.YearInReview.Types.NavigateToSeriesDetail (entryId, name, firstAirDate) ->
                 let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.YearInReview.Types.NavigateToYearView (year, viewMode) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (YearInReviewPage (Some year, viewMode)))]
         | None -> model, Cmd.none
 
     // Page messages - Timeline

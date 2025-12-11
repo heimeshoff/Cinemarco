@@ -44,8 +44,7 @@ type Msg =
     | LoadSeasonDetails of int
     | SeasonDetailsLoaded of int * Result<TmdbSeasonDetails, string>
     | MarkSeriesCompleted
-    | OpenAbandonModal
-    | ResumeEntry
+    | ToggleAbandoned
     | ToggleEpisodeWatched of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkEpisodesUpTo of seasonNum: int * episodeNum: int * isWatched: bool
     | MarkSeasonWatched of seasonNum: int
@@ -78,7 +77,6 @@ type ExternalMsg =
     | NavigateBack
     | NavigateToContributor of personId: TmdbPersonId * name: string * isTracked: bool
     | NavigateToFriendDetail of friendId: FriendId * name: string
-    | RequestOpenAbandonModal of EntryId
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
     | NavigateToCollectionDetail of collectionId: CollectionId * name: string

@@ -2,6 +2,7 @@ module Pages.YearInReview.State
 
 open Elmish
 open Common.Types
+open Common.Routing
 open Shared.Domain
 open Types
 
@@ -10,9 +11,9 @@ type YearInReviewApi = {
     GetAvailableYears: unit -> Async<AvailableYears>
 }
 
-let init (initialYear: int option) : Model * Cmd<Msg> =
+let init (initialYear: int option) (viewMode: YearInReviewViewMode) : Model * Cmd<Msg> =
     let year = initialYear |> Option.defaultValue System.DateTime.UtcNow.Year
-    { Model.empty with SelectedYear = year }, Cmd.ofMsg LoadAvailableYears
+    { Model.empty with SelectedYear = year; ViewMode = viewMode }, Cmd.ofMsg LoadAvailableYears
 
 let update (api: YearInReviewApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -40,7 +41,12 @@ let update (api: YearInReviewApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> *
         { model with AvailableYears = Failure err }, Cmd.none, NoOp
 
     | SelectYear year ->
-        { model with SelectedYear = year; Stats = Loading }, Cmd.ofMsg (LoadStats year), NoOp
+        // Navigate to the new year, keeping current view mode
+        model, Cmd.none, NavigateToYearView (year, model.ViewMode)
+
+    | SetViewMode mode ->
+        // Navigate to the new view mode for current year
+        model, Cmd.none, NavigateToYearView (model.SelectedYear, mode)
 
     | LoadStats year ->
         let cmd =

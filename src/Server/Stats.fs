@@ -60,15 +60,17 @@ let calculateWatchTimeStats
             | _ -> None)
         |> List.sum
 
+    // Calculate series minutes from actual episode watch data (not count * default runtime)
+    // This gives accurate totals based on real episode runtimes
     let seriesMinutesTotal =
-        watchedEntries
-        |> List.choose (fun e ->
-            match e.Media with
-            | LibrarySeries s ->
-                let watchedCount = getWatchedEpisodeCount e.Id
-                Some (seriesMinutes s watchedCount)
-            | _ -> None)
-        |> List.sum
+        match filterByYear with
+        | Some year ->
+            episodeWatchData
+            |> List.filter (fun (_, _, watchedDate) -> watchedDate.Year = year)
+            |> List.sumBy (fun (_, runtime, _) -> runtime)
+        | None ->
+            episodeWatchData
+            |> List.sumBy (fun (_, runtime, _) -> runtime)
 
     // Build entry -> movie runtime lookup
     let movieRuntimeByEntry =
@@ -389,6 +391,71 @@ let calculateYearInReviewStats
     let hasData =
         not (List.isEmpty yearMovieSessions && List.isEmpty yearEpisodeWatches)
 
+    // Build a map of entryId -> watched date for movies
+    let movieWatchDateByEntry =
+        yearMovieSessions
+        |> List.groupBy (fun s -> s.EntryId)
+        |> List.map (fun (entryId, sessions) ->
+            let maxDate = sessions |> List.map (fun s -> s.WatchedDate) |> List.max
+            (entryId, maxDate))
+        |> Map.ofList
+
+    // All movies watched this year (sorted by watched date)
+    let allMovies =
+        moviesWatchedEntries
+        |> List.sortBy (fun e ->
+            movieWatchDateByEntry
+            |> Map.tryFind e.Id
+            |> Option.defaultValue System.DateTime.MinValue)
+
+    // Build a map of entryId -> latest episode watched date from episode watch data
+    let lastEpisodeWatchDateByEntry =
+        episodeWatchData
+        |> List.groupBy (fun (entryId, _, _) -> entryId)
+        |> List.map (fun (entryId, episodes) ->
+            let maxDate = episodes |> List.map (fun (_, _, date) -> date) |> List.max
+            (entryId, maxDate))
+        |> Map.ofList
+
+    // All series watched this year with finished/abandoned flags
+    // A series is "finished this year" if:
+    // - All episodes have been watched (watchedCount >= totalEpisodes)
+    // - The last episode was watched in this year (based on actual episode watch dates)
+    // A series is "abandoned this year" if:
+    // - WatchStatus is Abandoned
+    // - The last episode was watched in this year
+    let allSeries =
+        seriesWatchedEntries
+        |> List.map (fun entry ->
+            let lastWatchInYear =
+                lastEpisodeWatchDateByEntry
+                |> Map.tryFind entry.Id
+                |> Option.map (fun d -> d.Year = year)
+                |> Option.defaultValue false
+            let finishedThisYear =
+                match entry.Media with
+                | LibrarySeries series ->
+                    let watchedCount = getWatchedEpisodeCount entry.Id
+                    let allEpisodesWatched = watchedCount >= series.NumberOfEpisodes && series.NumberOfEpisodes > 0
+                    allEpisodesWatched && lastWatchInYear
+                | _ -> false
+            let abandonedThisYear =
+                match entry.WatchStatus with
+                | Abandoned _ -> lastWatchInYear
+                | _ -> false
+            { Entry = entry; FinishedThisYear = finishedThisYear; AbandonedThisYear = abandonedThisYear })
+        |> List.sortBy (fun s ->
+            // Sort order: Finished (0), Normal (1), Abandoned (2), then alphabetically
+            let categoryOrder =
+                if s.FinishedThisYear then 0
+                elif s.AbandonedThisYear then 2
+                else 1
+            let name =
+                match s.Entry.Media with
+                | LibrarySeries series -> series.Name
+                | _ -> ""
+            (categoryOrder, name))
+
     {
         Year = year
         TotalMinutes = movieMinutes + seriesMinutes
@@ -403,4 +470,6 @@ let calculateYearInReviewStats
         TopRated = topRated
         AverageRating = averageRating
         HasData = hasData
+        AllMovies = allMovies
+        AllSeries = allSeries
     }
