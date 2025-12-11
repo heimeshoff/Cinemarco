@@ -1,5 +1,6 @@
 module Pages.FriendDetail.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -17,8 +18,8 @@ type Model = {
 type Msg =
     | LoadEntries
     | EntriesLoaded of Result<LibraryEntry list, string>
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | GoBack
     | OpenProfileImageModal of Friend
     // Inline name editing
@@ -31,8 +32,8 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | RequestOpenProfileImageModal of Friend
     | FriendUpdated of Friend
 

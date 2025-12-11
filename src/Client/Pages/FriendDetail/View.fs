@@ -174,13 +174,13 @@ let view (model: Model) (friend: Friend option) (dispatch: Msg -> unit) =
                         prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
                         prop.children [
                             for entry in entries do
-                                let title =
+                                let (title, releaseDate) =
                                     match entry.Media with
-                                    | LibraryMovie m -> m.Title
-                                    | LibrarySeries s -> s.Name
+                                    | LibraryMovie m -> (m.Title, m.ReleaseDate)
+                                    | LibrarySeries s -> (s.Name, s.FirstAirDate)
                                 libraryEntryCard entry (fun id isMovie ->
-                                    if isMovie then dispatch (ViewMovieDetail (id, title))
-                                    else dispatch (ViewSeriesDetail (id, title)))
+                                    if isMovie then dispatch (ViewMovieDetail (id, title, releaseDate))
+                                    else dispatch (ViewSeriesDetail (id, title, releaseDate)))
                         ]
                     ]
                 | Failure err ->

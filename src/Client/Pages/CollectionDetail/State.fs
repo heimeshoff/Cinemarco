@@ -51,17 +51,17 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
     | GoBack ->
         model, Cmd.none, NavigateBack
 
-    | ViewMovieDetail (entryId, title) ->
-        model, Cmd.none, NavigateToMovieDetail (entryId, title)
+    | ViewMovieDetail (entryId, title, releaseDate) ->
+        model, Cmd.none, NavigateToMovieDetail (entryId, title, releaseDate)
 
-    | ViewSeriesDetail (entryId, name) ->
-        model, Cmd.none, NavigateToSeriesDetail (entryId, name)
+    | ViewSeriesDetail (entryId, name, firstAirDate) ->
+        model, Cmd.none, NavigateToSeriesDetail (entryId, name, firstAirDate)
 
     | ViewSeasonDetail seriesName ->
-        model, Cmd.none, NavigateToSeriesByName seriesName
+        model, Cmd.none, NavigateToSeriesByName (seriesName, None)
 
     | ViewEpisodeDetail seriesName ->
-        model, Cmd.none, NavigateToSeriesByName seriesName
+        model, Cmd.none, NavigateToSeriesByName (seriesName, None)
 
     | RemoveItem itemRef ->
         let cmd =

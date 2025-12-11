@@ -92,8 +92,8 @@ let private timelineCard (entry: TimelineEntry) (dispatch: Msg -> unit) =
         prop.className "flex gap-4 items-start group cursor-pointer hover:bg-base-200/50 rounded-lg p-3 -m-3 transition-colors"
         prop.onClick (fun _ ->
             match entry.Entry.Media with
-            | LibraryMovie _ -> dispatch (ViewMovieDetail (entry.Entry.Id, title))
-            | LibrarySeries _ -> dispatch (ViewSeriesDetail (entry.Entry.Id, title))
+            | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Entry.Id, title, m.ReleaseDate))
+            | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Entry.Id, title, s.FirstAirDate))
         )
         prop.children [
             // Poster

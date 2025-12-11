@@ -1,5 +1,6 @@
 module Pages.SessionDetail.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -32,7 +33,7 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToSeries of entryId: EntryId * name: string
+    | NavigateToSeries of entryId: EntryId * name: string * firstAirDate: DateTime option
     | ShowNotification of message: string * isSuccess: bool
     | SessionDeleted of SessionId
     | FriendCreatedInline of Friend

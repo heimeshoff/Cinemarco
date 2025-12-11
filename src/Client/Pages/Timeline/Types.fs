@@ -35,14 +35,14 @@ type Msg =
     | SetMediaTypeFilter of MediaType option
     | ToggleDateFilter
     | ClearFilters
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 /// External messages for parent to handle
 type ExternalMsg =
     | NoOp
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 module Model =
     let empty = {

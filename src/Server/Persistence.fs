@@ -267,6 +267,13 @@ type SeriesInfoRecord = {
     number_of_episodes: int
 }
 
+[<CLIMutable>]
+type private EpisodeAirDateRecord = {
+    season_number: int64
+    episode_number: int64
+    air_date: string
+}
+
 // =====================================
 // Helper Functions
 // =====================================
@@ -1326,6 +1333,19 @@ let addFriendToMovieSession (SessionId sessionId) (FriendId friendId) : Async<un
     """, {| SessionId = sessionId; FriendId = friendId |}) |> Async.AwaitTask |> Async.Ignore
 }
 
+/// Check if a movie watch session exists for a specific date (within same day)
+let movieWatchSessionExistsForDate (entryId: EntryId) (watchedDate: DateTime) : Async<bool> = async {
+    use conn = getConnection()
+    let dateStr = watchedDate.Date.ToString("yyyy-MM-dd")
+    let! count =
+        conn.ExecuteScalarAsync<int>(
+            """SELECT COUNT(*) FROM movie_watch_sessions
+               WHERE entry_id = @EntryId AND date(watched_date) = date(@WatchedDate)""",
+            {| EntryId = EntryId.value entryId; WatchedDate = dateStr |}
+        ) |> Async.AwaitTask
+    return count > 0
+}
+
 /// Create a movie watch session
 let insertMovieWatchSession (request: CreateMovieWatchSessionRequest) : Async<MovieWatchSession> = async {
     use conn = getConnection()
@@ -1557,6 +1577,48 @@ let markSessionSeasonWatched (sessionId: SessionId) (entryId: EntryId) (seriesId
         do! updateSessionEpisodeProgress sessionId entryId seriesId seasonNumber ep true
 }
 
+/// Insert or update episode progress with a specific watched date (for imports)
+/// If episode already exists, updates to the earlier date (preserves first watch)
+let insertEpisodeProgressWithDate (sessionId: SessionId) (entryId: EntryId) (seriesId: SeriesId) (seasonNumber: int) (episodeNumber: int) (watchedDate: DateTime option) : Async<unit> = async {
+    // Skip if no watch date provided
+    match watchedDate with
+    | None -> return ()
+    | Some date ->
+        use conn = getConnection()
+        let sessionIdVal = SessionId.value sessionId
+        let entryIdVal = EntryId.value entryId
+        let dateStr = date.ToString("o")
+
+        // Check if record already exists
+        let! existingId =
+            conn.ExecuteScalarAsync<Nullable<int>>(
+                """SELECT id FROM episode_progress
+                   WHERE entry_id = @EntryId AND session_id = @SessionId
+                   AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber""",
+                {| EntryId = entryIdVal; SessionId = sessionIdVal; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber |}
+            ) |> Async.AwaitTask
+
+        if existingId.HasValue then
+            // Update existing record - only if new date is earlier than existing
+            let! _ =
+                conn.ExecuteAsync(
+                    """UPDATE episode_progress
+                       SET watched_date = @WatchedDate, is_watched = 1
+                       WHERE id = @Id AND (watched_date IS NULL OR watched_date > @WatchedDate)""",
+                    {| Id = existingId.Value; WatchedDate = dateStr |}
+                ) |> Async.AwaitTask
+            return ()
+        else
+            // Insert new record with the specific date
+            let! _ =
+                conn.ExecuteAsync(
+                    """INSERT INTO episode_progress (entry_id, session_id, series_id, season_number, episode_number, is_watched, watched_date)
+                       VALUES (@EntryId, @SessionId, @SeriesId, @SeasonNumber, @EpisodeNumber, 1, @WatchedDate)""",
+                    {| EntryId = entryIdVal; SessionId = sessionIdVal; SeriesId = SeriesId.value seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; WatchedDate = dateStr |}
+                ) |> Async.AwaitTask
+            return ()
+}
+
 /// Count watched episodes for a session
 let countSessionWatchedEpisodes (SessionId sessionId) : Async<int> = async {
     use conn = getConnection()
@@ -1566,6 +1628,35 @@ let countSessionWatchedEpisodes (SessionId sessionId) : Async<int> = async {
             {| SessionId = sessionId |}
         ) |> Async.AwaitTask
     return count
+}
+
+/// Get episode air dates for a series (used for Trakt import to substitute air dates for binge-watched episodes)
+let getEpisodeAirDates (seriesId: SeriesId) : Async<Map<(int * int), DateTime>> = async {
+    use conn = getConnection()
+    let seriesIdVal = SeriesId.value seriesId
+    printfn "[Persistence] getEpisodeAirDates: querying for seriesId=%d" seriesIdVal
+
+    let! records =
+        conn.QueryAsync<EpisodeAirDateRecord>(
+            """SELECT season_number, episode_number, air_date FROM episodes
+               WHERE series_id = @SeriesId AND air_date IS NOT NULL AND air_date != ''""",
+            {| SeriesId = seriesIdVal |}
+        ) |> Async.AwaitTask
+
+    let recordList = records |> Seq.toList
+    printfn "[Persistence] getEpisodeAirDates: found %d records from DB" recordList.Length
+
+    let result =
+        recordList
+        |> List.choose (fun r ->
+            let parsed = parseDateTime r.air_date
+            if parsed.IsNone then
+                printfn "[Persistence] Failed to parse air_date: '%s' for S%dE%d" r.air_date r.season_number r.episode_number
+            parsed |> Option.map (fun d -> ((int r.season_number, int r.episode_number), d)))
+        |> Map.ofList
+
+    printfn "[Persistence] getEpisodeAirDates: returning %d parsed dates" result.Count
+    return result
 }
 
 // =====================================
@@ -2458,6 +2549,11 @@ let getLocalSeasonDetails (seriesId: SeriesId) (seasonNumber: int) : Async<TmdbS
 let saveSeasonEpisodes (seriesId: SeriesId) (season: TmdbSeasonDetails) : Async<unit> = async {
     use conn = getConnection()
     let seriesIdVal = SeriesId.value seriesId
+    printfn "[Persistence] saveSeasonEpisodes: seriesId=%d, season=%d, episodes=%d" seriesIdVal season.SeasonNumber season.Episodes.Length
+
+    // Debug: check if episodes have air dates
+    let epsWithDates = season.Episodes |> List.filter (fun e -> e.AirDate.IsSome) |> List.length
+    printfn "[Persistence] Episodes with air dates: %d / %d" epsWithDates season.Episodes.Length
 
     // First, upsert the season
     let! existingSeasonId =
@@ -3145,4 +3241,81 @@ let getTimelineEntriesByMonth (year: int) (month: int) : Async<TimelineEntry lis
     // Get all entries for this month (up to 1000)
     let! result = getTimelineEntries filter 1 1000
     return result.Items
+}
+
+// =====================================
+// Trakt Settings Operations
+// =====================================
+
+/// Record type for Trakt settings
+[<CLIMutable>]
+type private TraktSettingsRecord = {
+    mutable id: int
+    mutable access_token: string
+    mutable refresh_token: string
+    mutable token_expires_at: string
+    mutable last_sync_at: string
+    mutable auto_sync_enabled: int
+    mutable created_at: string
+    mutable updated_at: string
+}
+
+/// Get Trakt settings (tokens and sync state)
+let getTraktSettings () : Async<{| AccessToken: string option; RefreshToken: string option; ExpiresAt: DateTime option; LastSyncAt: DateTime option; AutoSyncEnabled: bool |}> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<TraktSettingsRecord>(
+            "SELECT * FROM trakt_settings WHERE id = 1"
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then
+        return {| AccessToken = None; RefreshToken = None; ExpiresAt = None; LastSyncAt = None; AutoSyncEnabled = true |}
+    else
+        return {|
+            AccessToken = if String.IsNullOrEmpty(record.access_token) then None else Some record.access_token
+            RefreshToken = if String.IsNullOrEmpty(record.refresh_token) then None else Some record.refresh_token
+            ExpiresAt = parseDateTime record.token_expires_at
+            LastSyncAt = parseDateTime record.last_sync_at
+            AutoSyncEnabled = record.auto_sync_enabled = 1
+        |}
+}
+
+/// Save Trakt OAuth tokens
+let saveTraktTokens (accessToken: string) (refreshToken: string) (expiresAt: DateTime) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let expiresAtStr = expiresAt.ToString("o")
+    let param = {| AccessToken = accessToken; RefreshToken = refreshToken; ExpiresAt = expiresAtStr; UpdatedAt = now |}
+    let sql = """UPDATE trakt_settings
+                 SET access_token = @AccessToken, refresh_token = @RefreshToken,
+                     token_expires_at = @ExpiresAt, updated_at = @UpdatedAt
+                 WHERE id = 1"""
+    do! conn.ExecuteAsync(sql, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Clear Trakt tokens (logout)
+let clearTraktTokens () : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let param = {| UpdatedAt = now |}
+    let sql = """UPDATE trakt_settings
+                 SET access_token = NULL, refresh_token = NULL, token_expires_at = NULL, updated_at = @UpdatedAt
+                 WHERE id = 1"""
+    do! conn.ExecuteAsync(sql, param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Update the last sync timestamp
+let updateTraktLastSync () : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let param = {| Now = now |}
+    do! conn.ExecuteAsync("UPDATE trakt_settings SET last_sync_at = @Now, updated_at = @Now WHERE id = 1", param) |> Async.AwaitTask |> Async.Ignore
+}
+
+/// Toggle auto-sync setting
+let setTraktAutoSync (enabled: bool) : Async<unit> = async {
+    use conn = getConnection()
+    let now = DateTime.UtcNow.ToString("o")
+    let param = {| Enabled = (if enabled then 1 else 0); UpdatedAt = now |}
+    do! conn.ExecuteAsync("UPDATE trakt_settings SET auto_sync_enabled = @Enabled, updated_at = @UpdatedAt WHERE id = 1", param) |> Async.AwaitTask |> Async.Ignore
 }

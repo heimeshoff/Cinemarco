@@ -198,6 +198,6 @@ let update (api: SessionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | GoBack ->
         match model.SessionData with
         | Success data ->
-            let name = match data.Entry.Media with LibrarySeries s -> s.Name | LibraryMovie m -> m.Title
-            model, Cmd.none, NavigateToSeries (data.Session.EntryId, name)
+            let (name, firstAirDate) = match data.Entry.Media with LibrarySeries s -> (s.Name, s.FirstAirDate) | LibraryMovie m -> (m.Title, None)
+            model, Cmd.none, NavigateToSeries (data.Session.EntryId, name, firstAirDate)
         | _ -> model, Cmd.none, NavigateBack

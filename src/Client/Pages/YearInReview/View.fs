@@ -311,8 +311,8 @@ let private topRatedSection (entries: LibraryEntry list) (dispatch: Msg -> unit)
                                 prop.className "cursor-pointer group"
                                 prop.onClick (fun _ ->
                                     match entry.Media with
-                                    | LibraryMovie _ -> dispatch (ViewMovieDetail (entry.Id, title))
-                                    | LibrarySeries _ -> dispatch (ViewSeriesDetail (entry.Id, title))
+                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
                                 )
                                 prop.children [
                                     Html.div [

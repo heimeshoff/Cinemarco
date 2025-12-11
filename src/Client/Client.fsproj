@@ -192,6 +192,11 @@
     <Compile Include="Pages/Timeline/State.fs" />
     <Compile Include="Pages/Timeline/View.fs" />
 
+    <!-- Import Page -->
+    <Compile Include="Pages/Import/Types.fs" />
+    <Compile Include="Pages/Import/State.fs" />
+    <Compile Include="Pages/Import/View.fs" />
+    
     <!-- Graph Page -->
     <Compile Include="Pages/Graph/Types.fs" />
     <Compile Include="Pages/Graph/State.fs" />

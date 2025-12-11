@@ -1061,6 +1061,46 @@ type ImportStatus = {
     Errors: string list
 }
 
+/// A watched item from Trakt history with date and rating
+type TraktHistoryItem = {
+    TmdbId: int
+    MediaType: MediaType
+    Title: string
+    WatchedAt: DateTime option
+    TraktRating: int option  // 1-10 scale
+}
+
+/// A watched episode from Trakt with season/episode info and date
+type TraktWatchedEpisode = {
+    SeasonNumber: int
+    EpisodeNumber: int
+    WatchedAt: DateTime option
+}
+
+/// A watched series from Trakt with episode-level watch data
+type TraktWatchedSeries = {
+    TmdbId: int
+    Title: string
+    LastWatchedAt: DateTime option
+    WatchedEpisodes: TraktWatchedEpisode list
+    TraktRating: int option
+}
+
+/// Result of a Trakt incremental sync
+type TraktSyncResult = {
+    NewMovieWatches: int
+    NewEpisodeWatches: int
+    UpdatedItems: int
+    Errors: string list
+}
+
+/// Trakt sync status
+type TraktSyncStatus = {
+    IsAuthenticated: bool
+    LastSyncAt: DateTime option
+    AutoSyncEnabled: bool
+}
+
 // =====================================
 // Cache Management Types
 // =====================================

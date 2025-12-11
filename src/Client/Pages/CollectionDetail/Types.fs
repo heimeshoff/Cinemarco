@@ -1,5 +1,6 @@
 module Pages.CollectionDetail.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -31,8 +32,8 @@ type Msg =
     | LoadProgress
     | ProgressLoaded of Result<CollectionProgress, string>
     | GoBack
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | ViewSeasonDetail of seriesName: string
     | ViewEpisodeDetail of seriesName: string
     | RemoveItem of CollectionItemRef
@@ -62,9 +63,9 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
-    | NavigateToSeriesByName of seriesName: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
+    | NavigateToSeriesByName of seriesName: string * firstAirDate: DateTime option
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

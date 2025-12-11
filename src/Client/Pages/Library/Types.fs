@@ -1,5 +1,6 @@
 module Pages.Library.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -42,13 +43,13 @@ type Msg =
     | SetSortBy of LibrarySortBy
     | ToggleSortDirection
     | ClearFilters
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 type ExternalMsg =
     | NoOp
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 module LibraryFilters =
     let empty = {

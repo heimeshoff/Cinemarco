@@ -1,11 +1,90 @@
 module Pages.Home.View
 
+open System
 open Feliz
 open Common.Types
 open Shared.Domain
 open Types
 open Components.Icons
 open Components.Cards.View
+
+/// Format a relative time string (e.g., "5 minutes ago", "2 hours ago")
+let private formatRelativeTime (dateTime: DateTime) =
+    let now = DateTime.UtcNow
+    let diff = now - dateTime
+    if diff.TotalMinutes < 1.0 then "just now"
+    elif diff.TotalMinutes < 60.0 then $"{int diff.TotalMinutes} min ago"
+    elif diff.TotalHours < 24.0 then $"{int diff.TotalHours}h ago"
+    elif diff.TotalDays < 7.0 then $"{int diff.TotalDays}d ago"
+    else dateTime.ToString("MMM d")
+
+/// Trakt sync button - shows connection status, last sync, and allows manual sync
+let private traktSyncButton (model: Model) (dispatch: Msg -> unit) =
+    match model.TraktStatus with
+    | None ->
+        // Still loading status
+        Html.div [
+            prop.className "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-base-content/40"
+            prop.children [
+                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                Html.span [ prop.text "Checking Trakt..." ]
+            ]
+        ]
+    | Some status ->
+        if not status.IsAuthenticated then
+            // Not connected
+            Html.a [
+                prop.href "/import"
+                prop.className "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-base-content/60 hover:text-base-content hover:border-primary/30 border border-transparent transition-all"
+                prop.children [
+                    Html.span [
+                        prop.className "w-4 h-4 text-base-content/40"
+                        prop.children [ cloud ]
+                    ]
+                    Html.span [ prop.text "Connect Trakt" ]
+                ]
+            ]
+        else
+            // Connected - show sync button with status
+            let isSyncing = match model.TraktSync with Syncing -> true | _ -> false
+            let lastSyncText =
+                match status.LastSyncAt with
+                | Some dt -> formatRelativeTime dt
+                | None -> "never"
+
+            // Determine button text and style based on sync state
+            let (buttonText, extraClass) =
+                match model.TraktSync with
+                | Syncing -> ("Syncing...", "text-primary border border-primary/30")
+                | SyncComplete result ->
+                    let total = result.NewMovieWatches + result.NewEpisodeWatches
+                    if total > 0 then
+                        let parts = [
+                            if result.NewMovieWatches > 0 then sprintf "%d movie(s)" result.NewMovieWatches
+                            if result.NewEpisodeWatches > 0 then sprintf "%d episode(s)" result.NewEpisodeWatches
+                        ]
+                        let syncedText = "Synced " + String.concat " & " parts
+                        (syncedText, "text-success border border-success/30")
+                    else
+                        ("Up to date", "text-success border border-success/30")
+                | SyncError _ -> ("Sync failed", "text-error border border-error/30")
+                | _ -> (sprintf "Trakt · %s" lastSyncText, "text-base-content/60 hover:text-base-content hover:border-primary/30 border border-transparent")
+
+            Html.button [
+                prop.className ($"flex items-center gap-2 px-4 py-2 glass rounded-full text-sm transition-all {extraClass}")
+                prop.disabled isSyncing
+                prop.onClick (fun _ -> if not isSyncing then dispatch ManualSync)
+                prop.children [
+                    if isSyncing then
+                        Html.span [ prop.className "loading loading-spinner loading-xs text-primary" ]
+                    Html.span [ prop.text buttonText ]
+                    if not isSyncing then
+                        Html.span [
+                            prop.className "w-3.5 h-3.5 text-base-content/40"
+                            prop.children [ refresh ]
+                        ]
+                ]
+            ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
@@ -40,25 +119,39 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.text "Search for movies and series to add them to your personal library. Track what you've watched, who you watched with, and capture your thoughts."
                     ]
 
-                    // Quick tips
+                    // Connection status buttons
                     Html.div [
                         prop.className "flex flex-wrap justify-center gap-4 mt-8"
                         prop.children [
-                            for (icon, tip) in [
-                                (search, "Search above to find titles")
-                                (plus, "Click any result to add")
-                                (friends, "Track who you watch with")
-                            ] do
-                                Html.div [
-                                    prop.className "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-base-content/60"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "w-4 h-4"
-                                            prop.children [ icon ]
-                                        ]
-                                        Html.span [ prop.text tip ]
-                                    ]
+                            // TMDB health button
+                            Html.button [
+                                prop.className (
+                                    "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm transition-all " +
+                                    match model.TmdbHealth with
+                                    | TmdbNotChecked -> "text-base-content/40"
+                                    | TmdbChecking -> "text-base-content/40"
+                                    | TmdbConnected -> "text-success border border-success/30"
+                                    | TmdbError _ -> "text-error border border-error/30"
+                                )
+                                prop.onClick (fun _ -> dispatch CheckTmdbHealth)
+                                prop.children [
+                                    match model.TmdbHealth with
+                                    | TmdbNotChecked ->
+                                        Html.span [ prop.className "w-4 h-4"; prop.children [ database ] ]
+                                        Html.span [ prop.text "TMDB" ]
+                                    | TmdbChecking ->
+                                        Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                        Html.span [ prop.text "Checking TMDB..." ]
+                                    | TmdbConnected ->
+                                        Html.span [ prop.className "w-4 h-4"; prop.children [ check ] ]
+                                        Html.span [ prop.text "TMDB Connected" ]
+                                    | TmdbError err ->
+                                        Html.span [ prop.className "w-4 h-4"; prop.children [ error ] ]
+                                        Html.span [ prop.text $"TMDB: {err}" ]
                                 ]
+                            ]
+                            // Trakt sync button
+                            traktSyncButton model dispatch
                         ]
                     ]
 
@@ -117,13 +210,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     Html.div [
                                         prop.key (EntryId.value entry.Id)
                                         prop.children [
-                                            let title =
-                                                match entry.Media with
-                                                | LibraryMovie m -> m.Title
-                                                | LibrarySeries s -> s.Name
                                             libraryEntryCard entry (fun id isMovie ->
-                                                if isMovie then dispatch (ViewMovieDetail (id, title))
-                                                else dispatch (ViewSeriesDetail (id, title)))
+                                                match entry.Media with
+                                                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
+                                                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate)))
                                         ]
                                     ]
                             ]

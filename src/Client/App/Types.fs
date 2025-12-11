@@ -50,6 +50,7 @@ type Model = {
     StatsPage: Pages.Stats.Types.Model option
     YearInReviewPage: Pages.YearInReview.Types.Model option
     TimelinePage: Pages.Timeline.Types.Model option
+    ImportPage: Pages.Import.Types.Model option
     GraphPage: Pages.Graph.Types.Model option
 }
 
@@ -111,6 +112,7 @@ type Msg =
     | StatsMsg of Pages.Stats.Types.Msg
     | YearInReviewMsg of Pages.YearInReview.Types.Msg
     | TimelineMsg of Pages.Timeline.Types.Msg
+    | ImportMsg of Pages.Import.Types.Msg
     | GraphMsg of Pages.Graph.Types.Msg
 
     // API result handlers
@@ -159,5 +161,6 @@ module Model =
         StatsPage = None
         YearInReviewPage = None
         TimelinePage = None
+        ImportPage = None
         GraphPage = None
     }

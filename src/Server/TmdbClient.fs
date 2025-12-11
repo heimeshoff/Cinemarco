@@ -137,6 +137,17 @@ let private parseDateTime (s: obj) : DateTime option =
         match DateTime.TryParse(str) with
         | true, dt -> Some dt
         | false, _ -> None
+    | :? JToken as token ->
+        match token.Type with
+        | JTokenType.Null -> None
+        | JTokenType.String ->
+            let str = string token
+            if String.IsNullOrEmpty(str) then None
+            else
+                match DateTime.TryParse(str) with
+                | true, dt -> Some dt
+                | false, _ -> None
+        | _ -> None
     | _ -> None
 
 let private parseFloat (token: JToken) : float option =
@@ -460,6 +471,21 @@ let private parseCollection (json: JObject) : TmdbCollection =
 // =====================================
 // Public API Functions
 // =====================================
+
+/// Health check - verify TMDB API is accessible and API key is valid
+let healthCheck () : Async<Result<string, string>> = async {
+    match getApiKey() with
+    | None -> return Error "TMDB_API_KEY environment variable is not set"
+    | Some _ ->
+        try
+            // Use configuration endpoint as a lightweight health check
+            let! result = makeRequest "/configuration" "health:config" 1
+            match result with
+            | Ok _ -> return Ok "Connected"
+            | Error err -> return Error err
+        with
+        | ex -> return Error $"Connection failed: {ex.Message}"
+}
 
 /// Search for movies
 let searchMovies (query: string) : Async<TmdbSearchResult list> = async {

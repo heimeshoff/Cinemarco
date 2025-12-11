@@ -49,11 +49,11 @@ let update (api: LibraryApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exte
     | ClearFilters ->
         { model with Filters = LibraryFilters.empty }, Cmd.none, NoOp
 
-    | ViewMovieDetail (entryId, title) ->
-        model, Cmd.none, NavigateToMovieDetail (entryId, title)
+    | ViewMovieDetail (entryId, title, releaseDate) ->
+        model, Cmd.none, NavigateToMovieDetail (entryId, title, releaseDate)
 
-    | ViewSeriesDetail (entryId, name) ->
-        model, Cmd.none, NavigateToSeriesDetail (entryId, name)
+    | ViewSeriesDetail (entryId, name, firstAirDate) ->
+        model, Cmd.none, NavigateToSeriesDetail (entryId, name, firstAirDate)
 
 /// Apply filters and sorting to entries
 let filterAndSortEntries (filters: LibraryFilters) (entries: LibraryEntry list) =

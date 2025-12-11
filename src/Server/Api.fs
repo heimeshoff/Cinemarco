@@ -58,21 +58,38 @@ let cinemarcoApi : ICinemarcoApi = {
         | None -> return Error "Entry not found"
     }
 
-    libraryGetBySlug = fun slug -> async {
+    libraryGetBySlug = fun (slug, isMovieFilter) -> async {
         let! entries = Persistence.getAllLibraryEntries()
         // Parse the slug to handle duplicates
         let (baseSlug, suffixIndex) = Slug.parseSlugWithSuffix slug
         let index = suffixIndex |> Option.defaultValue 0
-        // Find all entries matching the base slug, sorted by ID
+
+        // Filter by media type if specified
+        let typeFilteredEntries =
+            match isMovieFilter with
+            | Some true -> entries |> List.filter (fun e -> match e.Media with LibraryMovie _ -> true | _ -> false)
+            | Some false -> entries |> List.filter (fun e -> match e.Media with LibrarySeries _ -> true | _ -> false)
+            | None -> entries
+
+        // Match entries - try exact match first, then prefix match for backwards compatibility
+        // This handles both "hamilton-2020" (full slug) and "hamilton" (title-only slug)
         let matchingEntries =
-            entries
+            typeFilteredEntries
             |> List.filter (fun entry ->
                 let entrySlug =
                     match entry.Media with
                     | LibraryMovie m -> Slug.forMovie m.Title m.ReleaseDate
                     | LibrarySeries s -> Slug.forSeries s.Name s.FirstAirDate
-                Slug.matches baseSlug entrySlug)
+                let titleOnlySlug =
+                    match entry.Media with
+                    | LibraryMovie m -> Slug.generate m.Title
+                    | LibrarySeries s -> Slug.generate s.Name
+                // Match if: exact match, title-only matches, or entry slug starts with search slug
+                Slug.matches baseSlug entrySlug ||
+                Slug.matches baseSlug titleOnlySlug ||
+                entrySlug.StartsWith(baseSlug + "-", StringComparison.OrdinalIgnoreCase))
             |> List.sortBy (fun e -> EntryId.value e.Id)
+
         // Get the entry at the specified index
         let entryOpt =
             if index < List.length matchingEntries then
@@ -723,6 +740,8 @@ let cinemarcoApi : ICinemarcoApi = {
     // TMDB Operations
     // =====================================
 
+    tmdbHealthCheck = fun () -> TmdbClient.healthCheck()
+
     tmdbSearchMovies = fun query -> TmdbClient.searchMovies query
 
     tmdbSearchSeries = fun query -> TmdbClient.searchSeries query
@@ -974,6 +993,57 @@ let cinemarcoApi : ICinemarcoApi = {
     }
 
     // =====================================
+    // Trakt.tv Import Operations
+    // =====================================
+
+    traktGetAuthUrl = fun () -> async {
+        return TraktClient.getAuthUrl()
+    }
+
+    traktExchangeCode = fun (code, state) -> async {
+        return! TraktClient.exchangeCode code state
+    }
+
+    traktIsAuthenticated = fun () -> async {
+        return! TraktClient.isAuthenticatedAsync()
+    }
+
+    traktLogout = fun () -> async {
+        do! TraktClient.clearTokens()
+    }
+
+    traktGetImportPreview = fun options -> async {
+        return! TraktImport.getImportPreview options
+    }
+
+    traktStartImport = fun options -> async {
+        // Start import in background with error logging
+        let importWithLogging = async {
+            printfn "[Api] Starting import with options: Movies=%b, Series=%b, Watchlist=%b, Ratings=%b"
+                options.ImportWatchedMovies options.ImportWatchedSeries options.ImportWatchlist options.ImportRatings
+            try
+                let! result = TraktImport.startImport options
+                match result with
+                | Ok () -> printfn "[Api] Import completed successfully"
+                | Error err -> printfn "[Api] Import failed with error: %s" err
+            with ex ->
+                printfn "[Api] Import threw exception: %s" ex.Message
+                printfn "[Api] Stack trace: %s" ex.StackTrace
+        }
+        Async.Start importWithLogging
+        return Ok ()
+    }
+
+    traktGetImportStatus = fun () -> async {
+        return TraktImport.getStatus()
+    }
+
+    traktCancelImport = fun () -> async {
+        TraktImport.requestCancellation()
+        return ()
+    }
+
+    // =====================================
     // Graph Operations
     // =====================================
 
@@ -1066,6 +1136,18 @@ let cinemarcoApi : ICinemarcoApi = {
             Nodes = nodes
             Edges = edges
         }
+    }
+
+    traktIncrementalSync = fun () -> async {
+        return! TraktImport.incrementalSync()
+    }
+
+    traktGetSyncStatus = fun () -> async {
+        return! TraktImport.getSyncStatus()
+    }
+
+    traktDebugGetShowHistory = fun tmdbId -> async {
+        return! TraktClient.debugGetShowHistory tmdbId
     }
 }
 

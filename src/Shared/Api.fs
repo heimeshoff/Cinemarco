@@ -36,8 +36,8 @@ type ICinemarcoApi = {
     /// Get a library entry by ID
     libraryGetById: EntryId -> Async<Result<LibraryEntry, string>>
 
-    /// Get a library entry by slug
-    libraryGetBySlug: string -> Async<Result<LibraryEntry, string>>
+    /// Get a library entry by slug, optionally filtering by media type (true = movie, false = series, None = any)
+    libraryGetBySlug: string * bool option -> Async<Result<LibraryEntry, string>>
 
     /// Check if a TMDB movie is already in library (returns entry ID if exists)
     libraryIsMovieInLibrary: TmdbMovieId -> Async<EntryId option>
@@ -123,6 +123,9 @@ type ICinemarcoApi = {
     // =====================================
     // TMDB Operations
     // =====================================
+
+    /// Health check for TMDB connection
+    tmdbHealthCheck: unit -> Async<Result<string, string>>
 
     /// Search for movies on TMDB
     tmdbSearchMovies: string -> Async<TmdbSearchResult list>
@@ -340,6 +343,43 @@ type ICinemarcoApi = {
     timelineGetByMonth: int * int -> Async<TimelineEntry list>
 
     // =====================================
+    // Trakt.tv Import Operations
+    // =====================================
+
+    /// Get the OAuth authorization URL for Trakt.tv
+    traktGetAuthUrl: unit -> Async<Result<TraktAuthUrl, string>>
+
+    /// Exchange the OAuth code for access token and store it
+    traktExchangeCode: string * string -> Async<Result<unit, string>>
+
+    /// Check if we have a valid Trakt access token
+    traktIsAuthenticated: unit -> Async<bool>
+
+    /// Clear the stored Trakt access token (logout)
+    traktLogout: unit -> Async<unit>
+
+    /// Get a preview of what will be imported from Trakt
+    traktGetImportPreview: TraktImportOptions -> Async<Result<TraktImportPreview, string>>
+
+    /// Start the import process from Trakt
+    traktStartImport: TraktImportOptions -> Async<Result<unit, string>>
+
+    /// Get the current import status
+    traktGetImportStatus: unit -> Async<ImportStatus>
+
+    /// Cancel an in-progress import
+    traktCancelImport: unit -> Async<unit>
+
+    /// Perform incremental sync from Trakt (only new items since last sync)
+    traktIncrementalSync: unit -> Async<Result<TraktSyncResult, string>>
+
+    /// Get Trakt sync status (last sync time, auto-sync enabled)
+    traktGetSyncStatus: unit -> Async<TraktSyncStatus>
+
+    /// Debug: Get raw episode watch data for a show from Trakt
+    traktDebugGetShowHistory: int -> Async<Result<string, string>>
+    
+    // =====================================    
     // Graph Operations
     // =====================================
 

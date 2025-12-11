@@ -89,10 +89,10 @@ let private collectionItemView (model: Model) (dispatch: Msg -> unit) (position:
             match entry.Media with
             | LibraryMovie m ->
                 let year = m.ReleaseDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                (m.Title, m.PosterPath, year, "🎬", fun () -> dispatch (ViewMovieDetail (entry.Id, m.Title)))
+                (m.Title, m.PosterPath, year, "🎬", fun () -> dispatch (ViewMovieDetail (entry.Id, m.Title, m.ReleaseDate)))
             | LibrarySeries s ->
                 let year = s.FirstAirDate |> Option.map (fun d -> d.Year.ToString()) |> Option.defaultValue ""
-                (s.Name, s.PosterPath, year, "📺", fun () -> dispatch (ViewSeriesDetail (entry.Id, s.Name)))
+                (s.Name, s.PosterPath, year, "📺", fun () -> dispatch (ViewSeriesDetail (entry.Id, s.Name, s.FirstAirDate)))
         | SeasonDisplay (series, season) ->
             let seasonName = season.Name |> Option.defaultValue $"Season {season.SeasonNumber}"
             (seasonName, series.PosterPath, series.Name, "📀", fun () -> dispatch (ViewSeasonDetail series.Name))

@@ -1,5 +1,6 @@
 module Pages.ContributorDetail.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -44,8 +45,8 @@ type Msg =
     | SetRoleFilter of RoleFilter
     | AddToLibrary of TmdbWork
     | AddToLibraryResult of Result<LibraryEntry, string>
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | GoBack
     | CheckIsTracked
     | TrackedStatusLoaded of TrackedContributor option
@@ -57,8 +58,8 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | NavigateBack
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

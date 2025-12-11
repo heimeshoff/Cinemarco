@@ -127,19 +127,11 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
             Html.div [ prop.className "loading loading-spinner" ]
 
     | ImportPage ->
-        Html.div [
-            prop.className "text-center py-16"
-            prop.children [
-                Html.h2 [
-                    prop.className "text-2xl font-bold mb-4"
-                    prop.text (Page.toString model.CurrentPage)
-                ]
-                Html.p [
-                    prop.className "text-base-content/60"
-                    prop.text "Coming soon..."
-                ]
-            ]
-        ]
+        match model.ImportPage with
+        | Some pageModel ->
+            Pages.Import.View.view pageModel (ImportMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
 
     | NotFoundPage ->
         Pages.NotFound.View.view ()

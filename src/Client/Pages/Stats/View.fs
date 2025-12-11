@@ -362,8 +362,8 @@ let private backlogSection (backlog: BacklogStats) (dispatch: Msg -> unit) =
                             prop.text title
                             prop.onClick (fun _ ->
                                 match entry.Media with
-                                | LibraryMovie _ -> dispatch (ViewMovieDetail (entry.Id, title))
-                                | LibrarySeries _ -> dispatch (ViewSeriesDetail (entry.Id, title))
+                                | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
                             )
                         ]
                     ]
@@ -432,7 +432,7 @@ let private topSeriesSection (series: SeriesTimeInvestment list) (dispatch: Msg 
                                             Html.button [
                                                 prop.className "text-sm font-medium truncate w-full text-left hover:text-primary transition-colors"
                                                 prop.text s.Series.Name
-                                                prop.onClick (fun _ -> dispatch (ViewSeriesDetail (s.Entry.Id, s.Series.Name)))
+                                                prop.onClick (fun _ -> dispatch (ViewSeriesDetail (s.Entry.Id, s.Series.Name, s.Series.FirstAirDate)))
                                             ]
                                             Html.div [
                                                 prop.className "text-xs text-base-content/60"

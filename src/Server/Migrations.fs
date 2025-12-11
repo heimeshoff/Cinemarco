@@ -596,6 +596,28 @@ CREATE TABLE IF NOT EXISTS movie_session_friends (
 CREATE INDEX IF NOT EXISTS idx_movie_session_friends_friend_id ON movie_session_friends(friend_id);
 """
     }
+
+    // Migration 11: Trakt integration settings
+    {
+        Version = 11
+        Name = "Add Trakt integration settings table"
+        Up = """
+-- Trakt settings table (stores OAuth tokens and sync state)
+CREATE TABLE IF NOT EXISTS trakt_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),  -- Only one row allowed
+    access_token TEXT,
+    refresh_token TEXT,
+    token_expires_at TEXT,
+    last_sync_at TEXT,
+    auto_sync_enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Insert default row
+INSERT OR IGNORE INTO trakt_settings (id, auto_sync_enabled) VALUES (1, 1);
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

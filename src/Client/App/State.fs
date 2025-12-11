@@ -28,9 +28,15 @@ let private syncEntryToPages (entry: LibraryEntry) (model: Model) =
 let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
     let model' = { model with CurrentPage = page }
     match page with
-    | HomePage when model.HomePage.IsNone ->
-        let pageModel, pageCmd = Pages.Home.State.init ()
-        { model' with HomePage = Some pageModel }, Cmd.map HomeMsg pageCmd
+    | HomePage ->
+        match model.HomePage with
+        | None ->
+            // First time loading - full init
+            let pageModel, pageCmd = Pages.Home.State.init ()
+            { model' with HomePage = Some pageModel }, Cmd.map HomeMsg pageCmd
+        | Some _ ->
+            // Already loaded - just trigger sync check
+            model', Cmd.map HomeMsg (Cmd.ofMsg Pages.Home.Types.CheckTraktSync)
     | LibraryPage when model.LibraryPage.IsNone ->
         let pageModel, pageCmd = Pages.Library.State.init ()
         { model' with LibraryPage = Some pageModel }, Cmd.map LibraryMsg pageCmd
@@ -84,6 +90,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh timeline when navigating to the page
         let pageModel, pageCmd = Pages.Timeline.State.init ()
         { model' with TimelinePage = Some pageModel }, Cmd.map TimelineMsg pageCmd
+    | ImportPage ->
+        // Always refresh import page when navigating to it
+        let pageModel, pageCmd = Pages.Import.State.init ()
+        { model' with ImportPage = Some pageModel }, Cmd.map ImportMsg pageCmd
     | GraphPage ->
         // Always refresh graph when navigating to the page
         let pageModel, pageCmd = Pages.Graph.State.init ()
@@ -258,15 +268,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | TmdbItemAddResult (Ok entry, mediaType) ->
         // Navigate to the detail page
-        let title =
+        let slug =
             match entry.Media with
-            | LibraryMovie m -> m.Title
-            | LibrarySeries s -> s.Name
-        let slug = Slug.generate title
+            | LibraryMovie m -> Slug.forMovie m.Title m.ReleaseDate
+            | LibrarySeries s -> Slug.forSeries s.Name s.FirstAirDate
         let page =
-            match mediaType with
-            | MediaType.Movie -> MovieDetailPage slug
-            | MediaType.Series -> SeriesDetailPage slug
+            match entry.Media with
+            | LibraryMovie _ -> MovieDetailPage slug
+            | LibrarySeries _ -> SeriesDetailPage slug
         // Clear library/home page caches so they reload with new entry
         { model with LibraryPage = None; HomePage = None },
         Cmd.ofMsg (NavigateTo page)
@@ -540,18 +549,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | HomeMsg homeMsg ->
         match model.HomePage with
         | Some pageModel ->
-            let libraryApi = fun () -> Api.api.libraryGetAll ()
-            let newPage, pageCmd, extMsg = Pages.Home.State.update libraryApi homeMsg pageModel
+            let homeApi: Pages.Home.State.HomeApi = {
+                GetLibrary = fun () -> Api.api.libraryGetAll ()
+                GetTraktSyncStatus = fun () -> Api.api.traktGetSyncStatus ()
+                TraktIncrementalSync = fun () -> Api.api.traktIncrementalSync ()
+                TmdbHealthCheck = fun () -> Api.api.tmdbHealthCheck ()
+            }
+            let newPage, pageCmd, extMsg = Pages.Home.State.update homeApi homeMsg pageModel
             let model' = { model with HomePage = Some newPage }
             let cmd = Cmd.map HomeMsg pageCmd
             match extMsg with
             | Pages.Home.Types.NoOp -> model', cmd
             | Pages.Home.Types.NavigateToLibrary -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.Home.Types.NavigateToMovieDetail (_, title) ->
-                let slug = Slug.generate title
+            | Pages.Home.Types.NavigateToMovieDetail (_, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.Home.Types.NavigateToSeriesDetail (_, name) ->
-                let slug = Slug.generate name
+            | Pages.Home.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.Home.Types.NavigateToYearInReview ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (YearInReviewPage None))]
@@ -567,11 +581,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map LibraryMsg pageCmd
             match extMsg with
             | Pages.Library.Types.NoOp -> model', cmd
-            | Pages.Library.Types.NavigateToMovieDetail (_, title) ->
-                let slug = Slug.generate title
+            | Pages.Library.Types.NavigateToMovieDetail (_, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.Library.Types.NavigateToSeriesDetail (_, name) ->
-                let slug = Slug.generate name
+            | Pages.Library.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
@@ -607,11 +621,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.FriendDetail.Types.NoOp -> model', cmd
             | Pages.FriendDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo FriendsPage)]
-            | Pages.FriendDetail.Types.NavigateToMovieDetail (_, title) ->
-                let slug = Slug.generate title
+            | Pages.FriendDetail.Types.NavigateToMovieDetail (_, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.FriendDetail.Types.NavigateToSeriesDetail (_, name) ->
-                let slug = Slug.generate name
+            | Pages.FriendDetail.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.FriendDetail.Types.RequestOpenProfileImageModal friend ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (OpenProfileImageModal friend)]
@@ -696,14 +710,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.CollectionDetail.Types.NoOp -> model', cmd
             | Pages.CollectionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo CollectionsPage)]
-            | Pages.CollectionDetail.Types.NavigateToMovieDetail (_, title) ->
-                let slug = Slug.generate title
+            | Pages.CollectionDetail.Types.NavigateToMovieDetail (_, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.CollectionDetail.Types.NavigateToSeriesDetail (_, name) ->
-                let slug = Slug.generate name
+            | Pages.CollectionDetail.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
-            | Pages.CollectionDetail.Types.NavigateToSeriesByName seriesName ->
-                let slug = Slug.generate seriesName
+            | Pages.CollectionDetail.Types.NavigateToSeriesByName (seriesName, firstAirDate) ->
+                let slug = Slug.forSeries seriesName firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
@@ -872,8 +886,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match extMsg with
             | Pages.SessionDetail.Types.NoOp -> model', cmd
             | Pages.SessionDetail.Types.NavigateBack -> model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.SessionDetail.Types.NavigateToSeries (_, name) ->
-                let slug = Slug.generate name
+            | Pages.SessionDetail.Types.NavigateToSeries (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.SessionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
@@ -980,11 +994,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.ContributorDetail.Types.NavigateBack ->
                 // Navigate back - could go to library or previous page
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo LibraryPage)]
-            | Pages.ContributorDetail.Types.NavigateToMovieDetail (_, title) ->
-                let slug = Slug.generate title
+            | Pages.ContributorDetail.Types.NavigateToMovieDetail (_, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.ContributorDetail.Types.NavigateToSeriesDetail (_, name) ->
-                let slug = Slug.generate name
+            | Pages.ContributorDetail.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.ContributorDetail.Types.ShowNotification (msg, isSuccess) ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
@@ -1020,11 +1034,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map StatsMsg pageCmd
             match extMsg with
             | Pages.Stats.Types.NoOp -> model', cmd
-            | Pages.Stats.Types.NavigateToMovieDetail (entryId, title) ->
-                let slug = Slug.forMovie title None
+            | Pages.Stats.Types.NavigateToMovieDetail (entryId, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.Stats.Types.NavigateToSeriesDetail (entryId, name) ->
-                let slug = Slug.forSeries name None
+            | Pages.Stats.Types.NavigateToSeriesDetail (entryId, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
             | Pages.Stats.Types.NavigateToCollection (collectionId, name) ->
                 let slug = Slug.forCollection name
@@ -1044,11 +1058,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map YearInReviewMsg pageCmd
             match extMsg with
             | Pages.YearInReview.Types.NoOp -> model', cmd
-            | Pages.YearInReview.Types.NavigateToMovieDetail (entryId, title) ->
-                let slug = Slug.forMovie title None
+            | Pages.YearInReview.Types.NavigateToMovieDetail (entryId, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.YearInReview.Types.NavigateToSeriesDetail (entryId, name) ->
-                let slug = Slug.forSeries name None
+            | Pages.YearInReview.Types.NavigateToSeriesDetail (entryId, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
@@ -1064,14 +1078,35 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let cmd = Cmd.map TimelineMsg pageCmd
             match extMsg with
             | Pages.Timeline.Types.NoOp -> model', cmd
-            | Pages.Timeline.Types.NavigateToMovieDetail (entryId, title) ->
-                let slug = Slug.forMovie title None
+            | Pages.Timeline.Types.NavigateToMovieDetail (entryId, title, releaseDate) ->
+                let slug = Slug.forMovie title releaseDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (MovieDetailPage slug))]
-            | Pages.Timeline.Types.NavigateToSeriesDetail (entryId, name) ->
-                let slug = Slug.forSeries name None
+            | Pages.Timeline.Types.NavigateToSeriesDetail (entryId, name, firstAirDate) ->
+                let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
         | None -> model, Cmd.none
 
+    // Page messages - Import
+    | ImportMsg importMsg ->
+        match model.ImportPage with
+        | Some pageModel ->
+            let importApi : Pages.Import.State.TraktApi = {
+                GetAuthUrl = fun () -> Api.api.traktGetAuthUrl ()
+                ExchangeCode = fun (code, state) -> Api.api.traktExchangeCode (code, state)
+                IsAuthenticated = fun () -> Api.api.traktIsAuthenticated ()
+                Logout = fun () -> Api.api.traktLogout ()
+                GetImportPreview = fun options -> Api.api.traktGetImportPreview options
+                StartImport = fun options -> Api.api.traktStartImport options
+                GetImportStatus = fun () -> Api.api.traktGetImportStatus ()
+                CancelImport = fun () -> Api.api.traktCancelImport ()
+            }
+            let newPage, pageCmd, extMsg = Pages.Import.State.update importApi importMsg pageModel
+            let model' = { model with ImportPage = Some newPage }
+            let cmd = Cmd.map ImportMsg pageCmd
+            match extMsg with
+            | Pages.Import.Types.NoOp -> model', cmd
+            | Pages.Import.Types.ShowNotification (msg, isSuccess) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
     // Page messages - Graph
     | GraphMsg graphMsg ->
         match model.GraphPage with
@@ -1101,7 +1136,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         let cmd =
             Cmd.OfAsync.either
                 Api.api.libraryGetBySlug
-                slug
+                (slug, Some isMovie)
                 (fun result -> EntryBySlugLoaded (result, isMovie))
                 (fun ex -> EntryBySlugLoaded (Error ex.Message, isMovie))
         model, cmd

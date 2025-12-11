@@ -195,8 +195,8 @@ let private workCard (work: TmdbWork) (isInLibrary: bool) (entryId: EntryId opti
         match entryId with
         | Some id ->
             match work.MediaType with
-            | MediaType.Movie -> dispatch (ViewMovieDetail (id, work.Title))
-            | MediaType.Series -> dispatch (ViewSeriesDetail (id, work.Title))
+            | MediaType.Movie -> dispatch (ViewMovieDetail (id, work.Title, work.ReleaseDate))
+            | MediaType.Series -> dispatch (ViewSeriesDetail (id, work.Title, work.ReleaseDate))
         | None ->
             dispatch (AddToLibrary work)
 

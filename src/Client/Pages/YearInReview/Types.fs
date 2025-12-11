@@ -1,5 +1,6 @@
 module Pages.YearInReview.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -18,13 +19,13 @@ type Msg =
     | SelectYear of int
     | LoadStats of int
     | StatsLoaded of Result<YearInReviewStats, string>
-    | ViewMovieDetail of entryId: EntryId * title: string
-    | ViewSeriesDetail of entryId: EntryId * name: string
+    | ViewMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | ViewSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 type ExternalMsg =
     | NoOp
-    | NavigateToMovieDetail of entryId: EntryId * title: string
-    | NavigateToSeriesDetail of entryId: EntryId * name: string
+    | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
+    | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
 
 module Model =
     let empty = {
