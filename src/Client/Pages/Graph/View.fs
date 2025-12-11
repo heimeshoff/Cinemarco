@@ -11,8 +11,8 @@ open Components.Icons
 
 // Import the forceGraph JavaScript module using Emit for correct JS interop
 module private ForceGraph =
-    [<Emit("import('../../forceGraph.js').then(m => m.initializeGraph($0, $1, $2))")>]
-    let initializeGraph (containerId: string) (graphData: obj) (onSelect: obj -> unit) : JS.Promise<unit> = jsNative
+    [<Emit("import('../../forceGraph.js').then(m => m.initializeGraph($0, $1, $2, $3))")>]
+    let initializeGraph (containerId: string) (graphData: obj) (onSelect: obj -> unit) (onFocus: obj -> unit) : JS.Promise<unit> = jsNative
 
     [<Emit("import('../../forceGraph.js').then(m => m.destroyGraph($0))")>]
     let destroyGraph (containerId: string) : JS.Promise<unit> = jsNative
@@ -22,6 +22,9 @@ module private ForceGraph =
 
     [<Emit("import('../../forceGraph.js').then(m => m.resetZoom())")>]
     let resetZoom () : JS.Promise<unit> = jsNative
+
+    [<Emit("import('../../forceGraph.js').then(m => m.focusOnNode($0))")>]
+    let focusOnNode (nodeId: string) : JS.Promise<unit> = jsNative
 
 // =====================================
 // Helper Functions
@@ -73,6 +76,14 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                         optionToJs profilePath
                     |]
                 ]
+            | CollectionNode (collectionId, name) ->
+                createObj [
+                    "Case" ==> "CollectionNode"
+                    "Fields" ==> [|
+                        createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
+                        name
+                    |]
+                ]
         ) |> List.toArray)
 
         "Edges" ==> (graph.Edges |> List.map (fun edge ->
@@ -114,6 +125,14 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                                 optionToJs profilePath
                             |]
                         ]
+                    | CollectionNode (collectionId, name) ->
+                        createObj [
+                            "Case" ==> "CollectionNode"
+                            "Fields" ==> [|
+                                createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
+                                name
+                            |]
+                        ]
                 )
                 "Target" ==> (
                     match edge.Target with
@@ -152,12 +171,21 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                                 optionToJs profilePath
                             |]
                         ]
+                    | CollectionNode (collectionId, name) ->
+                        createObj [
+                            "Case" ==> "CollectionNode"
+                            "Fields" ==> [|
+                                createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
+                                name
+                            |]
+                        ]
                 )
                 "Relationship" ==> (
                     match edge.Relationship with
                     | WatchedWith -> createObj [ "Case" ==> "WatchedWith" ]
                     | WorkedOn role -> createObj [ "Case" ==> "WorkedOn"; "Fields" ==> [| role |] ]
                     | InCollection collId -> createObj [ "Case" ==> "InCollection"; "Fields" ==> [| CollectionId.value collId |] ]
+                    | BelongsToCollection -> createObj [ "Case" ==> "BelongsToCollection" ]
                 )
             ]
         ) |> List.toArray)
@@ -185,6 +213,9 @@ let private parseNodeSelection (jsNode: obj) : SelectedNode =
             let contributorId = jsNode?contributorId |> unbox<int> |> ContributorId.create
             let profilePath = jsNode?profilePath |> Option.ofObj |> Option.map unbox<string>
             SelectedContributor (contributorId, name, profilePath)
+        | "collection" ->
+            let collectionId = jsNode?collectionId |> unbox<int> |> CollectionId.create
+            SelectedCollection (collectionId, name)
         | _ -> NoSelection
 
 // =====================================
@@ -193,19 +224,21 @@ let private parseNodeSelection (jsNode: obj) : SelectedNode =
 
 /// Graph visualization React component
 [<ReactComponent>]
-let private GraphVisualization (graph: RelationshipGraph) (dispatch: Msg -> unit) =
+let private GraphVisualization (graph: RelationshipGraph) (focusedNodeId: string option) (dispatch: Msg -> unit) =
     let containerId = "force-graph-container"
 
     React.useEffect(fun () ->
-        console.log("F# graph", graph)
-        console.log("F# graph.Nodes", graph.Nodes)
         let jsGraph = toJsGraph graph
-        console.log("jsGraph", jsGraph)
+
         let onSelect = fun jsNode ->
             let selection = parseNodeSelection jsNode
             dispatch (SelectNode selection)
 
-        ForceGraph.initializeGraph containerId jsGraph onSelect |> ignore
+        let onFocus = fun jsNode ->
+            let selection = parseNodeSelection jsNode
+            dispatch (FocusOnNode selection)
+
+        ForceGraph.initializeGraph containerId jsGraph onSelect onFocus |> ignore
 
         // Cleanup on unmount
         React.createDisposable(fun () ->
@@ -213,122 +246,60 @@ let private GraphVisualization (graph: RelationshipGraph) (dispatch: Msg -> unit
         )
     , [| box graph |])
 
+    // Center on focused node when it changes
+    React.useEffect(fun () ->
+        match focusedNodeId with
+        | Some nodeId ->
+            // Small delay to let the graph settle before centering
+            Browser.Dom.window.setTimeout((fun () ->
+                ForceGraph.focusOnNode nodeId |> ignore
+            ), 500) |> ignore
+        | None -> ()
+    , [| box focusedNodeId |])
+
     Html.div [
         prop.id containerId
         prop.className "w-full h-full min-h-[500px] bg-base-300/30 rounded-2xl overflow-hidden"
     ]
 
-/// Filter controls panel
-let private filterPanel (model: Model) (dispatch: Msg -> unit) =
+/// Search bar component
+let private searchBar (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "glass rounded-xl p-4 space-y-4"
+        prop.className "relative"
         prop.children [
-            Html.h3 [
-                prop.className "text-sm font-semibold text-base-content/80 uppercase tracking-wide"
-                prop.text "Filters"
+            Html.input [
+                prop.type' "text"
+                prop.className "w-full pl-10 pr-4 py-2.5 bg-base-100/50 border border-white/10 rounded-lg text-sm placeholder:text-base-content/40 focus:outline-none focus:border-primary/50"
+                prop.placeholder "Search movies, series, friends..."
+                prop.value (model.Filter.SearchQuery |> Option.defaultValue "")
+                prop.onChange (fun (value: string) -> dispatch (SetSearchQuery value))
             ]
-
-            // Node type toggles
-            Html.div [
-                prop.className "space-y-2"
-                prop.children [
-                    // Movies toggle
-                    Html.label [
-                        prop.className "flex items-center gap-2 cursor-pointer"
-                        prop.children [
-                            Html.input [
-                                prop.type' "checkbox"
-                                prop.className "checkbox checkbox-primary checkbox-sm"
-                                prop.isChecked model.Filter.IncludeMovies
-                                prop.onChange (fun (checked': bool) ->
-                                    dispatch (UpdateFilter { model.Filter with IncludeMovies = checked' })
-                                )
-                            ]
-                            Html.span [
-                                prop.className "flex items-center gap-1.5 text-sm"
-                                prop.children [
-                                    Html.span [ prop.className "w-3 h-3 rounded-full bg-amber-500" ]
-                                    Html.span [ prop.text "Movies" ]
-                                ]
-                            ]
-                        ]
-                    ]
-
-                    // Series toggle
-                    Html.label [
-                        prop.className "flex items-center gap-2 cursor-pointer"
-                        prop.children [
-                            Html.input [
-                                prop.type' "checkbox"
-                                prop.className "checkbox checkbox-secondary checkbox-sm"
-                                prop.isChecked model.Filter.IncludeSeries
-                                prop.onChange (fun (checked': bool) ->
-                                    dispatch (UpdateFilter { model.Filter with IncludeSeries = checked' })
-                                )
-                            ]
-                            Html.span [
-                                prop.className "flex items-center gap-1.5 text-sm"
-                                prop.children [
-                                    Html.span [ prop.className "w-3 h-3 rounded-full bg-purple-500" ]
-                                    Html.span [ prop.text "Series" ]
-                                ]
-                            ]
-                        ]
-                    ]
-
-                    // Friends toggle
-                    Html.label [
-                        prop.className "flex items-center gap-2 cursor-pointer"
-                        prop.children [
-                            Html.input [
-                                prop.type' "checkbox"
-                                prop.className "checkbox checkbox-success checkbox-sm"
-                                prop.isChecked model.Filter.IncludeFriends
-                                prop.onChange (fun (checked': bool) ->
-                                    dispatch (UpdateFilter { model.Filter with IncludeFriends = checked' })
-                                )
-                            ]
-                            Html.span [
-                                prop.className "flex items-center gap-1.5 text-sm"
-                                prop.children [
-                                    Html.span [ prop.className "w-3 h-3 rounded-full bg-green-500" ]
-                                    Html.span [ prop.text "Friends" ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+            Html.span [
+                prop.className "absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-base-content/40"
+                prop.children [ search ]
             ]
+        ]
+    ]
 
-            // Zoom controls
-            Html.div [
-                prop.className "pt-4 border-t border-base-content/10 space-y-2"
-                prop.children [
-                    Html.h4 [
-                        prop.className "text-sm font-semibold text-base-content/80"
-                        prop.text "Zoom"
-                    ]
-                    Html.div [
-                        prop.className "flex gap-2"
-                        prop.children [
-                            Html.button [
-                                prop.className "btn btn-ghost btn-sm flex-1"
-                                prop.onClick (fun _ -> ForceGraph.setZoom 0.5 |> ignore)
-                                prop.text "-"
-                            ]
-                            Html.button [
-                                prop.className "btn btn-ghost btn-sm flex-1"
-                                prop.onClick (fun _ -> ForceGraph.resetZoom() |> ignore)
-                                prop.text "Fit"
-                            ]
-                            Html.button [
-                                prop.className "btn btn-ghost btn-sm flex-1"
-                                prop.onClick (fun _ -> ForceGraph.setZoom 2.0 |> ignore)
-                                prop.text "+"
-                            ]
-                        ]
-                    ]
-                ]
+/// Zoom controls component
+let private zoomControls () =
+    Html.div [
+        prop.className "flex items-center gap-1 glass rounded-lg px-2 py-1"
+        prop.children [
+            Html.button [
+                prop.className "btn btn-ghost btn-xs"
+                prop.onClick (fun _ -> ForceGraph.setZoom 0.5 |> ignore)
+                prop.text "−"
+            ]
+            Html.button [
+                prop.className "btn btn-ghost btn-xs"
+                prop.onClick (fun _ -> ForceGraph.resetZoom() |> ignore)
+                prop.text "Fit"
+            ]
+            Html.button [
+                prop.className "btn btn-ghost btn-xs"
+                prop.onClick (fun _ -> ForceGraph.setZoom 2.0 |> ignore)
+                prop.text "+"
             ]
         ]
     ]
@@ -341,14 +312,16 @@ let private selectedNodePanel (model: Model) (dispatch: Msg -> unit) =
         let (title, subtitle, posterPath, action) =
             match selected with
             | SelectedMovie (entryId, title, posterPath) ->
-                (title, "Movie", posterPath, fun () -> dispatch (ViewMovieDetail (entryId, title)))
+                (title, "Movie", posterPath, (fun () -> dispatch (ViewMovieDetail (entryId, title))))
             | SelectedSeries (entryId, name, posterPath) ->
-                (name, "Series", posterPath, fun () -> dispatch (ViewSeriesDetail (entryId, name)))
+                (name, "Series", posterPath, (fun () -> dispatch (ViewSeriesDetail (entryId, name))))
             | SelectedFriend (friendId, name) ->
-                (name, "Friend", None, fun () -> dispatch (ViewFriendDetail (friendId, name)))
+                (name, "Friend", None, (fun () -> dispatch (ViewFriendDetail (friendId, name))))
             | SelectedContributor (contributorId, name, profilePath) ->
-                (name, "Contributor", profilePath, fun () -> dispatch (ViewContributor (contributorId, name)))
-            | NoSelection -> ("", "", None, fun () -> ())
+                (name, "Contributor", profilePath, (fun () -> dispatch (ViewContributor (contributorId, name))))
+            | SelectedCollection (collectionId, name) ->
+                (name, "Collection", None, (fun () -> dispatch (ViewCollection (collectionId, name))))
+            | NoSelection -> ("", "", None, (fun () -> ()))
 
         Html.div [
             prop.className "glass rounded-xl p-4 space-y-3"
@@ -409,44 +382,6 @@ let private selectedNodePanel (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
         ]
-
-/// Legend component
-let private legend () =
-    Html.div [
-        prop.className "glass rounded-xl p-3"
-        prop.children [
-            Html.h4 [
-                prop.className "text-xs uppercase tracking-wide text-base-content/60 mb-2"
-                prop.text "Legend"
-            ]
-            Html.div [
-                prop.className "flex flex-wrap gap-3 text-xs"
-                prop.children [
-                    Html.div [
-                        prop.className "flex items-center gap-1.5"
-                        prop.children [
-                            Html.span [ prop.className "w-3 h-3 rounded bg-amber-500" ]
-                            Html.span [ prop.text "Movie" ]
-                        ]
-                    ]
-                    Html.div [
-                        prop.className "flex items-center gap-1.5"
-                        prop.children [
-                            Html.span [ prop.className "w-3 h-3 rounded bg-purple-500" ]
-                            Html.span [ prop.text "Series" ]
-                        ]
-                    ]
-                    Html.div [
-                        prop.className "flex items-center gap-1.5"
-                        prop.children [
-                            Html.span [ prop.className "w-3 h-3 rounded-full bg-green-500" ]
-                            Html.span [ prop.text "Friend" ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
 
 // =====================================
 // Main View
@@ -515,42 +450,70 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
 
             | Success graph ->
-                if List.isEmpty graph.Nodes then
-                    Html.div [
-                        prop.className "glass rounded-2xl p-8 text-center"
-                        prop.children [
-                            Html.p [
-                                prop.className "text-base-content/60 text-lg"
-                                prop.text "No data to display"
-                            ]
-                            Html.p [
-                                prop.className "text-base-content/40 text-sm mt-2"
-                                prop.text "Add some movies or series to your library to see the relationship graph"
-                            ]
+                Html.div [
+                    prop.className "space-y-4"
+                    prop.children [
+                        // Search bar at top
+                        Html.div [
+                            prop.className "max-w-md"
+                            prop.children [ searchBar model dispatch ]
                         ]
-                    ]
-                else
-                    Html.div [
-                        prop.className "flex gap-4 h-[calc(100vh-220px)] min-h-[500px]"
-                        prop.children [
-                            // Left sidebar
-                            Html.div [
-                                prop.className "w-56 flex-shrink-0 space-y-4"
-                                prop.children [
-                                    filterPanel model dispatch
-                                    legend ()
-                                    selectedNodePanel model dispatch
-                                ]
-                            ]
 
-                            // Graph canvas
-                            Html.div [
-                                prop.className "flex-1"
-                                prop.children [
-                                    GraphVisualization graph dispatch
+                        // Graph canvas with overlays
+                        Html.div [
+                            prop.className "relative h-[calc(100vh-280px)] min-h-[500px]"
+                            prop.children [
+                                GraphVisualization graph model.FocusedNodeId dispatch
+
+                                // Zoom controls (bottom right)
+                                Html.div [
+                                    prop.className "absolute bottom-4 right-4"
+                                    prop.children [ zoomControls () ]
+                                ]
+
+                                // Show subtle loading indicator when refreshing
+                                if model.IsRefreshing then
+                                    Html.div [
+                                        prop.className "absolute top-4 right-4 flex items-center gap-2 glass rounded-lg px-3 py-2"
+                                        prop.children [
+                                            Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
+                                            Html.span [
+                                                prop.className "text-sm text-base-content/70"
+                                                prop.text "Updating..."
+                                            ]
+                                        ]
+                                    ]
+
+                                // Show focus mode indicator with clear button
+                                if model.Filter.FocusedNode.IsSome then
+                                    Html.div [
+                                        prop.className "absolute top-4 left-4 flex items-center gap-2 glass rounded-lg px-3 py-2"
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "text-sm text-primary font-medium"
+                                                prop.text "Focus Mode"
+                                            ]
+                                            Html.button [
+                                                prop.className "btn btn-ghost btn-xs"
+                                                prop.onClick (fun _ -> dispatch ClearFocus)
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "text-xs"
+                                                        prop.text "✕ Clear"
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                // Selected node panel (bottom left)
+                                Html.div [
+                                    prop.className "absolute bottom-4 left-4 w-56"
+                                    prop.children [ selectedNodePanel model dispatch ]
                                 ]
                             ]
                         ]
                     ]
+                ]
         ]
     ]

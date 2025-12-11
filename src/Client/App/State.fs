@@ -1131,6 +1131,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Graph.Types.NavigateToContributor (_, name) ->
                 let slug = Slug.generate name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (ContributorDetailPage (slug, None)))]
+            | Pages.Graph.Types.NavigateToCollection (_, name) ->
+                let slug = Slug.forCollection name
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
         | None -> model, Cmd.none
 
     // Slug-based entity loading (for URL navigation)

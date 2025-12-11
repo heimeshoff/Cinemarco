@@ -815,12 +815,14 @@ type GraphNode =
     | SeriesNode of EntryId * name: string * posterPath: string option
     | FriendNode of FriendId * name: string
     | ContributorNode of ContributorId * name: string * profilePath: string option
+    | CollectionNode of CollectionId * name: string
 
 /// Type of relationship between nodes
 type EdgeRelationship =
     | WatchedWith
     | WorkedOn of ContributorRole
     | InCollection of CollectionId
+    | BelongsToCollection
 
 /// An edge in the relationship graph
 type GraphEdge = {
@@ -835,15 +837,20 @@ type RelationshipGraph = {
     Edges: GraphEdge list
 }
 
+/// Identifies a node to focus on in the graph
+type FocusedGraphNode =
+    | FocusedMovie of EntryId
+    | FocusedSeries of EntryId
+    | FocusedFriend of FriendId
+    | FocusedContributor of ContributorId
+    | FocusedCollection of CollectionId
+
 /// Filter options for graph
 type GraphFilter = {
-    IncludeMovies: bool
-    IncludeSeries: bool
-    IncludeFriends: bool
-    IncludeContributors: bool
-    IncludeGenres: bool
     MaxNodes: int option
-    WatchStatusFilter: WatchStatus list option
+    SearchQuery: string option
+    /// When set, ignores other filters and shows neighborhood around this node
+    FocusedNode: FocusedGraphNode option
 }
 
 // =====================================

@@ -1050,58 +1050,425 @@ let cinemarcoApi : ICinemarcoApi = {
     graphGetData = fun filter -> async {
         let! entries = Persistence.getAllLibraryEntries()
         let! friends = Persistence.getAllFriends()
+        let! trackedContributors = Persistence.getAllTrackedContributors()
+        let! collections = Persistence.getAllCollections()
 
-        // Apply filter
+        // Helper to create a node key
+        let getEntryKey (entry: LibraryEntry) =
+            match entry.Media with
+            | LibraryMovie _ -> $"movie-{EntryId.value entry.Id}"
+            | LibrarySeries _ -> $"series-{EntryId.value entry.Id}"
+
+        // Helper to create a GraphNode from an entry
+        let entryToNode (entry: LibraryEntry) =
+            match entry.Media with
+            | LibraryMovie m -> MovieNode (entry.Id, m.Title, m.PosterPath)
+            | LibrarySeries s -> SeriesNode (entry.Id, s.Name, s.PosterPath)
+
+        // =====================================================
+        // FOCUSED NODE MODE: Show 2-level neighborhood
+        // =====================================================
+        match filter.FocusedNode with
+        | Some focusedNode ->
+            let mutable nodes : GraphNode list = []
+            let mutable nodeSet = Set.empty<string>
+            let mutable edges : GraphEdge list = []
+
+            // Helper to add a node if not already present
+            let addNode (key: string) (node: GraphNode) =
+                if not (Set.contains key nodeSet) then
+                    nodes <- node :: nodes
+                    nodeSet <- Set.add key nodeSet
+
+            // Helper to add an edge
+            let addEdge (source: GraphNode) (target: GraphNode) (rel: EdgeRelationship) =
+                edges <- { Source = source; Target = target; Relationship = rel } :: edges
+
+            // Find the focused node and add it
+            let focusedKey, focusedGraphNode =
+                match focusedNode with
+                | FocusedMovie entryId ->
+                    let entry = entries |> List.tryFind (fun e -> e.Id = entryId)
+                    match entry with
+                    | Some e ->
+                        let key = $"movie-{EntryId.value entryId}"
+                        key, Some (entryToNode e)
+                    | None -> "", None
+                | FocusedSeries entryId ->
+                    let entry = entries |> List.tryFind (fun e -> e.Id = entryId)
+                    match entry with
+                    | Some e ->
+                        let key = $"series-{EntryId.value entryId}"
+                        key, Some (entryToNode e)
+                    | None -> "", None
+                | FocusedFriend friendId ->
+                    let friend = friends |> List.tryFind (fun f -> f.Id = friendId)
+                    match friend with
+                    | Some f ->
+                        let key = $"friend-{FriendId.value friendId}"
+                        key, Some (FriendNode (f.Id, f.Name))
+                    | None -> "", None
+                | FocusedContributor contributorId ->
+                    let contributor = trackedContributors |> List.tryFind (fun c ->
+                        ContributorId.create (TmdbPersonId.value c.TmdbPersonId) = contributorId)
+                    match contributor with
+                    | Some c ->
+                        let key = $"contributor-{ContributorId.value contributorId}"
+                        key, Some (ContributorNode (contributorId, c.Name, c.ProfilePath))
+                    | None -> "", None
+                | FocusedCollection collectionId ->
+                    let coll = collections |> List.tryFind (fun c -> c.Id = collectionId)
+                    match coll with
+                    | Some c ->
+                        let key = $"collection-{CollectionId.value collectionId}"
+                        key, Some (CollectionNode (c.Id, c.Name))
+                    | None -> "", None
+
+            match focusedGraphNode with
+            | None -> return { Nodes = []; Edges = [] }
+            | Some centerNode ->
+                addNode focusedKey centerNode
+
+                // Level 1: Find all directly connected nodes
+                let mutable level1Nodes : (string * GraphNode) list = []
+
+                // For entries (movies/series), find connected friends, genres, collections, contributors
+                match focusedNode with
+                | FocusedMovie entryId | FocusedSeries entryId ->
+                    let entry = entries |> List.find (fun e -> e.Id = entryId)
+
+                    // Friends who watched with (from watch sessions + direct associations)
+                    let! entryFriends = Persistence.getAllFriendsForEntry entryId
+                    for friendId in entryFriends do
+                        let friend = friends |> List.tryFind (fun f -> f.Id = friendId)
+                        match friend with
+                        | Some f ->
+                            let key = $"friend-{FriendId.value friendId}"
+                            let node = FriendNode (f.Id, f.Name)
+                            addNode key node
+                            level1Nodes <- (key, node) :: level1Nodes
+                            addEdge centerNode node WatchedWith
+                        | None -> ()
+
+                    // Contributors (via filmography)
+                    let entryTmdbId =
+                        match entry.Media with
+                        | LibraryMovie m -> Some (Movie, TmdbMovieId.value m.TmdbId)
+                        | LibrarySeries s -> Some (Series, TmdbSeriesId.value s.TmdbId)
+
+                    match entryTmdbId with
+                    | Some (entryMediaType, tmdbId) ->
+                        for contributor in trackedContributors do
+                            let! filmographyResult = TmdbClient.getPersonFilmography contributor.TmdbPersonId
+                            match filmographyResult with
+                            | Ok filmography ->
+                                let allCredits = filmography.CastCredits @ filmography.CrewCredits
+                                let appearsInEntry = allCredits |> List.exists (fun c -> c.MediaType = entryMediaType && c.TmdbId = tmdbId)
+                                if appearsInEntry then
+                                    let cId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
+                                    let key = $"contributor-{ContributorId.value cId}"
+                                    let node = ContributorNode (cId, contributor.Name, contributor.ProfilePath)
+                                    addNode key node
+                                    level1Nodes <- (key, node) :: level1Nodes
+                                    addEdge centerNode node (WorkedOn (Actor None))
+                            | Error _ -> ()
+                    | None -> ()
+
+                    // Collections containing this entry
+                    for coll in collections do
+                        let! items = Persistence.getCollectionItems coll.Id
+                        let containsEntry = items |> List.exists (fun item ->
+                            match item.ItemRef with
+                            | LibraryEntryRef eId -> eId = entryId
+                            | _ -> false)
+                        if containsEntry then
+                            let key = $"collection-{CollectionId.value coll.Id}"
+                            let node = CollectionNode (coll.Id, coll.Name)
+                            addNode key node
+                            level1Nodes <- (key, node) :: level1Nodes
+                            addEdge (CollectionNode (coll.Id, coll.Name)) centerNode BelongsToCollection
+
+                | FocusedFriend friendId ->
+                    // Find all entries watched with this friend (from watch sessions + direct)
+                    for entry in entries do
+                        let! entryFriends = Persistence.getAllFriendsForEntry entry.Id
+                        if List.contains friendId entryFriends then
+                            let key = getEntryKey entry
+                            let node = entryToNode entry
+                            addNode key node
+                            level1Nodes <- (key, node) :: level1Nodes
+                            addEdge node centerNode WatchedWith
+
+                | FocusedContributor contributorId ->
+                    // Find all entries this contributor appears in
+                    let contributor = trackedContributors |> List.tryFind (fun c ->
+                        ContributorId.create (TmdbPersonId.value c.TmdbPersonId) = contributorId)
+                    match contributor with
+                    | Some c ->
+                        let! filmographyResult = TmdbClient.getPersonFilmography c.TmdbPersonId
+                        match filmographyResult with
+                        | Ok filmography ->
+                            let allCredits = filmography.CastCredits @ filmography.CrewCredits
+                            for entry in entries do
+                                let entryTmdbId =
+                                    match entry.Media with
+                                    | LibraryMovie m -> Some (Movie, TmdbMovieId.value m.TmdbId)
+                                    | LibrarySeries s -> Some (Series, TmdbSeriesId.value s.TmdbId)
+                                match entryTmdbId with
+                                | Some (mediaType, tmdbId) ->
+                                    if allCredits |> List.exists (fun credit -> credit.MediaType = mediaType && credit.TmdbId = tmdbId) then
+                                        let key = getEntryKey entry
+                                        let node = entryToNode entry
+                                        addNode key node
+                                        level1Nodes <- (key, node) :: level1Nodes
+                                        addEdge node centerNode (WorkedOn (Actor None))
+                                | None -> ()
+                        | Error _ -> ()
+                    | None -> ()
+
+                | FocusedCollection collectionId ->
+                    // Find all entries in this collection
+                    let! items = Persistence.getCollectionItems collectionId
+                    for item in items do
+                        match item.ItemRef with
+                        | LibraryEntryRef entryId ->
+                            let entry = entries |> List.tryFind (fun e -> e.Id = entryId)
+                            match entry with
+                            | Some e ->
+                                let key = getEntryKey e
+                                let node = entryToNode e
+                                addNode key node
+                                level1Nodes <- (key, node) :: level1Nodes
+                                addEdge centerNode node BelongsToCollection
+                            | None -> ()
+                        | _ -> ()
+
+                // =====================================================
+                // Level 2: Find connections of level 1 nodes
+                // =====================================================
+                // Copy level1Nodes to iterate over (since it was built during level 1)
+                let level1NodesCopy = level1Nodes |> List.toArray
+
+                for (_, level1Node) in level1NodesCopy do
+                    match level1Node with
+                    | MovieNode (l1EntryId, _, _) | SeriesNode (l1EntryId, _, _) ->
+                        let entryOpt = entries |> List.tryFind (fun e -> e.Id = l1EntryId)
+                        match entryOpt with
+                        | Some l1Entry ->
+                            // Friends connected to this level 1 entry (from watch sessions + direct)
+                            let! l1Friends = Persistence.getAllFriendsForEntry l1EntryId
+                            for fId in l1Friends do
+                                match friends |> List.tryFind (fun f -> f.Id = fId) with
+                                | Some f ->
+                                    let friendKey = $"friend-{FriendId.value fId}"
+                                    let friendNode = FriendNode (f.Id, f.Name)
+                                    addNode friendKey friendNode
+                                    addEdge level1Node friendNode WatchedWith
+                                | None -> ()
+
+                            // Collections containing this level 1 entry
+                            for coll in collections do
+                                let! collItems = Persistence.getCollectionItems coll.Id
+                                let hasEntry = collItems |> List.exists (fun item ->
+                                    match item.ItemRef with
+                                    | LibraryEntryRef eId -> eId = l1EntryId
+                                    | _ -> false)
+                                if hasEntry then
+                                    let collKey = $"collection-{CollectionId.value coll.Id}"
+                                    let collNode = CollectionNode (coll.Id, coll.Name)
+                                    addNode collKey collNode
+                                    addEdge collNode level1Node BelongsToCollection
+
+                            // Contributors in this level 1 entry (via filmography)
+                            let l1TmdbId =
+                                match l1Entry.Media with
+                                | LibraryMovie m -> Some (Movie, TmdbMovieId.value m.TmdbId)
+                                | LibrarySeries s -> Some (Series, TmdbSeriesId.value s.TmdbId)
+
+                            match l1TmdbId with
+                            | Some (l1MediaType, l1Tmdb) ->
+                                for contrib in trackedContributors do
+                                    let! filmResult = TmdbClient.getPersonFilmography contrib.TmdbPersonId
+                                    match filmResult with
+                                    | Ok filmography ->
+                                        let allWorks = filmography.CastCredits @ filmography.CrewCredits
+                                        if allWorks |> List.exists (fun w -> w.MediaType = l1MediaType && w.TmdbId = l1Tmdb) then
+                                            let cId = ContributorId.create (TmdbPersonId.value contrib.TmdbPersonId)
+                                            let contribKey = $"contributor-{ContributorId.value cId}"
+                                            let contribNode = ContributorNode (cId, contrib.Name, contrib.ProfilePath)
+                                            addNode contribKey contribNode
+                                            addEdge level1Node contribNode (WorkedOn (Actor None))
+                                    | Error _ -> ()
+                            | None -> ()
+                        | None -> ()
+
+                    | FriendNode (l1FriendId, friendName) ->
+                        // Find all entries watched with this level 1 friend (from watch sessions + direct)
+                        for entry in entries do
+                            let! watchedWith = Persistence.getAllFriendsForEntry entry.Id
+                            // Check if this friend watched this entry
+                            let friendWatched = watchedWith |> List.exists (fun fid -> FriendId.value fid = FriendId.value l1FriendId)
+                            if friendWatched then
+                                let entryKey = getEntryKey entry
+                                let entryNode = entryToNode entry
+                                addNode entryKey entryNode
+                                // Create edge: entry was watched with this friend
+                                addEdge entryNode (FriendNode (l1FriendId, friendName)) WatchedWith
+
+                    | ContributorNode (l1ContribId, contribName, contribProfile) ->
+                        // Find all entries this level 1 contributor appears in
+                        let contribOpt = trackedContributors |> List.tryFind (fun c ->
+                            ContributorId.create (TmdbPersonId.value c.TmdbPersonId) = l1ContribId)
+                        match contribOpt with
+                        | Some contrib ->
+                            let! filmResult = TmdbClient.getPersonFilmography contrib.TmdbPersonId
+                            match filmResult with
+                            | Ok filmography ->
+                                let allWorks = filmography.CastCredits @ filmography.CrewCredits
+                                for entry in entries do
+                                    let entryTmdb =
+                                        match entry.Media with
+                                        | LibraryMovie m -> Some (Movie, TmdbMovieId.value m.TmdbId)
+                                        | LibrarySeries s -> Some (Series, TmdbSeriesId.value s.TmdbId)
+                                    match entryTmdb with
+                                    | Some (mType, tId) ->
+                                        if allWorks |> List.exists (fun w -> w.MediaType = mType && w.TmdbId = tId) then
+                                            let entryKey = getEntryKey entry
+                                            let entryNode = entryToNode entry
+                                            addNode entryKey entryNode
+                                            addEdge entryNode (ContributorNode (l1ContribId, contribName, contribProfile)) (WorkedOn (Actor None))
+                                    | None -> ()
+                            | Error _ -> ()
+                        | None -> ()
+
+                    | CollectionNode (l1CollId, collName) ->
+                        // Find all entries in this level 1 collection
+                        let! collItems = Persistence.getCollectionItems l1CollId
+                        for item in collItems do
+                            match item.ItemRef with
+                            | LibraryEntryRef eId ->
+                                match entries |> List.tryFind (fun e -> e.Id = eId) with
+                                | Some entry ->
+                                    let entryKey = getEntryKey entry
+                                    let entryNode = entryToNode entry
+                                    addNode entryKey entryNode
+                                    addEdge (CollectionNode (l1CollId, collName)) entryNode BelongsToCollection
+                                | None -> ()
+                            | _ -> ()
+
+                return { Nodes = nodes; Edges = edges }
+
+        // =====================================================
+        // NORMAL MODE (no focused node)
+        // =====================================================
+        | None ->
+
+        // Apply node limits - separate limits for different node types
         let maxNodes = filter.MaxNodes |> Option.defaultValue 100
+        let isSearching = filter.SearchQuery.IsSome && not (System.String.IsNullOrWhiteSpace(filter.SearchQuery.Value))
+
+        // Search filter helper
+        let matchesSearch (name: string) =
+            match filter.SearchQuery with
+            | None -> false  // When not searching, matchesSearch returns false (we use explicit checks)
+            | Some query when System.String.IsNullOrWhiteSpace(query) -> false
+            | Some query ->
+                let q = query.ToLowerInvariant()
+                name.ToLowerInvariant().Contains(q)
 
         // Build nodes
         let mutable nodes : GraphNode list = []
         let mutable nodeSet = Set.empty<string>  // Track node IDs to avoid duplicates
+        let mutable nodeCount = 0
 
-        // Add movie/series nodes
-        if filter.IncludeMovies || filter.IncludeSeries then
+        if isSearching then
+            // =====================================================
+            // SEARCH MODE: Show all matching entities
+            // =====================================================
+
+            // Add matching movie/series nodes
             for entry in entries do
-                // Check watch status filter if specified
-                let passesStatusFilter =
-                    match filter.WatchStatusFilter with
-                    | None -> true
-                    | Some statuses -> statuses |> List.exists (fun s ->
-                        match s, entry.WatchStatus with
-                        | NotStarted, NotStarted -> true
-                        | InProgress _, InProgress _ -> true
-                        | Completed, Completed -> true
-                        | Abandoned _, Abandoned _ -> true
-                        | _ -> false)
-
-                if passesStatusFilter && List.length nodes < maxNodes then
+                if nodeCount < maxNodes then
                     match entry.Media with
-                    | LibraryMovie m when filter.IncludeMovies ->
+                    | LibraryMovie m when matchesSearch m.Title ->
                         let nodeKey = $"movie-{EntryId.value entry.Id}"
                         if not (Set.contains nodeKey nodeSet) then
                             nodes <- MovieNode (entry.Id, m.Title, m.PosterPath) :: nodes
                             nodeSet <- Set.add nodeKey nodeSet
-                    | LibrarySeries s when filter.IncludeSeries ->
+                            nodeCount <- nodeCount + 1
+                    | LibrarySeries s when matchesSearch s.Name ->
                         let nodeKey = $"series-{EntryId.value entry.Id}"
                         if not (Set.contains nodeKey nodeSet) then
                             nodes <- SeriesNode (entry.Id, s.Name, s.PosterPath) :: nodes
                             nodeSet <- Set.add nodeKey nodeSet
+                            nodeCount <- nodeCount + 1
                     | _ -> ()
 
-        // Add friend nodes
-        if filter.IncludeFriends then
+            // Add matching friend nodes
             for friend in friends do
-                if List.length nodes < maxNodes then
+                if nodeCount < maxNodes && matchesSearch friend.Name then
                     let nodeKey = $"friend-{FriendId.value friend.Id}"
                     if not (Set.contains nodeKey nodeSet) then
                         nodes <- FriendNode (friend.Id, friend.Name) :: nodes
                         nodeSet <- Set.add nodeKey nodeSet
+                        nodeCount <- nodeCount + 1
+
+            // Add matching tracked contributor nodes
+            for contributor in trackedContributors do
+                if nodeCount < maxNodes && matchesSearch contributor.Name then
+                    let nodeKey = $"contributor-{TrackedContributorId.value contributor.Id}"
+                    if not (Set.contains nodeKey nodeSet) then
+                        let contributorId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
+                        nodes <- ContributorNode (contributorId, contributor.Name, contributor.ProfilePath) :: nodes
+                        nodeSet <- Set.add nodeKey nodeSet
+                        nodeCount <- nodeCount + 1
+
+            // Add matching collection nodes
+            for collection in collections do
+                if nodeCount < maxNodes && matchesSearch collection.Name then
+                    let nodeKey = $"collection-{CollectionId.value collection.Id}"
+                    if not (Set.contains nodeKey nodeSet) then
+                        nodes <- CollectionNode (collection.Id, collection.Name) :: nodes
+                        nodeSet <- Set.add nodeKey nodeSet
+                        nodeCount <- nodeCount + 1
+
+        else
+            // =====================================================
+            // DEFAULT MODE: Only show collections, movies, and series
+            // =====================================================
+
+            // Add collection nodes first (they're usually fewer)
+            for collection in collections do
+                if nodeCount < maxNodes then
+                    let nodeKey = $"collection-{CollectionId.value collection.Id}"
+                    if not (Set.contains nodeKey nodeSet) then
+                        nodes <- CollectionNode (collection.Id, collection.Name) :: nodes
+                        nodeSet <- Set.add nodeKey nodeSet
+                        nodeCount <- nodeCount + 1
+
+            // Add movie/series nodes
+            for entry in entries do
+                if nodeCount < maxNodes then
+                    match entry.Media with
+                    | LibraryMovie m ->
+                        let nodeKey = $"movie-{EntryId.value entry.Id}"
+                        if not (Set.contains nodeKey nodeSet) then
+                            nodes <- MovieNode (entry.Id, m.Title, m.PosterPath) :: nodes
+                            nodeSet <- Set.add nodeKey nodeSet
+                            nodeCount <- nodeCount + 1
+                    | LibrarySeries s ->
+                        let nodeKey = $"series-{EntryId.value entry.Id}"
+                        if not (Set.contains nodeKey nodeSet) then
+                            nodes <- SeriesNode (entry.Id, s.Name, s.PosterPath) :: nodes
+                            nodeSet <- Set.add nodeKey nodeSet
+                            nodeCount <- nodeCount + 1
 
         // Build edges (relationships)
         let mutable edges : GraphEdge list = []
 
-        // Get friends associated with each entry
+        // Get friends associated with each entry (from watch sessions + direct)
         for entry in entries do
-            let! entryFriends = Persistence.getFriendsForEntry entry.Id
+            let! entryFriends = Persistence.getAllFriendsForEntry entry.Id
             let sourceNode =
                 match entry.Media with
                 | LibraryMovie m -> Some (MovieNode (entry.Id, m.Title, m.PosterPath))
@@ -1109,7 +1476,7 @@ let cinemarcoApi : ICinemarcoApi = {
 
             match sourceNode with
             | Some source ->
-                // Only create edges if the source node exists in our filtered set
+                // Only create edges if the source node exists in our set
                 let sourceKey =
                     match entry.Media with
                     | LibraryMovie _ -> $"movie-{EntryId.value entry.Id}"
@@ -1131,6 +1498,81 @@ let cinemarcoApi : ICinemarcoApi = {
                                 edges <- edge :: edges
                             | None -> ()
             | None -> ()
+
+        // Add edges from collections to their entries
+        for collection in collections do
+            let collectionKey = $"collection-{CollectionId.value collection.Id}"
+            if Set.contains collectionKey nodeSet then
+                let! items = Persistence.getCollectionItems collection.Id
+                for item in items do
+                    match item.ItemRef with
+                    | LibraryEntryRef entryId ->
+                        // Check if the entry is in our node set
+                        let entry = entries |> List.tryFind (fun e -> e.Id = entryId)
+                        match entry with
+                        | Some e ->
+                            let entryKey =
+                                match e.Media with
+                                | LibraryMovie _ -> $"movie-{EntryId.value entryId}"
+                                | LibrarySeries _ -> $"series-{EntryId.value entryId}"
+                            if Set.contains entryKey nodeSet then
+                                let targetNode =
+                                    match e.Media with
+                                    | LibraryMovie m -> MovieNode (entryId, m.Title, m.PosterPath)
+                                    | LibrarySeries s -> SeriesNode (entryId, s.Name, s.PosterPath)
+                                let edge = {
+                                    Source = CollectionNode (collection.Id, collection.Name)
+                                    Target = targetNode
+                                    Relationship = BelongsToCollection
+                                }
+                                edges <- edge :: edges
+                        | None -> ()
+                    | _ -> ()  // Skip season/episode refs for now
+
+        // Add edges from tracked contributors to entries they appear in
+        if trackedContributors.Length > 0 then
+            for entry in entries do
+                let entryKey =
+                    match entry.Media with
+                    | LibraryMovie _ -> $"movie-{EntryId.value entry.Id}"
+                    | LibrarySeries _ -> $"series-{EntryId.value entry.Id}"
+
+                if Set.contains entryKey nodeSet then
+                    let entryTmdbId =
+                        match entry.Media with
+                        | LibraryMovie m -> Some (Movie, TmdbMovieId.value m.TmdbId)
+                        | LibrarySeries s -> Some (Series, TmdbSeriesId.value s.TmdbId)
+
+                    match entryTmdbId with
+                    | Some (entryMediaType, entryId) ->
+                        // Check each tracked contributor's filmography
+                        for contributor in trackedContributors do
+                            let contributorKey = $"contributor-{TrackedContributorId.value contributor.Id}"
+                            if Set.contains contributorKey nodeSet then
+                                // Check if this contributor appears in this entry's credits
+                                let! filmographyResult = TmdbClient.getPersonFilmography contributor.TmdbPersonId
+                                match filmographyResult with
+                                | Ok filmography ->
+                                    let allCredits = filmography.CastCredits @ filmography.CrewCredits
+                                    let appearsInEntry =
+                                        allCredits
+                                        |> List.exists (fun credit ->
+                                            credit.MediaType = entryMediaType && credit.TmdbId = entryId)
+
+                                    if appearsInEntry then
+                                        let sourceNode =
+                                            match entry.Media with
+                                            | LibraryMovie m -> MovieNode (entry.Id, m.Title, m.PosterPath)
+                                            | LibrarySeries s -> SeriesNode (entry.Id, s.Name, s.PosterPath)
+                                        let contributorId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
+                                        let edge = {
+                                            Source = sourceNode
+                                            Target = ContributorNode (contributorId, contributor.Name, contributor.ProfilePath)
+                                            Relationship = WorkedOn (Actor None)  // Default to Actor role without character info
+                                        }
+                                        edges <- edge :: edges
+                                | Error _ -> ()  // Skip if filmography fetch fails
+                    | None -> ()
 
         return {
             Nodes = nodes

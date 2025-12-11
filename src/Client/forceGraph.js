@@ -16,7 +16,8 @@ const nodeColors = {
     movie: '#c9a227',      // Gold/amber - matches the app's accent
     series: '#9333ea',     // Purple
     friend: '#22c55e',     // Green
-    contributor: '#3b82f6' // Blue
+    contributor: '#0ea5e9', // Sky blue
+    collection: '#f43f5e'  // Rose
 };
 
 // Node sizes by type
@@ -24,16 +25,18 @@ const nodeSizes = {
     movie: 30,
     series: 30,
     friend: 24,
-    contributor: 24
+    contributor: 24,
+    collection: 26
 };
 
 /**
  * Initialize the force-directed graph
  * @param {string} containerId - The ID of the container element
  * @param {Object} graphData - The graph data with nodes and edges
- * @param {Function} onNodeSelect - Callback when a node is selected
+ * @param {Function} onNodeSelect - Callback when a node is selected (single click)
+ * @param {Function} onNodeFocus - Callback when a node is focused (double click)
  */
-export function initializeGraph(containerId, graphData, onNodeSelect) {
+export function initializeGraph(containerId, graphData, onNodeSelect, onNodeFocus) {
     console.log("initializeGraph called with:", { containerId, graphData, onNodeSelect });
     const containerEl = document.getElementById(containerId);
     if (!containerEl) return;
@@ -103,10 +106,16 @@ export function initializeGraph(containerId, graphData, onNodeSelect) {
             if (onNodeSelect) {
                 onNodeSelect(d);
             }
+        })
+        .on('dblclick', (event, d) => {
+            event.stopPropagation();
+            if (onNodeFocus) {
+                onNodeFocus(d);
+            }
         });
 
-    // Add circles for friend/contributor nodes
-    node.filter(d => d.type === 'friend' || d.type === 'contributor')
+    // Add circles for circular nodes (friend, contributor, collection)
+    node.filter(d => d.type === 'friend' || d.type === 'contributor' || d.type === 'collection')
         .append('circle')
         .attr('r', d => nodeSizes[d.type])
         .attr('fill', d => `url(#gradient-${d.type})`)
@@ -114,8 +123,8 @@ export function initializeGraph(containerId, graphData, onNodeSelect) {
         .attr('stroke-width', 2)
         .attr('class', 'node-circle');
 
-    // Add text for friend/contributor nodes
-    node.filter(d => d.type === 'friend' || d.type === 'contributor')
+    // Add text for circular nodes
+    node.filter(d => d.type === 'friend' || d.type === 'contributor' || d.type === 'collection')
         .append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', '0.35em')
@@ -240,6 +249,14 @@ function transformNodes(apiNodes) {
                 contributorId: contributorId.Fields[0],
                 name: name,
                 profilePath: profilePath
+            };
+        } else if (node.Case === 'CollectionNode') {
+            const [collectionId, name] = node.Fields;
+            return {
+                id: `collection-${collectionId.Fields[0]}`,
+                type: 'collection',
+                collectionId: collectionId.Fields[0],
+                name: name
             };
         }
         return null;

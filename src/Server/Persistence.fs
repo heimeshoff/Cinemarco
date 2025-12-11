@@ -968,6 +968,39 @@ let getFriendsForEntry (EntryId entryId) : Async<FriendId list> = async {
     return ids |> Seq.map FriendId |> Seq.toList
 }
 
+/// Get all friends who watched an entry via watch sessions (movies + series)
+/// This is the primary way friends are associated in Cinemarco
+let getFriendsFromWatchSessions (EntryId entryId) : Async<FriendId list> = async {
+    use conn = getConnection()
+    let! ids =
+        conn.QueryAsync<int>(
+            """
+            SELECT DISTINCT friend_id FROM (
+                -- Movie watch session friend associations
+                SELECT msf.friend_id
+                FROM movie_watch_sessions mws
+                INNER JOIN movie_session_friends msf ON mws.id = msf.session_id
+                WHERE mws.entry_id = @EntryId
+                UNION
+                -- Series watch session friend associations
+                SELECT sf.friend_id
+                FROM watch_sessions ws
+                INNER JOIN session_friends sf ON ws.id = sf.session_id
+                WHERE ws.entry_id = @EntryId
+            )
+            """,
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+    return ids |> Seq.map FriendId |> Seq.toList
+}
+
+/// Get all friends for an entry (combines entry_friends + watch session friends)
+let getAllFriendsForEntry (entryId: EntryId) : Async<FriendId list> = async {
+    let! directFriends = getFriendsForEntry entryId
+    let! sessionFriends = getFriendsFromWatchSessions entryId
+    return (directFriends @ sessionFriends) |> List.distinct
+}
+
 let addFriendToEntry (EntryId entryId) (FriendId friendId) : Async<unit> = async {
     use conn = getConnection()
     do! conn.ExecuteAsync("""
