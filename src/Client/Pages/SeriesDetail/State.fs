@@ -445,5 +445,8 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
     | ViewCollectionDetail (collectionId, name) ->
         model, Cmd.none, NavigateToCollectionDetail (collectionId, name)
 
+    | ViewInGraph ->
+        model, Cmd.none, NavigateToGraphWithFocus model.EntryId
+
     | GoBack ->
         model, Cmd.none, NavigateBack

@@ -59,6 +59,8 @@ type Msg =
     // Inline logo editing
     | LogoSelected of string  // Base64 encoded image
     | LogoSaved of Result<Collection, string>
+    // Graph navigation
+    | ViewInGraph
 
 type ExternalMsg =
     | NoOp
@@ -66,6 +68,7 @@ type ExternalMsg =
     | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
     | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
     | NavigateToSeriesByName of seriesName: string * firstAirDate: DateTime option
+    | NavigateToGraphWithFocus of CollectionId
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

@@ -200,3 +200,8 @@ let update (api: ContributorApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * 
 
     | UntrackContributorResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
+
+    | ViewInGraph ->
+        // Use TmdbPersonId value as ContributorId for graph navigation
+        let contributorId = ContributorId (TmdbPersonId.value model.TmdbPersonId)
+        model, Cmd.none, NavigateToGraphWithFocus contributorId

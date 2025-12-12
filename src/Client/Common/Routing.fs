@@ -25,7 +25,7 @@ type Page =
     | StatsPage
     | YearInReviewPage of year: int option * viewMode: YearInReviewViewMode  // Optional year, defaults to current year
     | TimelinePage
-    | GraphPage
+    | GraphPage of focus: FocusedGraphNode option
     | ImportPage
     | CachePage
     | NotFoundPage
@@ -62,7 +62,14 @@ module Page =
         | YearInReviewPage (Some year, SeriesOnly) -> $"/year-in-review/{year}/series"
         | YearInReviewPage (None, _) -> "/year-in-review"
         | TimelinePage -> "/timeline"
-        | GraphPage -> "/graph"
+        | GraphPage None -> "/graph"
+        | GraphPage (Some focus) ->
+            match focus with
+            | FocusedMovie (EntryId id) -> $"/graph/movie/{id}"
+            | FocusedSeries (EntryId id) -> $"/graph/series/{id}"
+            | FocusedFriend (FriendId id) -> $"/graph/friend/{id}"
+            | FocusedContributor (ContributorId id) -> $"/graph/contributor/{id}"
+            | FocusedCollection (CollectionId id) -> $"/graph/collection/{id}"
         | ImportPage -> "/import"
         | CachePage -> "/cache"
         | NotFoundPage -> "/404"
@@ -104,7 +111,27 @@ module Page =
             | true, year -> YearInReviewPage (Some year, SeriesOnly)
             | _ -> NotFoundPage
         | ["timeline"] -> TimelinePage
-        | ["graph"] -> GraphPage
+        | ["graph"] -> GraphPage None
+        | ["graph"; "movie"; idStr] ->
+            match Int32.TryParse idStr with
+            | true, id -> GraphPage (Some (FocusedMovie (EntryId id)))
+            | _ -> NotFoundPage
+        | ["graph"; "series"; idStr] ->
+            match Int32.TryParse idStr with
+            | true, id -> GraphPage (Some (FocusedSeries (EntryId id)))
+            | _ -> NotFoundPage
+        | ["graph"; "friend"; idStr] ->
+            match Int32.TryParse idStr with
+            | true, id -> GraphPage (Some (FocusedFriend (FriendId id)))
+            | _ -> NotFoundPage
+        | ["graph"; "contributor"; idStr] ->
+            match Int32.TryParse idStr with
+            | true, id -> GraphPage (Some (FocusedContributor (ContributorId id)))
+            | _ -> NotFoundPage
+        | ["graph"; "collection"; idStr] ->
+            match Int32.TryParse idStr with
+            | true, id -> GraphPage (Some (FocusedCollection (CollectionId id)))
+            | _ -> NotFoundPage
         | ["import"] -> ImportPage
         | ["cache"] -> CachePage
         | ["404"] -> NotFoundPage
@@ -125,7 +152,7 @@ module Page =
         | StatsPage -> "Stats"
         | YearInReviewPage _ -> "Year in Review"
         | TimelinePage -> "Timeline"
-        | GraphPage -> "Graph"
+        | GraphPage _ -> "Graph"
         | ImportPage -> "Import"
         | CachePage -> "Cache"
         | NotFoundPage -> "Not Found"

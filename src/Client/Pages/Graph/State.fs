@@ -23,6 +23,43 @@ let private debounce (delayMs: int) (msg: Msg) : Cmd<Msg> =
 let init () : Model * Cmd<Msg> =
     Model.empty, Cmd.ofMsg LoadGraph
 
+/// Initialize graph with optional focus on a specific node
+let initWithFocus (focus: FocusedGraphNode option) : Model * Cmd<Msg> =
+    match focus with
+    | None ->
+        Model.empty, Cmd.ofMsg LoadGraph
+    | Some focusedNode ->
+        // Create filter with focused node
+        let focusFilter = { Model.defaultFilter with FocusedNode = Some focusedNode }
+        // Create the corresponding SelectedNode for display
+        let selectedNode =
+            match focusedNode with
+            | FocusedMovie entryId ->
+                SelectedMovie (entryId, "", None)  // Name will be populated when graph loads
+            | FocusedSeries entryId ->
+                SelectedSeries (entryId, "", None)
+            | FocusedFriend friendId ->
+                SelectedFriend (friendId, "", None)
+            | FocusedContributor contributorId ->
+                SelectedContributor (contributorId, "", None, None)
+            | FocusedCollection collectionId ->
+                SelectedCollection (collectionId, "", None)
+        // Calculate focusedNodeId for centering
+        let focusedNodeId =
+            match focusedNode with
+            | FocusedMovie (EntryId id) -> Some $"movie-{id}"
+            | FocusedSeries (EntryId id) -> Some $"series-{id}"
+            | FocusedFriend (FriendId id) -> Some $"friend-{id}"
+            | FocusedContributor (ContributorId id) -> Some $"contributor-{id}"
+            | FocusedCollection (CollectionId id) -> Some $"collection-{id}"
+        let model = {
+            Model.empty with
+                Filter = focusFilter
+                SelectedNode = selectedNode
+                FocusedNodeId = focusedNodeId
+        }
+        model, Cmd.ofMsg LoadGraph
+
 let update (api: GraphApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadGraph ->

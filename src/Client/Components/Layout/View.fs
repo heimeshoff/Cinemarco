@@ -23,7 +23,7 @@ let private getPageIcon (page: Page) =
     | StatsPage -> stats
     | YearInReviewPage _ -> sparkles
     | TimelinePage -> timeline
-    | GraphPage -> graph
+    | GraphPage _ -> graph
     | ImportPage -> import
     | CachePage -> cache
     | NotFoundPage -> warning
@@ -45,7 +45,7 @@ let private getIconColor (page: Page) =
     | StatsPage -> "text-nav-stats"         // Orange - metrics
     | YearInReviewPage _ -> "text-amber-400" // Amber - celebration/year
     | TimelinePage -> "text-nav-timeline"   // Sky - time
-    | GraphPage -> "text-nav-graph"         // Violet - connections
+    | GraphPage _ -> "text-nav-graph"         // Violet - connections
     | ImportPage -> "text-nav-import"       // Lime - fresh data
     | CachePage -> "text-nav-cache"         // Slate - system
     | NotFoundPage -> "text-error"
@@ -148,7 +148,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             navItem StatsPage currentPage onNavigate
                             navItem (YearInReviewPage (None, YearInReviewViewMode.Overview)) currentPage onNavigate
                             navItem TimelinePage currentPage onNavigate
-                            navItem GraphPage currentPage onNavigate
+                            navItem (GraphPage None) currentPage onNavigate
 
                             // Divider
                             Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
@@ -348,7 +348,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
                                         Html.li [ prop.className "my-3 border-t border-base-300" ]
 
                                         // Secondary navigation
-                                        for page in [ StatsPage; YearInReviewPage (None, YearInReviewViewMode.Overview); TimelinePage; GraphPage ] do
+                                        for page in [ StatsPage; YearInReviewPage (None, YearInReviewViewMode.Overview); TimelinePage; GraphPage None ] do
                                             let iconColor = getIconColor page
                                             Html.li [
                                                 Html.button [

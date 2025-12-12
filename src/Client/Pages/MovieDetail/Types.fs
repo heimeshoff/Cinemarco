@@ -72,6 +72,7 @@ type Msg =
     | ViewFriendDetail of friendId: FriendId * name: string
     | ViewCollectionDetail of collectionId: CollectionId * name: string
     | EditWatchSession of MovieWatchSession
+    | ViewInGraph
     | GoBack
 
 type ExternalMsg =
@@ -85,6 +86,7 @@ type ExternalMsg =
     | RequestOpenMovieWatchSessionModal of EntryId
     | RequestEditMovieWatchSession of MovieWatchSession
     | NavigateToCollectionDetail of collectionId: CollectionId * name: string
+    | NavigateToGraphWithFocus of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry
     | FriendCreatedInline of Friend

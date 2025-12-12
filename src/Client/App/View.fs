@@ -119,7 +119,7 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
-    | GraphPage ->
+    | GraphPage _ ->
         match model.GraphPage with
         | Some pageModel ->
             Pages.Graph.View.view pageModel (GraphMsg >> dispatch)

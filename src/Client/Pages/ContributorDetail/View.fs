@@ -386,7 +386,7 @@ let private personHeader (details: TmdbPersonDetails) (filmography: TmdbFilmogra
             Html.div [
                 prop.className "flex-1 space-y-4"
                 prop.children [
-                    // Name and track button row
+                    // Name and action buttons row
                     Html.div [
                         prop.className "flex items-start justify-between gap-4"
                         prop.children [
@@ -395,11 +395,19 @@ let private personHeader (details: TmdbPersonDetails) (filmography: TmdbFilmogra
                                 prop.text details.Name
                             ]
 
-                            // Track/Untrack button
-                            if model.IsTracked then
-                                GlassButton.primaryActive heart "Tracking" (fun () -> dispatch UntrackContributor)
-                            else
-                                GlassButton.button heart "Track" (fun () -> dispatch TrackContributor)
+                            Html.div [
+                                prop.className "flex items-center gap-2"
+                                prop.children [
+                                    // View in Graph button
+                                    GlassButton.button graph "View in Graph" (fun () -> dispatch ViewInGraph)
+
+                                    // Track/Untrack button
+                                    if model.IsTracked then
+                                        GlassButton.primaryActive heart "Tracking" (fun () -> dispatch UntrackContributor)
+                                    else
+                                        GlassButton.button heart "Track" (fun () -> dispatch TrackContributor)
+                                ]
+                            ]
                         ]
                     ]
 

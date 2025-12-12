@@ -525,6 +525,20 @@ let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (isFinis
                             ]
                         ]
                     ]
+            // View in Graph button
+            Html.div [
+                prop.className "tooltip tooltip-bottom detail-tooltip"
+                prop.custom ("data-tip", "View in Graph")
+                prop.children [
+                    Html.button [
+                        prop.className "detail-action-btn"
+                        prop.onClick (fun _ -> dispatch ViewInGraph)
+                        prop.children [
+                            Html.span [ prop.className "w-5 h-5"; prop.children [ graph ] ]
+                        ]
+                    ]
+                ]
+            ]
             // Delete button
             Html.div [
                 prop.className "tooltip tooltip-bottom detail-tooltip"

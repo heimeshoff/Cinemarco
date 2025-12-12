@@ -54,12 +54,14 @@ type Msg =
     | TrackContributorResult of Result<TrackedContributor, string>
     | UntrackContributor
     | UntrackContributorResult of Result<unit, string>
+    | ViewInGraph
 
 type ExternalMsg =
     | NoOp
     | NavigateBack
     | NavigateToMovieDetail of entryId: EntryId * title: string * releaseDate: DateTime option
     | NavigateToSeriesDetail of entryId: EntryId * name: string * firstAirDate: DateTime option
+    | NavigateToGraphWithFocus of ContributorId
     | ShowNotification of message: string * isSuccess: bool
 
 module Model =

@@ -358,5 +358,8 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | EditWatchSession session ->
         model, Cmd.none, RequestEditMovieWatchSession session
 
+    | ViewInGraph ->
+        model, Cmd.none, NavigateToGraphWithFocus model.EntryId
+
     | GoBack ->
         model, Cmd.none, NavigateBack

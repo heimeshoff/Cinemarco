@@ -73,6 +73,7 @@ type Msg =
     | ViewContributor of personId: TmdbPersonId * name: string
     | ViewFriendDetail of friendId: FriendId * name: string
     | ViewCollectionDetail of collectionId: CollectionId * name: string
+    | ViewInGraph
     | GoBack
 
 type ExternalMsg =
@@ -83,6 +84,7 @@ type ExternalMsg =
     | RequestOpenDeleteModal of EntryId
     | RequestOpenAddToCollectionModal of CollectionItemRef * title: string
     | NavigateToCollectionDetail of collectionId: CollectionId * name: string
+    | NavigateToGraphWithFocus of EntryId
     | RequestOpenNewSessionModal of EntryId
     | ShowNotification of message: string * isSuccess: bool
     | EntryUpdated of LibraryEntry

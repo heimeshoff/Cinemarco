@@ -259,3 +259,7 @@ let update (api: CollectionApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
 
     | LogoSaved (Error err) ->
         { model with UploadingLogo = false }, Cmd.none, ShowNotification (err, false)
+
+    // Graph navigation
+    | ViewInGraph ->
+        model, Cmd.none, NavigateToGraphWithFocus model.CollectionId

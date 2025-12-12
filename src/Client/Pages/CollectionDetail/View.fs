@@ -6,6 +6,7 @@ open Browser.Types
 open Common.Types
 open Shared.Domain
 open Types
+open Components.Icons
 
 let private handleFileSelect (dispatch: Msg -> unit) (e: Event) =
     let input = e.target :?> HTMLInputElement
@@ -268,7 +269,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "space-y-6"
                     prop.children [
-                        // Header with logo and name
+                        // Header with logo, name, and actions
                         Html.div [
                             prop.className "flex items-start gap-4"
                             prop.children [
@@ -437,6 +438,27 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                     prop.onClick (fun _ -> dispatch StartEditNote)
                                                     prop.text "+ Add note"
                                                 ]
+                                    ]
+                                ]
+
+                                // Action buttons
+                                Html.div [
+                                    prop.className "flex items-center gap-2"
+                                    prop.children [
+                                        // View in Graph button
+                                        Html.div [
+                                            prop.className "tooltip tooltip-bottom detail-tooltip"
+                                            prop.custom ("data-tip", "View in Graph")
+                                            prop.children [
+                                                Html.button [
+                                                    prop.className "detail-action-btn"
+                                                    prop.onClick (fun _ -> dispatch ViewInGraph)
+                                                    prop.children [
+                                                        Html.span [ prop.className "w-5 h-5"; prop.children [ graph ] ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
                                     ]
                                 ]
                             ]

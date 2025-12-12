@@ -84,3 +84,6 @@ let update (api: FriendDetailApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> *
     | FriendNameSaved (Error _) ->
         // On error, just cancel editing
         { model with IsEditingName = false; EditingName = ""; IsSaving = false }, Cmd.none, NoOp
+
+    | ViewInGraph ->
+        model, Cmd.none, NavigateToGraphWithFocus model.FriendId

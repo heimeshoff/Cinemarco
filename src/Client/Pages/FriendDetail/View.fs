@@ -136,16 +136,34 @@ let view (model: Model) (friend: Friend option) (dispatch: Msg -> unit) =
                         friendAvatarLarge f dispatch
 
                         Html.div [
-                            // Editable name
-                            InlineEditableName f model dispatch
+                            prop.className "flex-1"
+                            prop.children [
+                                // Editable name
+                                InlineEditableName f model dispatch
 
-                            match f.Nickname with
-                            | Some nick ->
-                                Html.p [
-                                    prop.className "text-base-content/60"
-                                    prop.text nick
+                                match f.Nickname with
+                                | Some nick ->
+                                    Html.p [
+                                        prop.className "text-base-content/60"
+                                        prop.text nick
+                                    ]
+                                | None -> Html.none
+                            ]
+                        ]
+
+                        // View in Graph button
+                        Html.div [
+                            prop.className "tooltip tooltip-bottom detail-tooltip"
+                            prop.custom ("data-tip", "View in Graph")
+                            prop.children [
+                                Html.button [
+                                    prop.className "detail-action-btn"
+                                    prop.onClick (fun _ -> dispatch ViewInGraph)
+                                    prop.children [
+                                        Html.span [ prop.className "w-5 h-5"; prop.children [ graph ] ]
+                                    ]
                                 ]
-                            | None -> Html.none
+                            ]
                         ]
                     ]
                 ]

@@ -94,9 +94,9 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh import page when navigating to it
         let pageModel, pageCmd = Pages.Import.State.init ()
         { model' with ImportPage = Some pageModel }, Cmd.map ImportMsg pageCmd
-    | GraphPage ->
+    | GraphPage focus ->
         // Always refresh graph when navigating to the page
-        let pageModel, pageCmd = Pages.Graph.State.init ()
+        let pageModel, pageCmd = Pages.Graph.State.initWithFocus focus
         { model' with GraphPage = Some pageModel }, Cmd.map GraphMsg pageCmd
     | _ -> model', Cmd.none
 
@@ -627,6 +627,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.FriendDetail.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
                 let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.FriendDetail.Types.NavigateToGraphWithFocus friendId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (GraphPage (Some (FocusedFriend friendId))))]
             | Pages.FriendDetail.Types.RequestOpenProfileImageModal friend ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (OpenProfileImageModal friend)]
             | Pages.FriendDetail.Types.FriendUpdated friend ->
@@ -719,6 +721,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.CollectionDetail.Types.NavigateToSeriesByName (seriesName, firstAirDate) ->
                 let slug = Slug.forSeries seriesName firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.CollectionDetail.Types.NavigateToGraphWithFocus collectionId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (GraphPage (Some (FocusedCollection collectionId))))]
             | Pages.CollectionDetail.Types.ShowNotification (msg, isSuccess) ->
                 if isSuccess then model', cmd
                 else model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, false))]
@@ -770,6 +774,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.MovieDetail.Types.NavigateToCollectionDetail (_, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
+            | Pages.MovieDetail.Types.NavigateToGraphWithFocus entryId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (GraphPage (Some (FocusedMovie entryId))))]
             | Pages.MovieDetail.Types.RequestOpenAbandonModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAbandonModal entryId)]
             | Pages.MovieDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.MovieDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
@@ -845,6 +851,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.SeriesDetail.Types.NavigateToCollectionDetail (_, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
+            | Pages.SeriesDetail.Types.NavigateToGraphWithFocus entryId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (GraphPage (Some (FocusedSeries entryId))))]
             | Pages.SeriesDetail.Types.RequestOpenDeleteModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenConfirmDeleteModal (Components.ConfirmModal.Types.Entry entryId))]
             | Pages.SeriesDetail.Types.RequestOpenAddToCollectionModal (entryId, title) -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenAddToCollectionModal (entryId, title))]
             | Pages.SeriesDetail.Types.RequestOpenNewSessionModal entryId -> model', Cmd.batch [cmd; Cmd.ofMsg (OpenWatchSessionModal entryId)]
@@ -1000,6 +1008,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.ContributorDetail.Types.NavigateToSeriesDetail (_, name, firstAirDate) ->
                 let slug = Slug.forSeries name firstAirDate
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (SeriesDetailPage slug))]
+            | Pages.ContributorDetail.Types.NavigateToGraphWithFocus contributorId ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (GraphPage (Some (FocusedContributor contributorId))))]
             | Pages.ContributorDetail.Types.ShowNotification (msg, isSuccess) ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
         | None -> model, Cmd.none
