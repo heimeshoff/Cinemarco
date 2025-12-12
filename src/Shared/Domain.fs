@@ -813,9 +813,9 @@ type TimelineEntry = {
 type GraphNode =
     | MovieNode of EntryId * title: string * posterPath: string option
     | SeriesNode of EntryId * name: string * posterPath: string option
-    | FriendNode of FriendId * name: string
-    | ContributorNode of ContributorId * name: string * profilePath: string option
-    | CollectionNode of CollectionId * name: string
+    | FriendNode of FriendId * name: string * avatarUrl: string option
+    | ContributorNode of ContributorId * name: string * profilePath: string option * knownFor: string option
+    | CollectionNode of CollectionId * name: string * coverImagePath: string option
 
 /// Type of relationship between nodes
 type EdgeRelationship =

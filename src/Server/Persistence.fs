@@ -3009,6 +3009,10 @@ let trackContributor (request: TrackContributorRequest) : Async<Result<TrackedCo
                 INSERT INTO tracked_contributors (id, tmdb_person_id, name, profile_path, known_for_department, created_at, notes)
                 VALUES (@Id, @TmdbPersonId, @Name, @ProfilePath, @KnownForDepartment, @CreatedAt, @Notes)
             """, param) |> Async.AwaitTask |> Async.Ignore
+
+            // Download the profile image from TMDB
+            do! ImageCache.downloadProfile request.ProfilePath
+
             let! inserted = getTrackedContributorById (TrackedContributorId id)
             match inserted with
             | Some tc -> return Ok tc

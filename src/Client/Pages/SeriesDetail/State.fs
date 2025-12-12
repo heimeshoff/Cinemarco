@@ -108,6 +108,9 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
     | SetActiveTab tab ->
         { model with ActiveTab = tab }, Cmd.none, NoOp
 
+    | ToggleFullCastCrew ->
+        { model with IsFullCastCrewExpanded = not model.IsFullCastCrewExpanded }, Cmd.none, NoOp
+
     | LoadSeasonDetails seasonNum ->
         match model.Entry with
         | Success entry ->

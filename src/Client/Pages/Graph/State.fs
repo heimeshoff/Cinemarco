@@ -84,11 +84,11 @@ let update (api: GraphApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 Some (FocusedMovie entryId), Some $"movie-{EntryId.value entryId}"
             | SelectedSeries (entryId, _, _) ->
                 Some (FocusedSeries entryId), Some $"series-{EntryId.value entryId}"
-            | SelectedFriend (friendId, _) ->
+            | SelectedFriend (friendId, _, _) ->
                 Some (FocusedFriend friendId), Some $"friend-{FriendId.value friendId}"
-            | SelectedContributor (contributorId, _, _) ->
+            | SelectedContributor (contributorId, _, _, _) ->
                 Some (FocusedContributor contributorId), Some $"contributor-{ContributorId.value contributorId}"
-            | SelectedCollection (collectionId, _) ->
+            | SelectedCollection (collectionId, _, _) ->
                 Some (FocusedCollection collectionId), Some $"collection-{CollectionId.value collectionId}"
             | NoSelection -> None, None
 

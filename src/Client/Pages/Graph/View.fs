@@ -59,29 +59,32 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                         optionToJs posterPath
                     |]
                 ]
-            | FriendNode (friendId, name) ->
+            | FriendNode (friendId, name, avatarUrl) ->
                 createObj [
                     "Case" ==> "FriendNode"
                     "Fields" ==> [|
                         createObj [ "Fields" ==> [| FriendId.value friendId |] ]
                         name
+                        optionToJs avatarUrl
                     |]
                 ]
-            | ContributorNode (contributorId, name, profilePath) ->
+            | ContributorNode (contributorId, name, profilePath, knownFor) ->
                 createObj [
                     "Case" ==> "ContributorNode"
                     "Fields" ==> [|
                         createObj [ "Fields" ==> [| ContributorId.value contributorId |] ]
                         name
                         optionToJs profilePath
+                        optionToJs knownFor
                     |]
                 ]
-            | CollectionNode (collectionId, name) ->
+            | CollectionNode (collectionId, name, coverImagePath) ->
                 createObj [
                     "Case" ==> "CollectionNode"
                     "Fields" ==> [|
                         createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
                         name
+                        optionToJs coverImagePath
                     |]
                 ]
         ) |> List.toArray)
@@ -108,29 +111,32 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                                 optionToJs posterPath
                             |]
                         ]
-                    | FriendNode (friendId, name) ->
+                    | FriendNode (friendId, name, avatarUrl) ->
                         createObj [
                             "Case" ==> "FriendNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| FriendId.value friendId |] ]
                                 name
+                                optionToJs avatarUrl
                             |]
                         ]
-                    | ContributorNode (contributorId, name, profilePath) ->
+                    | ContributorNode (contributorId, name, profilePath, knownFor) ->
                         createObj [
                             "Case" ==> "ContributorNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| ContributorId.value contributorId |] ]
                                 name
                                 optionToJs profilePath
+                                optionToJs knownFor
                             |]
                         ]
-                    | CollectionNode (collectionId, name) ->
+                    | CollectionNode (collectionId, name, coverImagePath) ->
                         createObj [
                             "Case" ==> "CollectionNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
                                 name
+                                optionToJs coverImagePath
                             |]
                         ]
                 )
@@ -154,29 +160,32 @@ let private toJsGraph (graph: RelationshipGraph) : obj =
                                 optionToJs posterPath
                             |]
                         ]
-                    | FriendNode (friendId, name) ->
+                    | FriendNode (friendId, name, avatarUrl) ->
                         createObj [
                             "Case" ==> "FriendNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| FriendId.value friendId |] ]
                                 name
+                                optionToJs avatarUrl
                             |]
                         ]
-                    | ContributorNode (contributorId, name, profilePath) ->
+                    | ContributorNode (contributorId, name, profilePath, knownFor) ->
                         createObj [
                             "Case" ==> "ContributorNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| ContributorId.value contributorId |] ]
                                 name
                                 optionToJs profilePath
+                                optionToJs knownFor
                             |]
                         ]
-                    | CollectionNode (collectionId, name) ->
+                    | CollectionNode (collectionId, name, coverImagePath) ->
                         createObj [
                             "Case" ==> "CollectionNode"
                             "Fields" ==> [|
                                 createObj [ "Fields" ==> [| CollectionId.value collectionId |] ]
                                 name
+                                optionToJs coverImagePath
                             |]
                         ]
                 )
@@ -208,14 +217,17 @@ let private parseNodeSelection (jsNode: obj) : SelectedNode =
             SelectedSeries (entryId, name, posterPath)
         | "friend" ->
             let friendId = jsNode?friendId |> unbox<int> |> FriendId.create
-            SelectedFriend (friendId, name)
+            let avatarUrl = jsNode?avatarUrl |> Option.ofObj |> Option.map unbox<string>
+            SelectedFriend (friendId, name, avatarUrl)
         | "contributor" ->
             let contributorId = jsNode?contributorId |> unbox<int> |> ContributorId.create
             let profilePath = jsNode?profilePath |> Option.ofObj |> Option.map unbox<string>
-            SelectedContributor (contributorId, name, profilePath)
+            let knownFor = jsNode?knownFor |> Option.ofObj |> Option.map unbox<string>
+            SelectedContributor (contributorId, name, profilePath, knownFor)
         | "collection" ->
             let collectionId = jsNode?collectionId |> unbox<int> |> CollectionId.create
-            SelectedCollection (collectionId, name)
+            let coverImagePath = jsNode?coverImagePath |> Option.ofObj |> Option.map unbox<string>
+            SelectedCollection (collectionId, name, coverImagePath)
         | _ -> NoSelection
 
 // =====================================
@@ -309,76 +321,80 @@ let private selectedNodePanel (model: Model) (dispatch: Msg -> unit) =
     match model.SelectedNode with
     | NoSelection -> Html.none
     | selected ->
-        let (title, subtitle, posterPath, action) =
+        // Extract title, subtitle, image info, and action based on node type
+        let (title, subtitle, imageUrl, isCircular, action) =
             match selected with
             | SelectedMovie (entryId, title, posterPath) ->
-                (title, "Movie", posterPath, (fun () -> dispatch (ViewMovieDetail (entryId, title))))
+                let url = posterPath |> Option.map (fun p -> $"/images/posters{p}")
+                (title, "Movie", url, false, (fun () -> dispatch (ViewMovieDetail (entryId, title))))
             | SelectedSeries (entryId, name, posterPath) ->
-                (name, "Series", posterPath, (fun () -> dispatch (ViewSeriesDetail (entryId, name))))
-            | SelectedFriend (friendId, name) ->
-                (name, "Friend", None, (fun () -> dispatch (ViewFriendDetail (friendId, name))))
-            | SelectedContributor (contributorId, name, profilePath) ->
-                (name, "Contributor", profilePath, (fun () -> dispatch (ViewContributor (contributorId, name))))
-            | SelectedCollection (collectionId, name) ->
-                (name, "Collection", None, (fun () -> dispatch (ViewCollection (collectionId, name))))
-            | NoSelection -> ("", "", None, (fun () -> ()))
+                let url = posterPath |> Option.map (fun p -> $"/images/posters{p}")
+                (name, "Series", url, false, (fun () -> dispatch (ViewSeriesDetail (entryId, name))))
+            | SelectedFriend (friendId, name, avatarUrl) ->
+                let url = avatarUrl |> Option.map (fun p -> $"/images/avatars{p}")
+                (name, "Friend", url, true, (fun () -> dispatch (ViewFriendDetail (friendId, name))))
+            | SelectedContributor (contributorId, name, profilePath, knownFor) ->
+                let url = profilePath |> Option.map (fun p -> $"/images/profiles{p}")
+                let role = knownFor |> Option.defaultValue "Contributor"
+                (name, role, url, true, (fun () -> dispatch (ViewContributor (contributorId, name))))
+            | SelectedCollection (collectionId, name, coverImagePath) ->
+                let url = coverImagePath |> Option.map (fun p -> $"/images/collections{p}")
+                (name, "Collection", url, true, (fun () -> dispatch (ViewCollection (collectionId, name))))
+            | NoSelection -> ("", "", None, true, (fun () -> ()))
 
         Html.div [
-            prop.className "glass rounded-xl p-4 space-y-3"
+            prop.className "glass rounded-xl p-3 flex items-center gap-3"
             prop.children [
-                // Close button
-                Html.div [
-                    prop.className "flex justify-between items-center"
-                    prop.children [
-                        Html.span [
-                            prop.className "text-xs uppercase tracking-wide text-base-content/60"
-                            prop.text subtitle
+                // Image/Avatar
+                match imageUrl with
+                | Some url ->
+                    if isCircular then
+                        Html.img [
+                            prop.className "w-12 h-12 rounded-full object-cover shadow-lg flex-shrink-0"
+                            prop.src url
+                            prop.alt title
                         ]
-                        Html.button [
-                            prop.className "btn btn-ghost btn-xs btn-circle"
-                            prop.onClick (fun _ -> dispatch DeselectNode)
-                            prop.children [ close ]
+                    else
+                        Html.img [
+                            prop.className "w-10 h-14 rounded object-cover shadow-lg flex-shrink-0"
+                            prop.src url
+                            prop.alt title
                         ]
-                    ]
-                ]
-
-                // Poster/Avatar
-                match posterPath with
-                | Some path ->
-                    Html.div [
-                        prop.className "flex justify-center"
-                        prop.children [
-                            Html.img [
-                                prop.className "w-20 h-28 object-cover rounded-lg shadow-lg"
-                                prop.src $"/images/posters{path}"
-                                prop.alt title
-                            ]
-                        ]
-                    ]
                 | None ->
                     Html.div [
-                        prop.className "flex justify-center"
+                        prop.className "w-12 h-12 rounded-full bg-base-300 flex items-center justify-center text-lg font-bold flex-shrink-0"
                         prop.children [
-                            Html.div [
-                                prop.className "w-16 h-16 rounded-full bg-base-300 flex items-center justify-center text-2xl font-bold"
-                                prop.children [
-                                    Html.text (title.Substring(0, min 2 title.Length).ToUpperInvariant())
-                                ]
-                            ]
+                            Html.text (title.Substring(0, min 2 title.Length).ToUpperInvariant())
                         ]
                     ]
 
-                // Title
-                Html.h3 [
-                    prop.className "text-center font-semibold text-lg"
-                    prop.text title
+                // Title and subtitle
+                Html.div [
+                    prop.className "flex-1 min-w-0"
+                    prop.children [
+                        Html.h3 [
+                            prop.className "font-semibold text-sm truncate"
+                            prop.text title
+                        ]
+                        Html.span [
+                            prop.className "text-xs text-base-content/60"
+                            prop.text subtitle
+                        ]
+                    ]
                 ]
 
                 // View details button
                 Html.button [
-                    prop.className "btn btn-primary btn-sm w-full"
+                    prop.className "btn btn-primary btn-sm flex-shrink-0"
                     prop.onClick (fun _ -> action())
-                    prop.text "View Details"
+                    prop.text "View"
+                ]
+
+                // Close button
+                Html.button [
+                    prop.className "btn btn-ghost btn-xs btn-circle flex-shrink-0"
+                    prop.onClick (fun _ -> dispatch DeselectNode)
+                    prop.children [ close ]
                 ]
             ]
         ]
@@ -453,10 +469,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "space-y-4"
                     prop.children [
-                        // Search bar at top
+                        // Search bar and selected node panel at top
                         Html.div [
-                            prop.className "max-w-md"
-                            prop.children [ searchBar model dispatch ]
+                            prop.className "flex flex-col gap-2 max-w-lg"
+                            prop.children [
+                                searchBar model dispatch
+                                selectedNodePanel model dispatch
+                            ]
                         ]
 
                         // Graph canvas with overlays
@@ -505,12 +524,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                             ]
                                         ]
                                     ]
-
-                                // Selected node panel (bottom left)
-                                Html.div [
-                                    prop.className "absolute bottom-4 left-4 w-56"
-                                    prop.children [ selectedNodePanel model dispatch ]
-                                ]
                             ]
                         ]
                     ]

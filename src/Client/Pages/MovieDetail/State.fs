@@ -115,6 +115,9 @@ let update (api: MovieApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | SetActiveTab tab ->
         { model with ActiveTab = tab }, Cmd.none, NoOp
 
+    | ToggleFullCastCrew ->
+        { model with IsFullCastCrewExpanded = not model.IsFullCastCrewExpanded }, Cmd.none, NoOp
+
     | MarkWatched ->
         // When marking as watched, create a watch session with "Myself" (no friends) and today's date
         let request : CreateMovieWatchSessionRequest = {

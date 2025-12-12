@@ -14,9 +14,9 @@ type SelectedNode =
     | NoSelection
     | SelectedMovie of EntryId * title: string * posterPath: string option
     | SelectedSeries of EntryId * name: string * posterPath: string option
-    | SelectedFriend of FriendId * name: string
-    | SelectedContributor of ContributorId * name: string * profilePath: string option
-    | SelectedCollection of CollectionId * name: string
+    | SelectedFriend of FriendId * name: string * avatarUrl: string option
+    | SelectedContributor of ContributorId * name: string * profilePath: string option * knownFor: string option
+    | SelectedCollection of CollectionId * name: string * coverImagePath: string option
 
 type Model = {
     Graph: RemoteData<RelationshipGraph>

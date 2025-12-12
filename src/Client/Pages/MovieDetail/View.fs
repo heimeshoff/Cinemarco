@@ -199,6 +199,88 @@ let private overviewTab (movie: Movie) (entry: LibraryEntry) (model: Model) (dis
         ]
     ]
 
+/// Render a single cast member button
+let private renderCastMember (castMember: TmdbCastMember) (isTracked: bool) (dispatch: Msg -> unit) =
+    Html.button [
+        prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
+        prop.className (
+            if isTracked then
+                "flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors cursor-pointer"
+            else
+                "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+        )
+        prop.onClick (fun _ -> dispatch (ViewContributor (castMember.TmdbPersonId, castMember.Name)))
+        prop.children [
+            Html.div [
+                prop.className "relative"
+                prop.children [
+                    match castMember.ProfilePath with
+                    | Some path ->
+                        Html.img [
+                            prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                            prop.className "w-8 h-8 rounded-full object-cover"
+                            prop.alt castMember.Name
+                        ]
+                    | None ->
+                        Html.div [
+                            prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                            prop.children [
+                                Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                            ]
+                        ]
+                    if isTracked then
+                        Html.div [
+                            prop.className "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                            prop.children [
+                                Html.span [ prop.className "w-2.5 h-2.5 text-primary-content"; prop.children [ heart ] ]
+                            ]
+                        ]
+                ]
+            ]
+            Html.div [
+                prop.className "text-left"
+                prop.children [
+                    Html.span [ prop.className "text-sm font-medium block"; prop.text castMember.Name ]
+                    match castMember.Character with
+                    | Some char ->
+                        Html.span [ prop.className "text-xs text-base-content/60"; prop.text char ]
+                    | None -> Html.none
+                ]
+            ]
+        ]
+    ]
+
+/// Render a single crew member button
+let private renderCrewMember (crewMember: TmdbCrewMember) (dispatch: Msg -> unit) =
+    Html.button [
+        prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
+        prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
+        prop.onClick (fun _ -> dispatch (ViewContributor (crewMember.TmdbPersonId, crewMember.Name)))
+        prop.children [
+            match crewMember.ProfilePath with
+            | Some path ->
+                Html.img [
+                    prop.src $"https://image.tmdb.org/t/p/w45{path}"
+                    prop.className "w-8 h-8 rounded-full object-cover"
+                    prop.alt crewMember.Name
+                ]
+            | None ->
+                Html.div [
+                    prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
+                    prop.children [
+                        Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
+                    ]
+                ]
+            Html.div [
+                prop.className "text-left"
+                prop.children [
+                    Html.span [ prop.className "text-sm font-medium block"; prop.text crewMember.Name ]
+                    Html.span [ prop.className "text-xs text-base-content/60"; prop.text crewMember.Job ]
+                ]
+            ]
+        ]
+    ]
+
 /// Cast & Crew tab content
 let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
     Html.div [
@@ -206,117 +288,106 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             match model.Credits with
             | Success credits ->
-                // Cast section - sort tracked contributors first
-                let trackedCast, untrackedCast =
-                    credits.Cast |> List.partition (fun c -> Set.contains c.TmdbPersonId model.TrackedPersonIds)
-                let sortedCast = trackedCast @ untrackedCast
+                // Sort cast by TMDB billing order (Order field, lower = top-billed)
+                let sortedByBilling = credits.Cast |> List.sortBy (fun c -> c.Order)
 
-                if not (List.isEmpty sortedCast) then
+                // Top billed cast: first 10 by billing order
+                let topBilledCount = 10
+                let topBilledCast = sortedByBilling |> List.truncate topBilledCount
+                let remainingCast = sortedByBilling |> List.skip (min topBilledCount (List.length sortedByBilling))
+
+                // Group crew by department for expanded view
+                let crewByDepartment =
+                    credits.Crew
+                    |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId, c.Job)
+                    |> List.groupBy (fun c -> c.Department)
+                    |> List.sortBy (fun (dept, _) ->
+                        // Sort departments by importance
+                        match dept with
+                        | "Directing" -> 0
+                        | "Writing" -> 1
+                        | "Production" -> 2
+                        | "Camera" -> 3
+                        | "Sound" -> 4
+                        | "Editing" -> 5
+                        | "Art" -> 6
+                        | "Costume & Make-Up" -> 7
+                        | "Visual Effects" -> 8
+                        | _ -> 99)
+
+                // Top Billed Cast section
+                if not (List.isEmpty topBilledCast) then
                     Html.div [
                         prop.children [
-                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Cast" ]
+                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Top Billed Cast" ]
                             Html.div [
                                 prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
                                 prop.children [
-                                    for castMember in sortedCast do
+                                    for castMember in topBilledCast do
                                         let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
-                                        Html.button [
-                                            prop.key (TmdbPersonId.value castMember.TmdbPersonId |> string)
-                                            prop.className (
-                                                if isTracked then
-                                                    "flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-colors cursor-pointer"
-                                                else
-                                                    "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                            )
-                                            prop.onClick (fun _ -> dispatch (ViewContributor (castMember.TmdbPersonId, castMember.Name)))
-                                            prop.children [
-                                                // Profile image with tracked indicator
-                                                Html.div [
-                                                    prop.className "relative"
-                                                    prop.children [
-                                                        match castMember.ProfilePath with
-                                                        | Some path ->
-                                                            Html.img [
-                                                                prop.src $"https://image.tmdb.org/t/p/w45{path}"
-                                                                prop.className "w-8 h-8 rounded-full object-cover"
-                                                                prop.alt castMember.Name
-                                                            ]
-                                                        | None ->
-                                                            Html.div [
-                                                                prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
-                                                                prop.children [
-                                                                    Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
-                                                                ]
-                                                            ]
-                                                        // Tracked indicator badge
-                                                        if isTracked then
-                                                            Html.div [
-                                                                prop.className "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
-                                                                prop.children [
-                                                                    Html.span [ prop.className "w-2.5 h-2.5 text-primary-content"; prop.children [ heart ] ]
-                                                                ]
-                                                            ]
-                                                    ]
-                                                ]
-                                                Html.div [
-                                                    prop.className "text-left"
-                                                    prop.children [
-                                                        Html.span [ prop.className "text-sm font-medium block"; prop.text castMember.Name ]
-                                                        match castMember.Character with
-                                                        | Some char ->
-                                                            Html.span [ prop.className "text-xs text-base-content/60"; prop.text char ]
-                                                        | None -> Html.none
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
+                                        renderCastMember castMember isTracked dispatch
                                 ]
                             ]
                         ]
                     ]
 
-                // Crew section (directors, writers, etc.)
-                let keyCrewRoles = ["Director"; "Screenplay"; "Writer"; "Director of Photography"; "Original Music Composer"]
-                let keyCrew = credits.Crew |> List.filter (fun c -> List.contains c.Job keyCrewRoles)
-                if not (List.isEmpty keyCrew) then
+                // Full Cast and Crew button
+                let hasMoreContent = not (List.isEmpty remainingCast) || not (List.isEmpty credits.Crew)
+                if hasMoreContent then
                     Html.div [
                         prop.className "mt-4"
                         prop.children [
-                            Html.h3 [ prop.className "font-semibold mb-3"; prop.text "Crew" ]
-                            Html.div [
-                                prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
+                            Html.button [
+                                prop.className "btn btn-ghost btn-sm gap-2 w-full justify-center border border-base-300 hover:border-primary/50"
+                                prop.onClick (fun _ -> dispatch ToggleFullCastCrew)
                                 prop.children [
-                                    for crewMember in keyCrew |> List.distinctBy (fun c -> TmdbPersonId.value c.TmdbPersonId) do
-                                        Html.button [
-                                            prop.key (TmdbPersonId.value crewMember.TmdbPersonId |> string)
-                                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200 hover:bg-base-300 transition-colors cursor-pointer"
-                                            prop.onClick (fun _ -> dispatch (ViewContributor (crewMember.TmdbPersonId, crewMember.Name)))
-                                            prop.children [
-                                                match crewMember.ProfilePath with
-                                                | Some path ->
-                                                    Html.img [
-                                                        prop.src $"https://image.tmdb.org/t/p/w45{path}"
-                                                        prop.className "w-8 h-8 rounded-full object-cover"
-                                                        prop.alt crewMember.Name
-                                                    ]
-                                                | None ->
-                                                    Html.div [
-                                                        prop.className "w-8 h-8 rounded-full bg-base-300 flex items-center justify-center"
-                                                        prop.children [
-                                                            Html.span [ prop.className "w-4 h-4 text-base-content/40"; prop.children [ userPlus ] ]
-                                                        ]
-                                                    ]
-                                                Html.div [
-                                                    prop.className "text-left"
-                                                    prop.children [
-                                                        Html.span [ prop.className "text-sm font-medium block"; prop.text crewMember.Name ]
-                                                        Html.span [ prop.className "text-xs text-base-content/60"; prop.text crewMember.Job ]
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
+                                    Html.span [ prop.text (if model.IsFullCastCrewExpanded then "Hide Full Cast & Crew" else "Full Cast & Crew") ]
+                                    Html.span [
+                                        prop.className "w-4 h-4 transition-transform"
+                                        prop.style [ if model.IsFullCastCrewExpanded then style.transform (transform.rotate 180) ]
+                                        prop.children [ chevronDown ]
+                                    ]
                                 ]
                             ]
+                        ]
+                    ]
+
+                // Expanded full cast and crew section
+                if model.IsFullCastCrewExpanded then
+                    Html.div [
+                        prop.className "mt-6 space-y-6 animate-in fade-in slide-in-from-top-2 duration-200"
+                        prop.children [
+                            // Remaining cast (if any)
+                            if not (List.isEmpty remainingCast) then
+                                Html.div [
+                                    prop.children [
+                                        Html.h3 [ prop.className "font-semibold mb-3 text-base-content/70"; prop.text "Supporting Cast" ]
+                                        Html.div [
+                                            prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
+                                            prop.children [
+                                                for castMember in remainingCast do
+                                                    let isTracked = model.TrackedPersonIds |> Set.contains castMember.TmdbPersonId
+                                                    renderCastMember castMember isTracked dispatch
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                            // Crew grouped by department
+                            for (department, crewMembers) in crewByDepartment do
+                                Html.div [
+                                    prop.key department
+                                    prop.children [
+                                        Html.h3 [ prop.className "font-semibold mb-3 text-base-content/70"; prop.text department ]
+                                        Html.div [
+                                            prop.className "grid grid-cols-2 lg:grid-cols-3 gap-2"
+                                            prop.children [
+                                                for crewMember in crewMembers do
+                                                    renderCrewMember crewMember dispatch
+                                            ]
+                                        ]
+                                    ]
+                                ]
                         ]
                     ]
             | Loading ->

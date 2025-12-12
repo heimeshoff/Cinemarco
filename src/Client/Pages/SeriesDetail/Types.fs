@@ -24,6 +24,8 @@ type Model = {
     IsFriendSelectorOpen: bool
     IsAddingFriend: bool
     ActiveTab: SeriesTab
+    /// Whether the full cast and crew section is expanded
+    IsFullCastCrewExpanded: bool
 }
 
 type Msg =
@@ -36,6 +38,7 @@ type Msg =
     | LoadTrackedContributors
     | TrackedContributorsLoaded of TrackedContributor list
     | SetActiveTab of SeriesTab
+    | ToggleFullCastCrew
     | LoadSessions
     | SessionsLoaded of Result<WatchSession list, string>
     | SelectSession of SessionId
@@ -102,4 +105,5 @@ module Model =
         IsFriendSelectorOpen = false
         IsAddingFriend = false
         ActiveTab = Overview
+        IsFullCastCrewExpanded = false
     }

@@ -75,7 +75,6 @@ let downloadImage (imageType: string) (size: string) (tmdbPath: string) : Async<
             if response.IsSuccessStatusCode then
                 let! bytes = response.Content.ReadAsByteArrayAsync() |> Async.AwaitTask
                 do! File.WriteAllBytesAsync(localPath, bytes) |> Async.AwaitTask
-                printfn $"Cached image: {tmdbPath} -> {localPath}"
                 return Ok localPath
             else
                 return Error $"Failed to download image: {response.StatusCode}"
@@ -108,6 +107,16 @@ let downloadProfile (tmdbPath: string option) : Async<unit> = async {
     | Some path ->
         let! _ = downloadImage "profiles" "w185" path
         ()
+}
+
+/// Ensure a profile image is cached locally, downloading if necessary
+let ensureProfileCached (tmdbPath: string option) : Async<unit> = async {
+    match tmdbPath with
+    | None -> ()
+    | Some path ->
+        let localPath = getLocalImagePath "profiles" path
+        if not (File.Exists localPath) then
+            do! downloadProfile (Some path)
 }
 
 /// Get the cached image bytes, or None if not cached

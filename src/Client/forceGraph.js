@@ -114,8 +114,8 @@ export function initializeGraph(containerId, graphData, onNodeSelect, onNodeFocu
             }
         });
 
-    // Add circles for circular nodes (friend, contributor, collection)
-    node.filter(d => d.type === 'friend' || d.type === 'contributor' || d.type === 'collection')
+    // Add circles for circular nodes without images (collections without cover, friends without avatar, contributors without profile)
+    node.filter(d => (d.type === 'collection' && !d.coverImagePath) || (d.type === 'friend' && !d.avatarUrl) || (d.type === 'contributor' && !d.profilePath))
         .append('circle')
         .attr('r', d => nodeSizes[d.type])
         .attr('fill', d => `url(#gradient-${d.type})`)
@@ -123,8 +123,8 @@ export function initializeGraph(containerId, graphData, onNodeSelect, onNodeFocu
         .attr('stroke-width', 2)
         .attr('class', 'node-circle');
 
-    // Add text for circular nodes
-    node.filter(d => d.type === 'friend' || d.type === 'contributor' || d.type === 'collection')
+    // Add text for circular nodes without images
+    node.filter(d => (d.type === 'collection' && !d.coverImagePath) || (d.type === 'friend' && !d.avatarUrl) || (d.type === 'contributor' && !d.profilePath))
         .append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', '0.35em')
@@ -132,6 +132,69 @@ export function initializeGraph(containerId, graphData, onNodeSelect, onNodeFocu
         .attr('font-size', '10px')
         .attr('font-weight', 'bold')
         .text(d => getInitials(d.name));
+
+    // Add circles for collections with cover images (as background/border)
+    node.filter(d => d.type === 'collection' && d.coverImagePath)
+        .append('circle')
+        .attr('r', nodeSizes.collection)
+        .attr('fill', `url(#gradient-collection)`)
+        .attr('stroke', nodeColors.collection)
+        .attr('stroke-width', 2)
+        .attr('class', 'node-circle');
+
+    // Add cover images for collections
+    node.filter(d => d.type === 'collection' && d.coverImagePath)
+        .append('image')
+        .attr('href', d => `/images/collections${d.coverImagePath}`)
+        .attr('width', nodeSizes.collection * 2)
+        .attr('height', nodeSizes.collection * 2)
+        .attr('x', -nodeSizes.collection)
+        .attr('y', -nodeSizes.collection)
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .attr('clip-path', 'circle()')
+        .style('clip-path', `circle(${nodeSizes.collection}px at center)`);
+
+    // Add circles for friends with avatars (as background/border)
+    node.filter(d => d.type === 'friend' && d.avatarUrl)
+        .append('circle')
+        .attr('r', nodeSizes.friend)
+        .attr('fill', `url(#gradient-friend)`)
+        .attr('stroke', nodeColors.friend)
+        .attr('stroke-width', 2)
+        .attr('class', 'node-circle');
+
+    // Add avatar images for friends
+    node.filter(d => d.type === 'friend' && d.avatarUrl)
+        .append('image')
+        .attr('href', d => `/images/avatars${d.avatarUrl}`)
+        .attr('width', nodeSizes.friend * 2)
+        .attr('height', nodeSizes.friend * 2)
+        .attr('x', -nodeSizes.friend)
+        .attr('y', -nodeSizes.friend)
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .attr('clip-path', 'circle()')
+        .style('clip-path', `circle(${nodeSizes.friend}px at center)`);
+
+    // Add circles for contributors with profile images (as background/border)
+    node.filter(d => d.type === 'contributor' && d.profilePath)
+        .append('circle')
+        .attr('r', nodeSizes.contributor)
+        .attr('fill', `url(#gradient-contributor)`)
+        .attr('stroke', nodeColors.contributor)
+        .attr('stroke-width', 2)
+        .attr('class', 'node-circle');
+
+    // Add profile images for contributors
+    node.filter(d => d.type === 'contributor' && d.profilePath)
+        .append('image')
+        .attr('href', d => `/images/profiles${d.profilePath}`)
+        .attr('width', nodeSizes.contributor * 2)
+        .attr('height', nodeSizes.contributor * 2)
+        .attr('x', -nodeSizes.contributor)
+        .attr('y', -nodeSizes.contributor)
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .attr('clip-path', 'circle()')
+        .style('clip-path', `circle(${nodeSizes.contributor}px at center)`);
 
     // Add rectangles for movie/series nodes (poster-like)
     node.filter(d => d.type === 'movie' || d.type === 'series')
@@ -234,29 +297,32 @@ function transformNodes(apiNodes) {
                 posterPath: posterPath
             };
         } else if (node.Case === 'FriendNode') {
-            const [friendId, name] = node.Fields;
+            const [friendId, name, avatarUrl] = node.Fields;
             return {
                 id: `friend-${friendId.Fields[0]}`,
                 type: 'friend',
                 friendId: friendId.Fields[0],
-                name: name
+                name: name,
+                avatarUrl: avatarUrl
             };
         } else if (node.Case === 'ContributorNode') {
-            const [contributorId, name, profilePath] = node.Fields;
+            const [contributorId, name, profilePath, knownFor] = node.Fields;
             return {
                 id: `contributor-${contributorId.Fields[0]}`,
                 type: 'contributor',
                 contributorId: contributorId.Fields[0],
                 name: name,
-                profilePath: profilePath
+                profilePath: profilePath,
+                knownFor: knownFor
             };
         } else if (node.Case === 'CollectionNode') {
-            const [collectionId, name] = node.Fields;
+            const [collectionId, name, coverImagePath] = node.Fields;
             return {
                 id: `collection-${collectionId.Fields[0]}`,
                 type: 'collection',
                 collectionId: collectionId.Fields[0],
-                name: name
+                name: name,
+                coverImagePath: coverImagePath
             };
         }
         return null;

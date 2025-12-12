@@ -25,6 +25,8 @@ type Model = {
     ActiveTab: MovieTab
     /// The session ID and date currently being edited (None when not editing)
     EditingSessionDate: (SessionId * DateTime) option
+    /// Whether the full cast and crew section is expanded
+    IsFullCastCrewExpanded: bool
 }
 
 type Msg =
@@ -39,6 +41,7 @@ type Msg =
     | LoadWatchSessions
     | WatchSessionsLoaded of Result<MovieWatchSession list, string>
     | SetActiveTab of MovieTab
+    | ToggleFullCastCrew
     | MarkWatched
     | MarkUnwatched
     | OpenAbandonModal
@@ -102,4 +105,5 @@ module Model =
         IsWatchSessionModalOpen = false
         ActiveTab = Overview
         EditingSessionDate = None
+        IsFullCastCrewExpanded = false
     }

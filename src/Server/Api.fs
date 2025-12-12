@@ -1053,6 +1053,10 @@ let cinemarcoApi : ICinemarcoApi = {
         let! trackedContributors = Persistence.getAllTrackedContributors()
         let! collections = Persistence.getAllCollections()
 
+        // Ensure all contributor profile images are cached
+        for contributor in trackedContributors do
+            do! ImageCache.ensureProfileCached contributor.ProfilePath
+
         // Helper to create a node key
         let getEntryKey (entry: LibraryEntry) =
             match entry.Media with
@@ -1106,7 +1110,7 @@ let cinemarcoApi : ICinemarcoApi = {
                     match friend with
                     | Some f ->
                         let key = $"friend-{FriendId.value friendId}"
-                        key, Some (FriendNode (f.Id, f.Name))
+                        key, Some (FriendNode (f.Id, f.Name, f.AvatarUrl))
                     | None -> "", None
                 | FocusedContributor contributorId ->
                     let contributor = trackedContributors |> List.tryFind (fun c ->
@@ -1114,14 +1118,14 @@ let cinemarcoApi : ICinemarcoApi = {
                     match contributor with
                     | Some c ->
                         let key = $"contributor-{ContributorId.value contributorId}"
-                        key, Some (ContributorNode (contributorId, c.Name, c.ProfilePath))
+                        key, Some (ContributorNode (contributorId, c.Name, c.ProfilePath, c.KnownForDepartment))
                     | None -> "", None
                 | FocusedCollection collectionId ->
                     let coll = collections |> List.tryFind (fun c -> c.Id = collectionId)
                     match coll with
                     | Some c ->
                         let key = $"collection-{CollectionId.value collectionId}"
-                        key, Some (CollectionNode (c.Id, c.Name))
+                        key, Some (CollectionNode (c.Id, c.Name, c.CoverImagePath))
                     | None -> "", None
 
             match focusedGraphNode with
@@ -1144,7 +1148,7 @@ let cinemarcoApi : ICinemarcoApi = {
                         match friend with
                         | Some f ->
                             let key = $"friend-{FriendId.value friendId}"
-                            let node = FriendNode (f.Id, f.Name)
+                            let node = FriendNode (f.Id, f.Name, f.AvatarUrl)
                             addNode key node
                             level1Nodes <- (key, node) :: level1Nodes
                             addEdge centerNode node WatchedWith
@@ -1167,7 +1171,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                 if appearsInEntry then
                                     let cId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
                                     let key = $"contributor-{ContributorId.value cId}"
-                                    let node = ContributorNode (cId, contributor.Name, contributor.ProfilePath)
+                                    let node = ContributorNode (cId, contributor.Name, contributor.ProfilePath, contributor.KnownForDepartment)
                                     addNode key node
                                     level1Nodes <- (key, node) :: level1Nodes
                                     addEdge centerNode node (WorkedOn (Actor None))
@@ -1183,10 +1187,10 @@ let cinemarcoApi : ICinemarcoApi = {
                             | _ -> false)
                         if containsEntry then
                             let key = $"collection-{CollectionId.value coll.Id}"
-                            let node = CollectionNode (coll.Id, coll.Name)
+                            let node = CollectionNode (coll.Id, coll.Name, coll.CoverImagePath)
                             addNode key node
                             level1Nodes <- (key, node) :: level1Nodes
-                            addEdge (CollectionNode (coll.Id, coll.Name)) centerNode BelongsToCollection
+                            addEdge node centerNode BelongsToCollection
 
                 | FocusedFriend friendId ->
                     // Find all entries watched with this friend (from watch sessions + direct)
@@ -1261,7 +1265,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                 match friends |> List.tryFind (fun f -> f.Id = fId) with
                                 | Some f ->
                                     let friendKey = $"friend-{FriendId.value fId}"
-                                    let friendNode = FriendNode (f.Id, f.Name)
+                                    let friendNode = FriendNode (f.Id, f.Name, f.AvatarUrl)
                                     addNode friendKey friendNode
                                     addEdge level1Node friendNode WatchedWith
                                 | None -> ()
@@ -1275,7 +1279,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                     | _ -> false)
                                 if hasEntry then
                                     let collKey = $"collection-{CollectionId.value coll.Id}"
-                                    let collNode = CollectionNode (coll.Id, coll.Name)
+                                    let collNode = CollectionNode (coll.Id, coll.Name, coll.CoverImagePath)
                                     addNode collKey collNode
                                     addEdge collNode level1Node BelongsToCollection
 
@@ -1295,14 +1299,14 @@ let cinemarcoApi : ICinemarcoApi = {
                                         if allWorks |> List.exists (fun w -> w.MediaType = l1MediaType && w.TmdbId = l1Tmdb) then
                                             let cId = ContributorId.create (TmdbPersonId.value contrib.TmdbPersonId)
                                             let contribKey = $"contributor-{ContributorId.value cId}"
-                                            let contribNode = ContributorNode (cId, contrib.Name, contrib.ProfilePath)
+                                            let contribNode = ContributorNode (cId, contrib.Name, contrib.ProfilePath, contrib.KnownForDepartment)
                                             addNode contribKey contribNode
                                             addEdge level1Node contribNode (WorkedOn (Actor None))
                                     | Error _ -> ()
                             | None -> ()
                         | None -> ()
 
-                    | FriendNode (l1FriendId, friendName) ->
+                    | FriendNode (l1FriendId, friendName, friendAvatar) ->
                         // Find all entries watched with this level 1 friend (from watch sessions + direct)
                         for entry in entries do
                             let! watchedWith = Persistence.getAllFriendsForEntry entry.Id
@@ -1313,9 +1317,9 @@ let cinemarcoApi : ICinemarcoApi = {
                                 let entryNode = entryToNode entry
                                 addNode entryKey entryNode
                                 // Create edge: entry was watched with this friend
-                                addEdge entryNode (FriendNode (l1FriendId, friendName)) WatchedWith
+                                addEdge entryNode (FriendNode (l1FriendId, friendName, friendAvatar)) WatchedWith
 
-                    | ContributorNode (l1ContribId, contribName, contribProfile) ->
+                    | ContributorNode (l1ContribId, contribName, contribProfile, contribKnownFor) ->
                         // Find all entries this level 1 contributor appears in
                         let contribOpt = trackedContributors |> List.tryFind (fun c ->
                             ContributorId.create (TmdbPersonId.value c.TmdbPersonId) = l1ContribId)
@@ -1336,12 +1340,12 @@ let cinemarcoApi : ICinemarcoApi = {
                                             let entryKey = getEntryKey entry
                                             let entryNode = entryToNode entry
                                             addNode entryKey entryNode
-                                            addEdge entryNode (ContributorNode (l1ContribId, contribName, contribProfile)) (WorkedOn (Actor None))
+                                            addEdge entryNode (ContributorNode (l1ContribId, contribName, contribProfile, contribKnownFor)) (WorkedOn (Actor None))
                                     | None -> ()
                             | Error _ -> ()
                         | None -> ()
 
-                    | CollectionNode (l1CollId, collName) ->
+                    | CollectionNode (l1CollId, collName, collCover) ->
                         // Find all entries in this level 1 collection
                         let! collItems = Persistence.getCollectionItems l1CollId
                         for item in collItems do
@@ -1352,7 +1356,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                     let entryKey = getEntryKey entry
                                     let entryNode = entryToNode entry
                                     addNode entryKey entryNode
-                                    addEdge (CollectionNode (l1CollId, collName)) entryNode BelongsToCollection
+                                    addEdge (CollectionNode (l1CollId, collName, collCover)) entryNode BelongsToCollection
                                 | None -> ()
                             | _ -> ()
 
@@ -1409,7 +1413,7 @@ let cinemarcoApi : ICinemarcoApi = {
                 if nodeCount < maxNodes && matchesSearch friend.Name then
                     let nodeKey = $"friend-{FriendId.value friend.Id}"
                     if not (Set.contains nodeKey nodeSet) then
-                        nodes <- FriendNode (friend.Id, friend.Name) :: nodes
+                        nodes <- FriendNode (friend.Id, friend.Name, friend.AvatarUrl) :: nodes
                         nodeSet <- Set.add nodeKey nodeSet
                         nodeCount <- nodeCount + 1
 
@@ -1419,7 +1423,7 @@ let cinemarcoApi : ICinemarcoApi = {
                     let nodeKey = $"contributor-{TrackedContributorId.value contributor.Id}"
                     if not (Set.contains nodeKey nodeSet) then
                         let contributorId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
-                        nodes <- ContributorNode (contributorId, contributor.Name, contributor.ProfilePath) :: nodes
+                        nodes <- ContributorNode (contributorId, contributor.Name, contributor.ProfilePath, contributor.KnownForDepartment) :: nodes
                         nodeSet <- Set.add nodeKey nodeSet
                         nodeCount <- nodeCount + 1
 
@@ -1428,7 +1432,7 @@ let cinemarcoApi : ICinemarcoApi = {
                 if nodeCount < maxNodes && matchesSearch collection.Name then
                     let nodeKey = $"collection-{CollectionId.value collection.Id}"
                     if not (Set.contains nodeKey nodeSet) then
-                        nodes <- CollectionNode (collection.Id, collection.Name) :: nodes
+                        nodes <- CollectionNode (collection.Id, collection.Name, collection.CoverImagePath) :: nodes
                         nodeSet <- Set.add nodeKey nodeSet
                         nodeCount <- nodeCount + 1
 
@@ -1442,7 +1446,7 @@ let cinemarcoApi : ICinemarcoApi = {
                 if nodeCount < maxNodes then
                     let nodeKey = $"collection-{CollectionId.value collection.Id}"
                     if not (Set.contains nodeKey nodeSet) then
-                        nodes <- CollectionNode (collection.Id, collection.Name) :: nodes
+                        nodes <- CollectionNode (collection.Id, collection.Name, collection.CoverImagePath) :: nodes
                         nodeSet <- Set.add nodeKey nodeSet
                         nodeCount <- nodeCount + 1
 
@@ -1492,7 +1496,7 @@ let cinemarcoApi : ICinemarcoApi = {
                             | Some f ->
                                 let edge = {
                                     Source = source
-                                    Target = FriendNode (f.Id, f.Name)
+                                    Target = FriendNode (f.Id, f.Name, f.AvatarUrl)
                                     Relationship = WatchedWith
                                 }
                                 edges <- edge :: edges
@@ -1521,7 +1525,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                     | LibraryMovie m -> MovieNode (entryId, m.Title, m.PosterPath)
                                     | LibrarySeries s -> SeriesNode (entryId, s.Name, s.PosterPath)
                                 let edge = {
-                                    Source = CollectionNode (collection.Id, collection.Name)
+                                    Source = CollectionNode (collection.Id, collection.Name, collection.CoverImagePath)
                                     Target = targetNode
                                     Relationship = BelongsToCollection
                                 }
@@ -1567,7 +1571,7 @@ let cinemarcoApi : ICinemarcoApi = {
                                         let contributorId = ContributorId.create (TmdbPersonId.value contributor.TmdbPersonId)
                                         let edge = {
                                             Source = sourceNode
-                                            Target = ContributorNode (contributorId, contributor.Name, contributor.ProfilePath)
+                                            Target = ContributorNode (contributorId, contributor.Name, contributor.ProfilePath, contributor.KnownForDepartment)
                                             Relationship = WorkedOn (Actor None)  // Default to Actor role without character info
                                         }
                                         edges <- edge :: edges

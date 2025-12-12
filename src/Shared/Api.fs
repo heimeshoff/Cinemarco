@@ -379,7 +379,7 @@ type ICinemarcoApi = {
     /// Debug: Get raw episode watch data for a show from Trakt
     traktDebugGetShowHistory: int -> Async<Result<string, string>>
     
-    // =====================================    
+    // =====================================
     // Graph Operations
     // =====================================
 
