@@ -276,6 +276,14 @@ type ICinemarcoApi = {
     cacheClearAll: unit -> Async<ClearCacheResult>
 
     // =====================================
+    // Maintenance Operations
+    // =====================================
+
+    /// Recalculate watch status for all series based on episode progress
+    /// Use this to fix series that have incorrect watch status
+    maintenanceRecalculateSeriesWatchStatus: unit -> Async<int>
+
+    // =====================================
     // Tracked Contributors Operations
     // =====================================
 

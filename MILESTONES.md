@@ -586,33 +586,36 @@ type ITagApi = {
 
 ---
 
-## Milestone 15: Home View (Estimated: Day 16-17)
+## Milestone 15: Home View (Estimated: Day 16-17) ✅ COMPLETE
 
 **Goal**: Dashboard landing page.
 
 ### Tasks
 
-- [ ] **M15.1** Create "Up Next" section (watchlist)
-- [ ] **M15.2** Create "Recently Watched" section
-- [ ] **M15.3** Create "Continue Watching" section (in-progress series)
-- [ ] **M15.4** Add quick search access
-- [ ] **M15.5** Add discovery insights ("One film from completing X")
-- [ ] **M15.6** Implement responsive grid layout
+- [x] **M15.1** Create "Up Next" section (watchlist)
+- [x] **M15.2** Create "Recently Watched" section
+- [x] **M15.3** Create "Continue Watching" section (in-progress series)
+- [x] **M15.4** Add quick search access (global search modal)
+- [x] **M15.6** Implement responsive grid layout
 
 ### Home Sections
-1. **Up Next** - Movies/series you want to watch
-2. **Continue Watching** - In-progress series
-3. **Recently Watched** - Last 10 watched
-4. **Insights** - Completion suggestions
+1. **Up Next** - In-progress series with "Next: S#E#" banner (sorted by last watched)
+2. **Watchlist** - Movies/series not started yet (sorted by date added)
+3. **Recently Watched** - Items with watch dates (sorted by last watched)
+4. **Recently Added** - Latest additions to library
 
-### Files to Create/Modify
-- `src/Client/Pages/Home.fs` (new)
-- `src/Client/Components/HomeSection.fs` (new)
+### Files Modified
+- `src/Client/Pages/Home/View.fs` - Complete redesign with all sections
+- Horizontal scrollable poster lists for each section
+- Compact hero section with connection status badges
+- Loading skeletons for async content
 
 ### Definition of Done
-- Home page shows all sections
-- Sections populated with real data
-- Responsive layout works
+- [x] Home page shows all sections
+- [x] Sections populated with real data
+- [x] Responsive layout works
+- [x] Build succeeds
+- [x] Tests pass
 
 ---
 

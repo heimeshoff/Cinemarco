@@ -10,6 +10,7 @@ type CacheApi = {
     GetStats: unit -> Async<CacheStats>
     ClearAll: unit -> Async<ClearCacheResult>
     ClearExpired: unit -> Async<ClearCacheResult>
+    RecalculateSeriesWatchStatus: unit -> Async<int>
 }
 
 let init () : Model * Cmd<Msg> =
@@ -66,3 +67,22 @@ let update (api: CacheApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with IsClearing = false },
         Cmd.none,
         ShowNotification ($"Failed to clear cache: {err}", false)
+
+    | RecalculateSeriesWatchStatus ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.RecalculateSeriesWatchStatus
+                ()
+                (Ok >> RecalculateComplete)
+                (fun ex -> Error ex.Message |> RecalculateComplete)
+        { model with IsRecalculating = true }, cmd, NoOp
+
+    | RecalculateComplete (Ok count) ->
+        { model with IsRecalculating = false },
+        Cmd.none,
+        ShowNotification ($"Recalculated watch status for {count} series", true)
+
+    | RecalculateComplete (Error err) ->
+        { model with IsRecalculating = false },
+        Cmd.none,
+        ShowNotification ($"Failed to recalculate: {err}", false)

@@ -1023,6 +1023,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetStats = fun () -> Api.api.cacheGetStats ()
                 ClearAll = fun () -> Api.api.cacheClearAll ()
                 ClearExpired = fun () -> Api.api.cacheClearExpired ()
+                RecalculateSeriesWatchStatus = fun () -> Api.api.maintenanceRecalculateSeriesWatchStatus ()
             }
             let newPage, pageCmd, extMsg = Pages.Cache.State.update cacheApi cacheMsg pageModel
             let model' = { model with CachePage = Some newPage }

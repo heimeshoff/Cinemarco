@@ -809,6 +809,28 @@ let cinemarcoApi : ICinemarcoApi = {
     cacheClearAll = fun () -> Persistence.clearAllCache()
 
     // =====================================
+    // Maintenance Operations
+    // =====================================
+
+    maintenanceRecalculateSeriesWatchStatus = fun () -> async {
+        // Get all library entries that are series
+        let! entries = Persistence.getAllLibraryEntries()
+        let seriesEntries =
+            entries
+            |> List.filter (fun e ->
+                match e.Media with
+                | LibrarySeries _ -> true
+                | _ -> false)
+
+        let mutable updatedCount = 0
+        for entry in seriesEntries do
+            do! Persistence.updateSeriesWatchStatusFromProgress entry.Id
+            updatedCount <- updatedCount + 1
+
+        return updatedCount
+    }
+
+    // =====================================
     // Tracked Contributors Operations
     // =====================================
 

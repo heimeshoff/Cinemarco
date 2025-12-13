@@ -8,6 +8,9 @@ open Types
 open Components.Icons
 open Components.Cards.View
 
+// Import common components
+module SectionHeader = Common.Components.SectionHeader.View
+
 /// Format a relative time string (e.g., "5 minutes ago", "2 hours ago")
 let private formatRelativeTime (dateTime: DateTime) =
     let now = DateTime.UtcNow
@@ -86,47 +89,348 @@ let private traktSyncButton (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
 
+/// Get episode indicator text from watch progress
+let private getNextEpisodeText (progress: WatchProgress) =
+    match progress.CurrentSeason, progress.CurrentEpisode with
+    | Some s, Some e -> Some $"S{s} E{e}"
+    | Some s, None -> Some $"Season {s}"
+    | None, Some e -> Some $"Episode {e}"
+    | None, None -> None
+
+/// Horizontal scroll poster list for home sections
+let private posterScrollList (entries: LibraryEntry list) (onViewDetail: EntryId -> bool -> unit) =
+    Html.div [
+        prop.className "flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.children [
+            for entry in entries do
+                Html.div [
+                    prop.key (EntryId.value entry.Id)
+                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
+                    prop.children [
+                        libraryEntryCard entry onViewDetail
+                        // Title below card
+                        Html.div [
+                            prop.className "mt-2 space-y-0.5"
+                            prop.children [
+                                Html.p [
+                                    prop.className "text-sm font-medium truncate text-base-content/90"
+                                    prop.text (
+                                        match entry.Media with
+                                        | LibraryMovie m -> m.Title
+                                        | LibrarySeries s -> s.Name
+                                    )
+                                ]
+                                Html.p [
+                                    prop.className "text-xs text-base-content/50"
+                                    prop.text (
+                                        match entry.Media with
+                                        | LibraryMovie m -> m.ReleaseDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
+                                        | LibrarySeries s -> s.FirstAirDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
+                                    )
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Horizontal scroll poster list for series with next episode indicator
+let private seriesScrollListWithEpisode (entries: (LibraryEntry * WatchProgress) list) (onViewDetail: EntryId -> bool -> unit) =
+    Html.div [
+        prop.className "flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.children [
+            for (entry, progress) in entries do
+                Html.div [
+                    prop.key (EntryId.value entry.Id)
+                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
+                    prop.children [
+                        // Custom card with episode indicator
+                        Html.div [
+                            prop.className "poster-card group relative cursor-pointer"
+                            prop.onClick (fun _ -> onViewDetail entry.Id false)
+                            prop.children [
+                                Html.div [
+                                    prop.className "poster-image-container poster-shadow"
+                                    prop.children [
+                                        match entry.Media with
+                                        | LibrarySeries s ->
+                                            match s.PosterPath with
+                                            | Some _ ->
+                                                Html.img [
+                                                    prop.src (getLocalPosterUrl s.PosterPath)
+                                                    prop.alt s.Name
+                                                    prop.className "poster-image"
+                                                    prop.custom ("loading", "lazy")
+                                                    prop.custom ("crossorigin", "anonymous")
+                                                ]
+                                            | None ->
+                                                Html.div [
+                                                    prop.className "w-full h-full flex items-center justify-center"
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "text-4xl text-base-content/20"
+                                                            prop.children [ tv ]
+                                                        ]
+                                                    ]
+                                                ]
+                                        | LibraryMovie _ -> Html.none
+
+                                        // Next episode banner at bottom
+                                        match getNextEpisodeText progress with
+                                        | Some episodeText ->
+                                            Html.div [
+                                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-primary/90 to-primary/70 px-2 py-1.5 text-center"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "text-xs font-bold text-primary-content uppercase tracking-wide"
+                                                        prop.text $"Next: {episodeText}"
+                                                    ]
+                                                ]
+                                            ]
+                                        | None -> Html.none
+
+                                        // Shine effect
+                                        Html.div [ prop.className "poster-shine" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                        // Title below card
+                        Html.div [
+                            prop.className "mt-2 space-y-0.5"
+                            prop.children [
+                                Html.p [
+                                    prop.className "text-sm font-medium truncate text-base-content/90"
+                                    prop.text (
+                                        match entry.Media with
+                                        | LibraryMovie m -> m.Title
+                                        | LibrarySeries s -> s.Name
+                                    )
+                                ]
+                                Html.p [
+                                    prop.className "text-xs text-base-content/50"
+                                    prop.text (
+                                        match entry.Media with
+                                        | LibraryMovie m -> m.ReleaseDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
+                                        | LibrarySeries s -> s.FirstAirDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
+                                    )
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Grid poster list for home sections
+let private posterGrid (entries: LibraryEntry list) (onViewDetail: EntryId -> bool -> unit) (maxItems: int) =
+    Html.div [
+        prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+        prop.children [
+            for entry in entries |> List.truncate maxItems do
+                Html.div [
+                    prop.key (EntryId.value entry.Id)
+                    prop.children [
+                        libraryEntryCard entry onViewDetail
+                    ]
+                ]
+        ]
+    ]
+
+/// Empty state for sections
+let private sectionEmptyState (icon: ReactElement) (message: string) =
+    Html.div [
+        prop.className "flex flex-col items-center justify-center py-8 text-base-content/40"
+        prop.children [
+            Html.span [
+                prop.className "w-12 h-12 mb-3 opacity-50"
+                prop.children [ icon ]
+            ]
+            Html.p [
+                prop.className "text-sm"
+                prop.text message
+            ]
+        ]
+    ]
+
+/// Section wrapper with header
+let private homeSection (title: string) (icon: ReactElement) (iconClass: string) (showViewAll: bool) (onViewAll: unit -> unit) (content: ReactElement) =
+    Html.div [
+        prop.className "space-y-4"
+        prop.children [
+            Html.div [
+                prop.className "flex justify-between items-center"
+                prop.children [
+                    Html.div [
+                        prop.className "flex items-center gap-3"
+                        prop.children [
+                            Html.span [
+                                prop.className $"w-6 h-6 {iconClass}"
+                                prop.children [ icon ]
+                            ]
+                            Html.h3 [
+                                prop.className "text-xl font-bold"
+                                prop.text title
+                            ]
+                        ]
+                    ]
+                    if showViewAll then
+                        Html.button [
+                            prop.className "flex items-center gap-2 text-sm text-primary hover:underline"
+                            prop.onClick (fun _ -> onViewAll ())
+                            prop.children [
+                                Html.span [ prop.text "View All" ]
+                                Html.span [
+                                    prop.className "w-4 h-4"
+                                    prop.children [ arrowRight ]
+                                ]
+                            ]
+                        ]
+                ]
+            ]
+            content
+        ]
+    ]
+
+/// Up Next section - in-progress series with next episode indicator
+let private upNextSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
+    let inProgressSeriesWithProgress =
+        entries
+        |> List.choose (fun e ->
+            match e.WatchStatus, e.Media with
+            | InProgress progress, LibrarySeries _ -> Some (e, progress)
+            | _ -> None)
+        |> List.sortByDescending (fun (e, _) -> e.DateLastWatched |> Option.defaultValue e.DateAdded)
+        |> List.truncate 12
+
+    if List.isEmpty inProgressSeriesWithProgress then Html.none
+    else
+        homeSection "Up Next" playCircle "text-primary" false ignore (
+            seriesScrollListWithEpisode inProgressSeriesWithProgress (fun id _ ->
+                let entry = inProgressSeriesWithProgress |> List.find (fun (e, _) -> e.Id = id) |> fst
+                match entry.Media with
+                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
+                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate))
+            )
+        )
+
+/// Watchlist section - movies and series not started yet
+let private watchlistSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
+    let notStarted =
+        entries
+        |> List.filter (fun e -> match e.WatchStatus with NotStarted -> true | _ -> false)
+        |> List.sortByDescending (fun e -> e.DateAdded)
+        |> List.truncate 12
+
+    if List.isEmpty notStarted then Html.none
+    else
+        homeSection "Watchlist" clock "text-info" true (fun () -> dispatch ViewLibrary) (
+            posterScrollList notStarted (fun id isMovie ->
+                let entry = notStarted |> List.find (fun e -> e.Id = id)
+                match entry.Media with
+                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
+                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate))
+            )
+        )
+
+/// Recently Watched section - completed or has watch date
+let private recentlyWatchedSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
+    let recentlyWatched =
+        entries
+        |> List.filter (fun e ->
+            match e.WatchStatus with
+            | Completed -> true
+            | InProgress _ -> e.DateLastWatched.IsSome
+            | _ -> false)
+        |> List.filter (fun e -> e.DateLastWatched.IsSome)
+        |> List.sortByDescending (fun e -> e.DateLastWatched.Value)
+        |> List.truncate 12
+
+    if List.isEmpty recentlyWatched then Html.none
+    else
+        homeSection "Recently Watched" eye "text-success" true (fun () -> dispatch ViewLibrary) (
+            posterScrollList recentlyWatched (fun id isMovie ->
+                let entry = recentlyWatched |> List.find (fun e -> e.Id = id)
+                match entry.Media with
+                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
+                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate))
+            )
+        )
+
+/// Recently Added section
+let private recentlyAddedSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
+    let recentlyAdded =
+        entries
+        |> List.sortByDescending (fun e -> e.DateAdded)
+        |> List.truncate 12
+
+    if List.isEmpty recentlyAdded then Html.none
+    else
+        homeSection "Recently Added" plus "text-secondary" true (fun () -> dispatch ViewLibrary) (
+            posterScrollList recentlyAdded (fun id isMovie ->
+                let entry = recentlyAdded |> List.find (fun e -> e.Id = id)
+                match entry.Media with
+                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
+                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate))
+            )
+        )
+
+/// Loading skeleton for sections
+let private loadingSkeleton (count: int) =
+    Html.div [
+        prop.className "flex gap-4 overflow-hidden"
+        prop.children [
+            for _ in 1..count do
+                Html.div [
+                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40 space-y-3"
+                    prop.children [
+                        Html.div [ prop.className "skeleton aspect-[2/3] rounded-lg" ]
+                        Html.div [ prop.className "skeleton h-4 w-3/4 rounded" ]
+                        Html.div [ prop.className "skeleton h-3 w-1/2 rounded" ]
+                    ]
+                ]
+        ]
+    ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-10"
         prop.children [
-            // Hero section
+            // Hero section - compact when library has content
             Html.div [
-                prop.className "text-center py-16 space-y-6"
+                prop.className "text-center py-8 space-y-4"
                 prop.children [
-                    // Logo icon
+                    // Logo and title row
                     Html.div [
-                        prop.className "mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-6 shadow-glow-primary"
+                        prop.className "flex items-center justify-center gap-4"
                         prop.children [
-                            Html.span [
-                                prop.className "w-10 h-10 text-primary"
-                                prop.children [ clapperboard ]
+                            Html.div [
+                                prop.className "w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center shadow-glow-primary"
+                                prop.children [
+                                    Html.span [
+                                        prop.className "w-7 h-7 text-primary"
+                                        prop.children [ clapperboard ]
+                                    ]
+                                ]
+                            ]
+                            Html.h2 [
+                                prop.className "text-3xl font-bold"
+                                prop.children [
+                                    Html.span [ prop.className "text-gradient"; prop.text "Cinemarco" ]
+                                ]
                             ]
                         ]
                     ]
 
-                    Html.h2 [
-                        prop.className "text-4xl font-bold"
-                        prop.children [
-                            Html.span [ prop.text "Your " ]
-                            Html.span [ prop.className "text-gradient"; prop.text "Cinema" ]
-                            Html.span [ prop.text " Memory Tracker" ]
-                        ]
-                    ]
-
-                    Html.p [
-                        prop.className "text-base-content/60 max-w-xl mx-auto text-lg leading-relaxed"
-                        prop.text "Search for movies and series to add them to your personal library. Track what you've watched, who you watched with, and capture your thoughts."
-                    ]
-
                     // Connection status buttons
                     Html.div [
-                        prop.className "flex flex-wrap justify-center gap-4 mt-8"
+                        prop.className "flex flex-wrap justify-center gap-3"
                         prop.children [
                             // TMDB health button
                             Html.button [
                                 prop.className (
-                                    "flex items-center gap-2 px-4 py-2 glass rounded-full text-sm transition-all " +
+                                    "flex items-center gap-2 px-3 py-1.5 glass rounded-full text-xs transition-all " +
                                     match model.TmdbHealth with
                                     | TmdbNotChecked -> "text-base-content/40"
                                     | TmdbChecking -> "text-base-content/40"
@@ -137,141 +441,140 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 prop.children [
                                     match model.TmdbHealth with
                                     | TmdbNotChecked ->
-                                        Html.span [ prop.className "w-4 h-4"; prop.children [ database ] ]
+                                        Html.span [ prop.className "w-3.5 h-3.5"; prop.children [ database ] ]
                                         Html.span [ prop.text "TMDB" ]
                                     | TmdbChecking ->
                                         Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                        Html.span [ prop.text "Checking TMDB..." ]
+                                        Html.span [ prop.text "Checking..." ]
                                     | TmdbConnected ->
-                                        Html.span [ prop.className "w-4 h-4"; prop.children [ check ] ]
-                                        Html.span [ prop.text "TMDB Connected" ]
-                                    | TmdbError err ->
-                                        Html.span [ prop.className "w-4 h-4"; prop.children [ error ] ]
-                                        Html.span [ prop.text $"TMDB: {err}" ]
+                                        Html.span [ prop.className "w-3.5 h-3.5"; prop.children [ check ] ]
+                                        Html.span [ prop.text "TMDB" ]
+                                    | TmdbError _ ->
+                                        Html.span [ prop.className "w-3.5 h-3.5"; prop.children [ error ] ]
+                                        Html.span [ prop.text "TMDB Error" ]
                                 ]
                             ]
                             // Trakt sync button
                             traktSyncButton model dispatch
-                        ]
-                    ]
-
-                    // Year in Review link
-                    Html.button [
-                        prop.className "mt-8 group flex items-center gap-3 mx-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/30 transition-all duration-300"
-                        prop.onClick (fun _ -> dispatch ViewYearInReview)
-                        prop.children [
-                            Html.span [
-                                prop.className "w-6 h-6 text-amber-400"
-                                prop.children [ sparkles ]
-                            ]
-                            Html.span [
-                                prop.className "font-medium text-amber-200"
-                                prop.text "View Your Year in Review"
-                            ]
-                            Html.span [
-                                prop.className "w-5 h-5 text-amber-400/70 group-hover:translate-x-1 transition-transform"
-                                prop.children [ arrowRight ]
+                            // Year in Review button
+                            Html.button [
+                                prop.className "flex items-center gap-2 px-3 py-1.5 glass rounded-full text-xs text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition-all"
+                                prop.onClick (fun _ -> dispatch ViewYearInReview)
+                                prop.children [
+                                    Html.span [
+                                        prop.className "w-3.5 h-3.5"
+                                        prop.children [ sparkles ]
+                                    ]
+                                    Html.span [ prop.text "Year in Review" ]
+                                ]
                             ]
                         ]
                     ]
                 ]
             ]
 
-            // Recently added section
+            // Content sections
             match model.Library with
             | Success entries when not (List.isEmpty entries) ->
                 Html.div [
-                    prop.className "space-y-4"
+                    prop.className "space-y-8"
                     prop.children [
-                        Html.div [
-                            prop.className "flex justify-between items-center"
-                            prop.children [
-                                Html.h3 [
-                                    prop.className "text-xl font-bold"
-                                    prop.text "Recently Added"
-                                ]
-                                Html.button [
-                                    prop.className "flex items-center gap-2 text-sm text-primary hover:underline"
-                                    prop.onClick (fun _ -> dispatch ViewLibrary)
-                                    prop.children [
-                                        Html.span [ prop.text "View All" ]
-                                        Html.span [
-                                            prop.className "w-4 h-4"
-                                            prop.children [ arrowRight ]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                        Html.div [
-                            prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
-                            prop.children [
-                                for entry in entries |> List.sortByDescending (fun e -> e.DateAdded) |> List.truncate 12 do
-                                    Html.div [
-                                        prop.key (EntryId.value entry.Id)
-                                        prop.children [
-                                            libraryEntryCard entry (fun id isMovie ->
-                                                match entry.Media with
-                                                | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
-                                                | LibrarySeries s -> dispatch (ViewSeriesDetail (id, s.Name, s.FirstAirDate)))
-                                        ]
-                                    ]
-                            ]
-                        ]
+                        // Up Next (in-progress series with next episode indicator)
+                        upNextSection entries dispatch
+
+                        // Watchlist (not started - movies and series)
+                        watchlistSection entries dispatch
+
+                        // Recently Watched
+                        recentlyWatchedSection entries dispatch
+
+                        // Recently Added
+                        recentlyAddedSection entries dispatch
                     ]
                 ]
+
             | Success _ ->
+                // Empty library state
                 Html.div [
                     prop.className "text-center py-16"
                     prop.children [
                         Html.div [
-                            prop.className "w-20 h-20 mx-auto mb-6 rounded-full bg-base-200 flex items-center justify-center"
+                            prop.className "w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center"
                             prop.children [
                                 Html.span [
-                                    prop.className "w-10 h-10 text-base-content/30"
+                                    prop.className "w-12 h-12 text-base-content/20"
                                     prop.children [ library ]
                                 ]
                             ]
                         ]
                         Html.h3 [
-                            prop.className "text-xl font-semibold mb-2 text-base-content/70"
+                            prop.className "text-2xl font-bold mb-3 text-base-content/80"
                             prop.text "Your library is empty"
                         ]
                         Html.p [
-                            prop.className "text-base-content/50"
-                            prop.text "Search for a movie or series above to get started"
+                            prop.className "text-base-content/50 mb-6 max-w-md mx-auto"
+                            prop.text "Start building your cinema memory by searching for movies and series you've watched or want to watch."
+                        ]
+                        Html.div [
+                            prop.className "flex justify-center gap-4"
+                            prop.children [
+                                Html.button [
+                                    prop.className "btn btn-primary"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "w-5 h-5 mr-2"
+                                            prop.children [ search ]
+                                        ]
+                                        Html.span [ prop.text "Search Movies & Series" ]
+                                    ]
+                                ]
+                            ]
                         ]
                     ]
                 ]
+
             | Loading ->
                 Html.div [
-                    prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+                    prop.className "space-y-8"
                     prop.children [
-                        for _ in 1..6 do
-                            Html.div [
-                                prop.className "space-y-3"
-                                prop.children [
-                                    Html.div [ prop.className "skeleton aspect-[2/3] rounded-lg" ]
-                                    Html.div [ prop.className "skeleton h-4 w-3/4 rounded" ]
-                                    Html.div [ prop.className "skeleton h-3 w-1/2 rounded" ]
-                                ]
+                        // Continue Watching skeleton
+                        Html.div [
+                            prop.className "space-y-4"
+                            prop.children [
+                                Html.div [ prop.className "skeleton h-7 w-48 rounded" ]
+                                loadingSkeleton 6
                             ]
+                        ]
+                        // Up Next skeleton
+                        Html.div [
+                            prop.className "space-y-4"
+                            prop.children [
+                                Html.div [ prop.className "skeleton h-7 w-32 rounded" ]
+                                loadingSkeleton 6
+                            ]
+                        ]
                     ]
                 ]
+
             | Failure err ->
                 Html.div [
                     prop.className "text-center py-12"
                     prop.children [
                         Html.span [
-                            prop.className "w-12 h-12 mx-auto mb-4 text-error/50 block"
+                            prop.className "w-16 h-16 mx-auto mb-4 text-error/40 block"
                             prop.children [ error ]
                         ]
+                        Html.h3 [
+                            prop.className "text-lg font-semibold text-error mb-2"
+                            prop.text "Failed to load library"
+                        ]
                         Html.p [
-                            prop.className "text-error"
-                            prop.text $"Error loading library: {err}"
+                            prop.className "text-base-content/50 text-sm"
+                            prop.text err
                         ]
                     ]
                 ]
+
             | NotAsked -> Html.none
         ]
     ]

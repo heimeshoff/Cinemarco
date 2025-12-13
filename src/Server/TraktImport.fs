@@ -294,16 +294,23 @@ let private importMovie (item: TraktHistoryItem) (rating: int option) : Async<Re
 let private importEpisodeWatchDataSimple (entryId: EntryId) (seriesId: SeriesId) (watchedEpisodes: TraktWatchedEpisode list) : Async<unit> = async {
     let! defaultSession = Persistence.getDefaultSession entryId
     match defaultSession with
-    | None -> ()
+    | None ->
+        printfn "[TraktSync] ERROR: No default session for entry %d - episodes will not be synced!" (EntryId.value entryId)
     | Some session ->
         for ep in watchedEpisodes do
-            do! Persistence.insertEpisodeProgressWithDate
-                    session.Id
-                    entryId
-                    seriesId
-                    ep.SeasonNumber
-                    ep.EpisodeNumber
-                    ep.WatchedAt
+            match ep.WatchedAt with
+            | None ->
+                printfn "[TraktSync] Warning: Episode S%02dE%02d has no watched date, skipping" ep.SeasonNumber ep.EpisodeNumber
+            | Some _ ->
+                do! Persistence.insertEpisodeProgressWithDate
+                        session.Id
+                        entryId
+                        seriesId
+                        ep.SeasonNumber
+                        ep.EpisodeNumber
+                        ep.WatchedAt
+        // Update the watch status based on imported episode progress
+        do! Persistence.updateSeriesWatchStatusFromProgress entryId
 }
 
 /// Import episode watch data for an existing series entry (FULL IMPORT)
@@ -384,6 +391,8 @@ let private importEpisodeWatchData (entryId: EntryId) (seriesId: SeriesId) (watc
                     ep.SeasonNumber
                     ep.EpisodeNumber
                     watchDate
+        // Update the watch status based on imported episode progress
+        do! Persistence.updateSeriesWatchStatusFromProgress entryId
 }
 
 /// Import a single series from Trakt (with episode-level watch data)
@@ -526,15 +535,29 @@ let private importSeriesWithEpisodes (item: TraktWatchedSeries) (rating: int opt
 
 /// Import episode watch data for an EXISTING series (incremental sync only)
 /// Uses simple import (no binge-detection), only for series already in library
-let private importEpisodesForExistingSeries (entryId: EntryId) (watchedEpisodes: TraktWatchedEpisode list) : Async<unit> = async {
+let private importEpisodesForExistingSeries (entryId: EntryId) (watchedEpisodes: TraktWatchedEpisode list) : Async<int> = async {
     let! entry = Persistence.getLibraryEntryById entryId
     match entry with
     | Some e ->
         match e.Media with
         | LibrarySeries series ->
+            // Get or create default session
+            let! defaultSession = Persistence.getDefaultSession entryId
+            let! session = 
+                match defaultSession with
+                | Some s -> async { return s }
+                | None ->
+                    printfn "[TraktSync] Creating default session for series: %s" series.Name
+                    Persistence.createDefaultSession entryId series.Id
+            
             do! importEpisodeWatchDataSimple entryId series.Id watchedEpisodes
-        | _ -> ()
-    | None -> ()
+            return watchedEpisodes.Length
+        | _ -> 
+            printfn "[TraktSync] Warning: Entry %d is not a series" (EntryId.value entryId)
+            return 0
+    | None -> 
+        printfn "[TraktSync] Warning: Entry %d not found" (EntryId.value entryId)
+        return 0
 }
 
 /// Import a NEW series from Trakt (for incremental sync)
@@ -788,10 +811,18 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
     // Use full import (Import page) for historical data
     let effectiveLastSync =
         match lastSyncOpt with
-        | Some dt -> dt
+        | Some dt ->
+            // Ensure we treat the stored time as UTC
+            if dt.Kind = DateTimeKind.Unspecified then
+                DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+            else
+                dt.ToUniversalTime()
         | None -> DateTime.UtcNow.AddHours(-24.0)
 
-    printfn "[TraktSync] Starting incremental sync. Fetching since: %A" effectiveLastSync
+    printfn "[TraktSync] Starting incremental sync. Last sync from DB: %A (Kind: %A). Effective: %A (UTC)"
+        lastSyncOpt
+        (lastSyncOpt |> Option.map (fun d -> d.Kind))
+        effectiveLastSync
 
     try
         let mutable newMovieWatches = 0
@@ -845,17 +876,23 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
         match seriesResult with
         | Error err -> errors <- errors @ [$"Failed to fetch series: {err}"]
         | Ok seriesList ->
+            let totalEpisodes = seriesList |> List.sumBy (fun s -> s.WatchedEpisodes.Length)
+            printfn "[TraktSync] Fetched %d series with %d total episodes from Trakt" seriesList.Length totalEpisodes
             for series in seriesList do
+                printfn "[TraktSync] Series: %s (TMDB: %d), Episodes: %d" series.Title series.TmdbId series.WatchedEpisodes.Length
                 let tmdbId = TmdbSeriesId series.TmdbId
                 let! existsInLibrary = Persistence.isSeriesInLibrary tmdbId
+                printfn "[TraktSync] Library lookup for '%s' (TMDB %d): %s"
+                    series.Title series.TmdbId
+                    (match existsInLibrary with Some id -> sprintf "Found (EntryId %d)" (EntryId.value id) | None -> "Not found")
 
                 match existsInLibrary with
                 | Some entryId ->
                     // Series in library - sync episodes
                     if not (List.isEmpty series.WatchedEpisodes) then
-                        printfn "[TraktSync] Syncing %d episodes for: %s" series.WatchedEpisodes.Length series.Title
-                        do! importEpisodesForExistingSeries entryId series.WatchedEpisodes
-                        newEpisodeWatches <- newEpisodeWatches + series.WatchedEpisodes.Length
+                        printfn "[TraktSync] Syncing %d episodes for: %s (EntryId %d)" series.WatchedEpisodes.Length series.Title (EntryId.value entryId)
+                        let! syncedCount = importEpisodesForExistingSeries entryId series.WatchedEpisodes
+                        newEpisodeWatches <- newEpisodeWatches + syncedCount
                 | None ->
                     // Series NOT in library - add it with episodes (no binge-detection)
                     if not (List.isEmpty series.WatchedEpisodes) then

@@ -221,11 +221,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         Html.h1 [
                             prop.className "text-3xl font-bold"
-                            prop.text "TMDB Cache"
+                            prop.text "Cache & Maintenance"
                         ]
                         Html.p [
                             prop.className "text-base-content/60 mt-1"
-                            prop.text "Manage cached TMDB API responses"
+                            prop.text "Manage cached TMDB responses and run maintenance tasks"
                         ]
                     ]
 
@@ -253,6 +253,31 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     Html.span [ prop.text "Clear All Cache" ]
                                 ]
                             ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Maintenance section
+            Html.div [
+                prop.className "mb-8 p-4 bg-base-200 rounded-lg"
+                prop.children [
+                    Html.h3 [
+                        prop.className "text-lg font-semibold mb-2"
+                        prop.text "Maintenance"
+                    ]
+                    Html.p [
+                        prop.className "text-sm text-base-content/60 mb-4"
+                        prop.text "Fix series watch status if it wasn't properly set during Trakt import. This will recalculate the InProgress/Completed status for all series based on episode watch data."
+                    ]
+                    Html.button [
+                        prop.className "btn btn-primary btn-sm"
+                        prop.disabled model.IsRecalculating
+                        prop.onClick (fun _ -> dispatch RecalculateSeriesWatchStatus)
+                        prop.children [
+                            if model.IsRecalculating then
+                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                            Html.span [ prop.text "Recalculate Series Watch Status" ]
                         ]
                     ]
                 ]

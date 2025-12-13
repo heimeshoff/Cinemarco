@@ -7,6 +7,7 @@ type Model = {
     Entries: RemoteData<CacheEntry list>
     Stats: RemoteData<CacheStats>
     IsClearing: bool
+    IsRecalculating: bool
 }
 
 type Msg =
@@ -15,6 +16,8 @@ type Msg =
     | ClearAllCache
     | ClearExpiredCache
     | CacheCleared of Result<ClearCacheResult, string>
+    | RecalculateSeriesWatchStatus
+    | RecalculateComplete of Result<int, string>
 
 type ExternalMsg =
     | NoOp
@@ -25,4 +28,5 @@ module Model =
         Entries = NotAsked
         Stats = NotAsked
         IsClearing = false
+        IsRecalculating = false
     }

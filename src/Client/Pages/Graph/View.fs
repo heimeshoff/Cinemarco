@@ -271,17 +271,17 @@ let private GraphVisualization (graph: RelationshipGraph) (focusedNodeId: string
 
     Html.div [
         prop.id containerId
-        prop.className "w-full h-full min-h-[500px] bg-base-300/30 rounded-2xl overflow-hidden"
+        prop.className "w-full h-full"
     ]
 
 /// Search bar component
 let private searchBar (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "relative"
+        prop.className "relative glass rounded-lg"
         prop.children [
             Html.input [
                 prop.type' "text"
-                prop.className "w-full pl-10 pr-4 py-2.5 bg-base-100/50 border border-white/10 rounded-lg text-sm placeholder:text-base-content/40 focus:outline-none focus:border-primary/50"
+                prop.className "w-full pl-10 pr-4 py-2.5 bg-transparent border-none rounded-lg text-sm placeholder:text-base-content/40 focus:outline-none"
                 prop.placeholder "Search movies, series, friends..."
                 prop.value (model.Filter.SearchQuery |> Option.defaultValue "")
                 prop.onChange (fun (value: string) -> dispatch (SetSearchQuery value))
@@ -404,42 +404,15 @@ let private selectedNodePanel (model: Model) (dispatch: Msg -> unit) =
 // =====================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
+    // Full-page container with graph as background layer
     Html.div [
-        prop.className "space-y-6"
+        prop.className "relative h-[calc(100vh-120px)] min-h-[600px] -mx-4 -mt-4 sm:-mx-6 sm:-mt-6"
         prop.children [
-            // Header
-            Html.div [
-                prop.className "flex items-center gap-3"
-                prop.children [
-                    Html.div [
-                        prop.className "w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"
-                        prop.children [
-                            Html.span [
-                                prop.className "w-6 h-6 text-primary"
-                                prop.children [ stats ]  // Using stats icon as placeholder
-                            ]
-                        ]
-                    ]
-                    Html.div [
-                        prop.children [
-                            Html.h1 [
-                                prop.className "text-2xl font-bold"
-                                prop.text "Relationship Graph"
-                            ]
-                            Html.p [
-                                prop.className "text-sm text-base-content/60"
-                                prop.text "Explore connections between your movies, series, and friends"
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-
-            // Main content
+            // Graph layer - fills entire container
             match model.Graph with
             | NotAsked | Loading ->
                 Html.div [
-                    prop.className "flex items-center justify-center h-96"
+                    prop.className "absolute inset-0 flex items-center justify-center"
                     prop.children [
                         Html.span [ prop.className "loading loading-spinner loading-lg text-primary" ]
                     ]
@@ -447,86 +420,121 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             | Failure err ->
                 Html.div [
-                    prop.className "glass rounded-2xl p-8 text-center"
+                    prop.className "absolute inset-0 flex items-center justify-center"
                     prop.children [
-                        Html.span [
-                            prop.className "w-12 h-12 text-error mx-auto block mb-4"
-                            prop.children [ error ]
-                        ]
-                        Html.p [
-                            prop.className "text-error"
-                            prop.text $"Failed to load graph: {err}"
-                        ]
-                        Html.button [
-                            prop.className "btn btn-primary mt-4"
-                            prop.onClick (fun _ -> dispatch LoadGraph)
-                            prop.text "Retry"
+                        Html.div [
+                            prop.className "glass rounded-2xl p-8 text-center"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-12 h-12 text-error mx-auto block mb-4"
+                                    prop.children [ error ]
+                                ]
+                                Html.p [
+                                    prop.className "text-error"
+                                    prop.text $"Failed to load graph: {err}"
+                                ]
+                                Html.button [
+                                    prop.className "btn btn-primary mt-4"
+                                    prop.onClick (fun _ -> dispatch LoadGraph)
+                                    prop.text "Retry"
+                                ]
+                            ]
                         ]
                     ]
                 ]
 
             | Success graph ->
+                // Graph visualization fills entire area
                 Html.div [
-                    prop.className "space-y-4"
-                    prop.children [
-                        // Search bar and selected node panel at top
-                        Html.div [
-                            prop.className "flex flex-col gap-2 max-w-lg"
-                            prop.children [
-                                searchBar model dispatch
-                                selectedNodePanel model dispatch
-                            ]
-                        ]
+                    prop.className "absolute inset-0"
+                    prop.children [ GraphVisualization graph model.FocusedNodeId dispatch ]
+                ]
 
-                        // Graph canvas with overlays
-                        Html.div [
-                            prop.className "relative h-[calc(100vh-280px)] min-h-[500px]"
-                            prop.children [
-                                GraphVisualization graph model.FocusedNodeId dispatch
-
-                                // Zoom controls (bottom right)
-                                Html.div [
-                                    prop.className "absolute bottom-4 right-4"
-                                    prop.children [ zoomControls () ]
-                                ]
-
-                                // Show subtle loading indicator when refreshing
-                                if model.IsRefreshing then
+            // Floating overlays on top of graph (always rendered)
+            Html.div [
+                prop.className "absolute inset-0 pointer-events-none"
+                prop.children [
+                    // Top-left: Header and search controls
+                    Html.div [
+                        prop.className "absolute top-4 left-4 pointer-events-auto max-w-md space-y-3"
+                        prop.children [
+                            // Compact header
+                            Html.div [
+                                prop.className "flex items-center gap-3"
+                                prop.children [
                                     Html.div [
-                                        prop.className "absolute top-4 right-4 flex items-center gap-2 glass rounded-lg px-3 py-2"
+                                        prop.className "w-10 h-10 rounded-xl bg-gradient-to-br from-primary/30 to-secondary/30 backdrop-blur-sm flex items-center justify-center"
                                         prop.children [
-                                            Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
                                             Html.span [
-                                                prop.className "text-sm text-base-content/70"
-                                                prop.text "Updating..."
+                                                prop.className "w-5 h-5 text-primary"
+                                                prop.children [ stats ]
                                             ]
                                         ]
                                     ]
-
-                                // Show focus mode indicator with clear button
-                                if model.Filter.FocusedNode.IsSome then
                                     Html.div [
-                                        prop.className "absolute top-4 left-4 flex items-center gap-2 glass rounded-lg px-3 py-2"
                                         prop.children [
-                                            Html.span [
-                                                prop.className "text-sm text-primary font-medium"
-                                                prop.text "Focus Mode"
+                                            Html.h1 [
+                                                prop.className "text-xl font-bold drop-shadow-lg"
+                                                prop.text "Relationship Graph"
                                             ]
-                                            Html.button [
-                                                prop.className "btn btn-ghost btn-xs"
-                                                prop.onClick (fun _ -> dispatch ClearFocus)
-                                                prop.children [
-                                                    Html.span [
-                                                        prop.className "text-xs"
-                                                        prop.text "✕ Clear"
-                                                    ]
+                                            Html.p [
+                                                prop.className "text-xs text-base-content/70 drop-shadow"
+                                                prop.text "Explore connections"
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+
+                            // Search bar
+                            searchBar model dispatch
+
+                            // Selected node panel
+                            selectedNodePanel model dispatch
+
+                            // Focus mode indicator
+                            if model.Filter.FocusedNode.IsSome then
+                                Html.div [
+                                    prop.className "flex items-center gap-2 glass rounded-lg px-3 py-2"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "text-sm text-primary font-medium"
+                                            prop.text "Focus Mode"
+                                        ]
+                                        Html.button [
+                                            prop.className "btn btn-ghost btn-xs"
+                                            prop.onClick (fun _ -> dispatch ClearFocus)
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "text-xs"
+                                                    prop.text "✕ Clear"
                                                 ]
                                             ]
                                         ]
                                     ]
-                            ]
+                                ]
                         ]
                     ]
+
+                    // Top-right: Loading indicator
+                    if model.IsRefreshing then
+                        Html.div [
+                            prop.className "absolute top-4 right-4 flex items-center gap-2 glass rounded-lg px-3 py-2 pointer-events-auto"
+                            prop.children [
+                                Html.span [ prop.className "loading loading-spinner loading-sm text-primary" ]
+                                Html.span [
+                                    prop.className "text-sm text-base-content/70"
+                                    prop.text "Updating..."
+                                ]
+                            ]
+                        ]
+
+                    // Bottom-right: Zoom controls
+                    Html.div [
+                        prop.className "absolute bottom-4 right-4 pointer-events-auto"
+                        prop.children [ zoomControls () ]
+                    ]
                 ]
+            ]
         ]
     ]
