@@ -1,0 +1,44 @@
+# Serena configuration for Cinemarco F# project
+# https://github.com/oramasearch/serena
+
+project:
+  name: Cinemarco
+  description: Personal cinema memory tracker - F# full-stack application
+  language: fsharp
+
+# Project structure for code intelligence
+sources:
+  - path: src/Shared
+    description: Shared types and API contracts between frontend and backend
+    patterns:
+      - "**/*.fs"
+
+  - path: src/Server
+    description: Giraffe backend with Fable.Remoting API
+    patterns:
+      - "**/*.fs"
+
+  - path: src/Client
+    description: Elmish.React + Feliz frontend
+    patterns:
+      - "**/*.fs"
+
+  - path: src/Tests
+    description: Expecto test suite
+    patterns:
+      - "**/*.fs"
+
+# Exclude paths
+exclude:
+  - node_modules
+  - obj
+  - bin
+  - .fable
+  - dist
+  - public/dist
+
+# File type mappings
+file_types:
+  fsharp:
+    extensions: [".fs", ".fsi", ".fsx"]
+    comment_style: "//"

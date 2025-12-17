@@ -317,6 +317,11 @@ h1, h2, h3, .font-display {
 
 .poster-card {
   position: relative;
+  transition: transform 0.4s var(--ease-cinema);
+}
+
+.poster-card:hover {
+  transform: scale(1.04);
 }
 
 .poster-image-container {
@@ -325,11 +330,7 @@ h1, h2, h3, .font-display {
   overflow: hidden;
   border-radius: 0.625rem;
   background: linear-gradient(135deg, rgba(159, 18, 57, 0.15), rgba(212, 165, 116, 0.1));
-  transition: transform 0.4s var(--ease-cinema), box-shadow 0.4s var(--ease-cinema);
-}
-
-.poster-card:hover .poster-image-container {
-  transform: scale(1.04);
+  transition: box-shadow 0.4s var(--ease-cinema);
 }
 
 .poster-image {

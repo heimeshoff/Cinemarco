@@ -12,6 +12,8 @@ module SectionHeader = Common.Components.SectionHeader.View
 module GlassPanel = Common.Components.GlassPanel.View
 module FilterChip = Common.Components.FilterChip.View
 module GlassButton = Common.Components.GlassButton.View
+module BackButton = Common.Components.BackButton.View
+module ProgressBar = Common.Components.ProgressBar.View
 
 /// Format a date nicely
 let private formatDate (d: System.DateTime) =
@@ -33,37 +35,7 @@ let private getPosterUrl (path: string option) =
     | None -> ""
 
 /// Progress bar component
-let private progressBar (seen: int) (total: int) =
-    let percentage = if total > 0 then (float seen / float total) * 100.0 else 0.0
-    let percentText = $"{int (System.Math.Round(percentage))}%%"
-
-    Html.div [
-        prop.className "space-y-2"
-        prop.children [
-            Html.div [
-                prop.className "flex justify-between items-center text-sm"
-                prop.children [
-                    Html.span [
-                        prop.className "text-base-content/70"
-                        prop.text $"{seen} of {total} seen"
-                    ]
-                    Html.span [
-                        prop.className "font-semibold text-primary"
-                        prop.text percentText
-                    ]
-                ]
-            ]
-            Html.div [
-                prop.className "h-3 bg-base-300 rounded-full overflow-hidden"
-                prop.children [
-                    Html.div [
-                        prop.className "h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500 ease-out rounded-full"
-                        prop.style [ style.width (length.percent percentage) ]
-                    ]
-                ]
-            ]
-        ]
-    ]
+let private progressBar (seen: int) (total: int) = ProgressBar.withSeenLabel seen total
 
 /// Filter chips row
 let private filterRow (model: Model) (dispatch: Msg -> unit) =
@@ -472,15 +444,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button - uses browser history for proper navigation
-            Html.button [
-                prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> window.history.back())
-                prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back" ]
-                ]
-            ]
+            // Back button
+            BackButton.view()
 
             match model.PersonDetails, model.Filmography with
             | Loading, _ | _, Loading ->

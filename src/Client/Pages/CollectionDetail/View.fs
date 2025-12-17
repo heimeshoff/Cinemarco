@@ -8,6 +8,9 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+module BackButton = Common.Components.BackButton.View
+module ProgressBar = Common.Components.ProgressBar.View
+
 let private handleFileSelect (dispatch: Msg -> unit) (e: Event) =
     let input = e.target :?> HTMLInputElement
     if input.files.length > 0 then
@@ -19,34 +22,11 @@ let private handleFileSelect (dispatch: Msg -> unit) (e: Event) =
         reader.readAsDataURL(file)
 
 let private progressBar (progress: CollectionProgress) =
-    Html.div [
-        prop.className "bg-base-200 rounded-lg p-4 mb-6"
-        prop.children [
-            Html.div [
-                prop.className "flex justify-between items-center mb-2"
-                prop.children [
-                    Html.span [
-                        prop.className "text-sm font-medium"
-                        prop.text $"{progress.CompletedItems} of {progress.TotalItems} completed"
-                    ]
-                    Html.span [
-                        prop.className "text-sm text-base-content/60"
-                        prop.text $"{int progress.CompletionPercentage}%%"
-                    ]
-                ]
-            ]
-            Html.progress [
-                prop.className "progress progress-primary w-full"
-                prop.value (int progress.CompletionPercentage)
-                prop.max 100
-            ]
-            if progress.InProgressItems > 0 then
-                Html.p [
-                    prop.className "text-xs text-base-content/50 mt-1"
-                    prop.text $"{progress.InProgressItems} in progress"
-                ]
-        ]
-    ]
+    ProgressBar.withCompletedLabel
+        progress.CompletedItems
+        progress.TotalItems
+        (if progress.InProgressItems > 0 then Some progress.InProgressItems else None)
+        progress.CompletionPercentage
 
 let private watchStatusBadge (status: WatchStatus) =
     match status with
@@ -239,14 +219,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [
-                    Html.button [
-                        prop.className "btn btn-ghost btn-sm gap-1"
-                        prop.onClick (fun _ -> window.history.back())
-                        prop.children [
-                            Html.span [ prop.text "←" ]
-                            Html.span [ prop.text "Back" ]
-                        ]
-                    ]
+                    BackButton.view()
                 ]
             ]
 

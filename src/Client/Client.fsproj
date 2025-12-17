@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Common Infrastructure -->
     <Compile Include="Common/Types.fs" />
+    <Compile Include="Common/AsyncCmd.fs" />
     <Compile Include="Common/Routing.fs" />
 
     <!-- Icons (needed by Common Components) -->
@@ -14,6 +15,10 @@
     <!-- Common Reusable Components -->
     <!-- PosterSkeleton (no deps, used by RemoteDataView) -->
     <Compile Include="Common/Components/PosterSkeleton/View.fs" />
+
+    <!-- PosterCard -->
+    <Compile Include="Common/Components/PosterCard/Types.fs" />
+    <Compile Include="Common/Components/PosterCard/View.fs" />
 
     <!-- PosterGrid -->
     <Compile Include="Common/Components/PosterGrid/View.fs" />
@@ -45,6 +50,20 @@
     <!-- GlassButton -->
     <Compile Include="Common/Components/GlassButton/Types.fs" />
     <Compile Include="Common/Components/GlassButton/View.fs" />
+
+    <!-- RatingButton -->
+    <Compile Include="Common/Components/RatingButton/Types.fs" />
+    <Compile Include="Common/Components/RatingButton/View.fs" />
+
+    <!-- CastCrewSection -->
+    <Compile Include="Common/Components/CastCrewSection/Types.fs" />
+    <Compile Include="Common/Components/CastCrewSection/View.fs" />
+
+    <!-- BackButton -->
+    <Compile Include="Common/Components/BackButton/View.fs" />
+
+    <!-- ProgressBar -->
+    <Compile Include="Common/Components/ProgressBar/View.fs" />
 
     <!-- Tabs -->
     <Compile Include="Common/Components/Tabs/Types.fs" />

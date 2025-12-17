@@ -9,6 +9,8 @@ open Types
 open Components.Icons
 open Components.Cards.View
 
+module BackButton = Common.Components.BackButton.View
+
 /// Render a friend avatar (large, round, clickable to edit)
 let private friendAvatarLarge (friend: Friend) (dispatch: Msg -> unit) =
     Html.div [
@@ -116,15 +118,8 @@ let view (model: Model) (friend: Friend option) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button - uses browser history for proper navigation
-            Html.button [
-                prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> window.history.back())
-                prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back" ]
-                ]
-            ]
+            // Back button
+            BackButton.view()
 
             match friend with
             | Some f ->

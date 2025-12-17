@@ -4,6 +4,10 @@ open Feliz
 open Shared.Domain
 open Components.Icons
 
+// Import shared PosterCard component
+module PosterCard = Common.Components.PosterCard.View
+module PosterCardTypes = Common.Components.PosterCard.Types
+
 /// TMDB image base URL (for search results)
 let private tmdbImageBase = "https://image.tmdb.org/t/p"
 
@@ -16,11 +20,7 @@ let getTmdbPosterUrl (size: string) (path: string option) =
 
 /// Get local cached poster URL (for library items)
 let getLocalPosterUrl (path: string option) =
-    match path with
-    | Some p ->
-        let filename = if p.StartsWith("/") then p.Substring(1) else p
-        $"/images/posters/{filename}"
-    | None -> ""
+    PosterCard.getLocalPosterUrl path
 
 /// Get local cached backdrop URL (for library items)
 let getLocalBackdropUrl (path: string option) =
@@ -38,96 +38,19 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (is
         |> Option.map (fun d -> d.Year.ToString())
         |> Option.defaultValue ""
 
-    let mediaTypeLabel =
-        match item.MediaType with
-        | Movie -> "Movie"
-        | Series -> "Series"
+    let posterUrl = getTmdbPosterUrl "w342" item.PosterPath
+
+    let config =
+        PosterCardTypes.Config.searchResult
+            (if posterUrl = "" then None else Some posterUrl)
+            item.Title
+            item.MediaType
+            (fun () -> onSelect item)
+            isInLibrary
 
     Html.div [
-        prop.className "poster-card group relative cursor-pointer"
-        prop.onClick (fun _ -> onSelect item)
         prop.children [
-            // Poster container
-            Html.div [
-                prop.className "poster-image-container poster-shadow"
-                prop.children [
-                    // Poster image (from TMDB CDN for search results)
-                    match item.PosterPath with
-                    | Some _ ->
-                        Html.img [
-                            prop.src (getTmdbPosterUrl "w342" item.PosterPath)
-                            prop.alt item.Title
-                            prop.className (if isInLibrary then "poster-image grayscale opacity-60" else "poster-image")
-                            prop.custom ("loading", "lazy")
-                        ]
-                    | None ->
-                        Html.div [
-                            prop.className "w-full h-full flex items-center justify-center"
-                            prop.children [
-                                Html.span [
-                                    prop.className "text-4xl text-base-content/20"
-                                    prop.children [ film ]
-                                ]
-                            ]
-                        ]
-
-                    // Shine effect overlay
-                    Html.div [
-                        prop.className "poster-shine"
-                    ]
-
-                    // "In Library" overlay for items already in library
-                    if isInLibrary then
-                        Html.div [
-                            prop.className "absolute inset-0 bg-base-300/70 flex items-center justify-center z-10"
-                            prop.children [
-                                Html.div [
-                                    prop.className "px-2 py-1 bg-base-100/90 rounded-md text-xs font-medium text-base-content/70"
-                                    prop.text "In Library"
-                                ]
-                            ]
-                        ]
-
-                    // Media type badge (top right)
-                    Html.div [
-                        prop.className "absolute top-2 right-2 px-2 py-1 glass rounded-md text-xs font-medium"
-                        prop.children [
-                            Html.span [
-                                prop.className "flex items-center gap-1"
-                                prop.children [
-                                    Html.span [
-                                        prop.className "w-3 h-3"
-                                        prop.children [
-                                            match item.MediaType with
-                                            | Movie -> film
-                                            | Series -> tv
-                                        ]
-                                    ]
-                                    Html.span [ prop.text mediaTypeLabel ]
-                                ]
-                            ]
-                        ]
-                    ]
-
-                    // Hover overlay (only show add button if not in library)
-                    if not isInLibrary then
-                        Html.div [
-                            prop.className "poster-overlay flex items-center justify-center"
-                            prop.children [
-                                // Add button
-                                Html.div [
-                                    prop.className "w-14 h-14 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
-                                    prop.children [
-                                        Html.span [
-                                            prop.className "w-6 h-6 text-white"
-                                            prop.children [ plus ]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                ]
-            ]
+            PosterCard.view config
 
             // Title and year below poster
             Html.div [
@@ -150,74 +73,4 @@ let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (is
 
 /// Library entry card component (for library items)
 let libraryEntryCard (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> unit) =
-    let (title, posterPath, isMovie) =
-        match entry.Media with
-        | LibraryMovie m -> (m.Title, m.PosterPath, true)
-        | LibrarySeries s -> (s.Name, s.PosterPath, false)
-
-    let ratingInfo =
-        entry.PersonalRating
-        |> Option.map (fun r ->
-            match r with
-            | Outstanding -> (trophy, "text-amber-400", "Outstanding")
-            | Entertaining -> (thumbsUp, "text-lime-400", "Entertaining")
-            | Decent -> (handOkay, "text-yellow-400", "Decent")
-            | Meh -> (minusCircle, "text-orange-400", "Meh")
-            | Waste -> (thumbsDown, "text-red-400", "Waste")
-        )
-
-    Html.div [
-        prop.className "poster-card group relative cursor-pointer"
-        prop.onClick (fun _ -> onViewDetail entry.Id isMovie)
-        prop.children [
-            // Poster container
-            Html.div [
-                prop.className "poster-image-container poster-shadow"
-                prop.children [
-                    match posterPath with
-                    | Some _ ->
-                        Html.img [
-                            prop.src (getLocalPosterUrl posterPath)
-                            prop.alt title
-                            prop.className "poster-image"
-                            prop.custom ("loading", "lazy")
-                            prop.custom ("crossorigin", "anonymous")
-                        ]
-                    | None ->
-                        Html.div [
-                            prop.className "w-full h-full flex items-center justify-center"
-                            prop.children [
-                                Html.span [
-                                    prop.className "text-4xl text-base-content/20"
-                                    prop.children [ if isMovie then film else tv ]
-                                ]
-                            ]
-                        ]
-
-                    // Rating badge (top left, appears on hover)
-                    match ratingInfo with
-                    | Some (icon, colorClass, label) ->
-                        Html.div [
-                            prop.className "absolute top-2 left-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                            prop.children [
-                                Html.span [
-                                    prop.className ("w-4 h-4 flex-shrink-0 flex items-center justify-center " + colorClass)
-                                    prop.children [ icon ]
-                                ]
-                                Html.span [
-                                    prop.className ("text-xs font-medium leading-none " + colorClass)
-                                    prop.text label
-                                ]
-                            ]
-                        ]
-                    | None -> Html.none
-
-                    // Shine effect
-                    Html.div [
-                        prop.className "poster-shine"
-                    ]
-                ]
-            ]
-
-        ]
-    ]
+    PosterCard.libraryEntry entry onViewDetail

@@ -7,6 +7,10 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+// Import common components
+module PosterCard = Common.Components.PosterCard.View
+module PosterCardTypes = Common.Components.PosterCard.Types
+
 // =====================================
 // Helper Functions
 // =====================================
@@ -317,39 +321,11 @@ let private topRatedSection (entries: LibraryEntry list) (dispatch: Msg -> unit)
                     prop.children [
                         for entry in entries |> List.truncate 12 do
                             let title = getTitle entry
-                            Html.div [
-                                prop.className "cursor-pointer group"
-                                prop.onClick (fun _ ->
-                                    match entry.Media with
-                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                                )
-                                prop.children [
-                                    Html.div [
-                                        prop.className "aspect-[2/3] rounded-lg overflow-hidden poster-shadow relative"
-                                        prop.children [
-                                            match getPosterUrl entry with
-                                            | Some url ->
-                                                Html.img [
-                                                    prop.className "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    prop.src url
-                                                    prop.alt title
-                                                ]
-                                            | None ->
-                                                Html.div [
-                                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
-                                                    prop.children [
-                                                        Html.span [
-                                                            prop.className "w-6 h-6 text-base-content/30"
-                                                            prop.children [ film ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            Html.div [ prop.className "poster-shine" ]
-                                        ]
-                                    ]
-                                ]
-                            ]
+                            PosterCard.mini (getPosterUrl entry) title (fun () ->
+                                match entry.Media with
+                                | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                            )
                     ]
                 ]
         ]
@@ -390,39 +366,11 @@ let private allMoviesSection (movies: LibraryEntry list) (dispatch: Msg -> unit)
                     prop.children [
                         for entry in movies do
                             let title = getTitle entry
-                            Html.div [
-                                prop.className "cursor-pointer group"
-                                prop.onClick (fun _ ->
-                                    match entry.Media with
-                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                    | _ -> ()
-                                )
-                                prop.children [
-                                    Html.div [
-                                        prop.className "aspect-[2/3] rounded-lg overflow-hidden poster-shadow relative"
-                                        prop.children [
-                                            match getPosterUrl entry with
-                                            | Some url ->
-                                                Html.img [
-                                                    prop.className "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    prop.src url
-                                                    prop.alt title
-                                                ]
-                                            | None ->
-                                                Html.div [
-                                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
-                                                    prop.children [
-                                                        Html.span [
-                                                            prop.className "w-6 h-6 text-base-content/30"
-                                                            prop.children [ film ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            Html.div [ prop.className "poster-shine" ]
-                                        ]
-                                    ]
-                                ]
-                            ]
+                            PosterCard.mini (getPosterUrl entry) title (fun () ->
+                                match entry.Media with
+                                | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                | _ -> ()
+                            )
                     ]
                 ]
         ]
@@ -464,79 +412,15 @@ let private allSeriesSection (seriesWithFlags: SeriesWithFinishedFlag list) (dis
                         for swf in seriesWithFlags do
                             let entry = swf.Entry
                             let title = getTitle entry
-                            Html.div [
-                                prop.className "cursor-pointer group"
-                                prop.onClick (fun _ ->
-                                    match entry.Media with
-                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                                    | _ -> ()
-                                )
-                                prop.children [
-                                    Html.div [
-                                        prop.className "aspect-[2/3] rounded-lg overflow-hidden poster-shadow relative"
-                                        prop.children [
-                                            match getPosterUrl entry with
-                                            | Some url ->
-                                                Html.img [
-                                                    prop.className "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                    prop.src url
-                                                    prop.alt title
-                                                ]
-                                            | None ->
-                                                Html.div [
-                                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
-                                                    prop.children [
-                                                        Html.span [
-                                                            prop.className "w-6 h-6 text-base-content/30"
-                                                            prop.children [ tv ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            Html.div [ prop.className "poster-shine" ]
-                                            // "Finished" badge for series completed this year
-                                            if swf.FinishedThisYear then
-                                                Html.div [
-                                                    prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/95 via-emerald-900/80 to-transparent pt-6 pb-2 px-2"
-                                                    prop.children [
-                                                        Html.div [
-                                                            prop.className "flex items-center justify-center gap-1"
-                                                            prop.children [
-                                                                Html.span [
-                                                                    prop.className "w-3.5 h-3.5 text-emerald-300"
-                                                                    prop.children [ check ]
-                                                                ]
-                                                                Html.span [
-                                                                    prop.className "text-xs font-semibold text-emerald-200 uppercase tracking-wider"
-                                                                    prop.text "Finished"
-                                                                ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            // "Abandoned" badge for series abandoned this year
-                                            elif swf.AbandonedThisYear then
-                                                Html.div [
-                                                    prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-900/95 via-red-900/80 to-transparent pt-6 pb-2 px-2"
-                                                    prop.children [
-                                                        Html.div [
-                                                            prop.className "flex items-center justify-center gap-1"
-                                                            prop.children [
-                                                                Html.span [
-                                                                    prop.className "w-3.5 h-3.5 text-red-300"
-                                                                    prop.children [ ban ]
-                                                                ]
-                                                                Html.span [
-                                                                    prop.className "text-xs font-semibold text-red-200 uppercase tracking-wider"
-                                                                    prop.text "Abandoned"
-                                                                ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                                ]
-                                        ]
-                                    ]
-                                ]
-                            ]
+                            let overlay =
+                                if swf.FinishedThisYear then Some PosterCardTypes.FinishedBadge
+                                elif swf.AbandonedThisYear then Some PosterCardTypes.AbandonedBadge
+                                else None
+                            PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
+                                match entry.Media with
+                                | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                | _ -> ()
+                            )
                     ]
                 ]
         ]

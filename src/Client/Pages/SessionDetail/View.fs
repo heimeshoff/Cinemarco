@@ -9,30 +9,11 @@ open Components.Icons
 open Components.Cards.View
 open Components.FriendSelector.View
 
-/// Progress bar component
-let private progressBar (current: int) (total: int) =
-    let percentage = if total > 0 then float current / float total * 100.0 else 0.0
-    Html.div [
-        prop.className "w-full"
-        prop.children [
-            Html.div [
-                prop.className "flex justify-between text-sm mb-1"
-                prop.children [
-                    Html.span [ prop.text $"{current} / {total}" ]
-                    Html.span [ prop.text $"{int percentage}%%" ]
-                ]
-            ]
-            Html.div [
-                prop.className "w-full bg-base-300 rounded-full h-2"
-                prop.children [
-                    Html.div [
-                        prop.className "bg-primary h-2 rounded-full transition-all duration-300"
-                        prop.style [ Feliz.style.width (Feliz.length.percent (int percentage)) ]
-                    ]
-                ]
-            ]
-        ]
-    ]
+module BackButton = Common.Components.BackButton.View
+module ProgressBar = Common.Components.ProgressBar.View
+
+/// Progress bar component (using shared component)
+let private progressBar (current: int) (total: int) = ProgressBar.simple current total
 
 /// Episode checkbox component with Ctrl+click support
 /// Uses subtle colors: unwatched = dark gray, watched = subtle muted green
@@ -172,15 +153,8 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Back button - uses browser history for proper navigation
-            Html.button [
-                prop.className "btn btn-ghost btn-sm gap-2"
-                prop.onClick (fun _ -> window.history.back())
-                prop.children [
-                    Html.span [ prop.className "w-4 h-4"; prop.children [ arrowLeft ] ]
-                    Html.span [ prop.text "Back" ]
-                ]
-            ]
+            // Back button
+            BackButton.view()
 
             match model.SessionData with
             | Loading ->

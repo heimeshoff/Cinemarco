@@ -10,6 +10,8 @@ open Components.Cards.View
 
 // Import common components
 module SectionHeader = Common.Components.SectionHeader.View
+module PosterCard = Common.Components.PosterCard.View
+module PosterCardTypes = Common.Components.PosterCard.Types
 
 /// Format a relative time string (e.g., "5 minutes ago", "2 hours ago")
 let private formatRelativeTime (dateTime: DateTime) =
@@ -100,7 +102,7 @@ let private getNextEpisodeText (progress: WatchProgress) =
 /// Horizontal scroll poster list for home sections
 let private posterScrollList (entries: LibraryEntry list) (onViewDetail: EntryId -> bool -> unit) =
     Html.div [
-        prop.className "flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.className "flex gap-4 overflow-x-auto py-4 px-2 -mx-2 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
         prop.children [
             for entry in entries do
                 Html.div [
@@ -138,83 +140,30 @@ let private posterScrollList (entries: LibraryEntry list) (onViewDetail: EntryId
 /// Horizontal scroll poster list for series with next episode indicator
 let private seriesScrollListWithEpisode (entries: (LibraryEntry * WatchProgress) list) (onViewDetail: EntryId -> bool -> unit) =
     Html.div [
-        prop.className "flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.className "flex gap-4 overflow-x-auto py-4 px-2 -mx-2 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
         prop.children [
             for (entry, progress) in entries do
+                let (title, year) =
+                    match entry.Media with
+                    | LibraryMovie m -> (m.Title, m.ReleaseDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue "")
+                    | LibrarySeries s -> (s.Name, s.FirstAirDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue "")
+
                 Html.div [
                     prop.key (EntryId.value entry.Id)
                     prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
                     prop.children [
-                        // Custom card with episode indicator
-                        Html.div [
-                            prop.className "poster-card group relative cursor-pointer"
-                            prop.onClick (fun _ -> onViewDetail entry.Id false)
-                            prop.children [
-                                Html.div [
-                                    prop.className "poster-image-container poster-shadow"
-                                    prop.children [
-                                        match entry.Media with
-                                        | LibrarySeries s ->
-                                            match s.PosterPath with
-                                            | Some _ ->
-                                                Html.img [
-                                                    prop.src (getLocalPosterUrl s.PosterPath)
-                                                    prop.alt s.Name
-                                                    prop.className "poster-image"
-                                                    prop.custom ("loading", "lazy")
-                                                    prop.custom ("crossorigin", "anonymous")
-                                                ]
-                                            | None ->
-                                                Html.div [
-                                                    prop.className "w-full h-full flex items-center justify-center"
-                                                    prop.children [
-                                                        Html.span [
-                                                            prop.className "text-4xl text-base-content/20"
-                                                            prop.children [ tv ]
-                                                        ]
-                                                    ]
-                                                ]
-                                        | LibraryMovie _ -> Html.none
-
-                                        // Next episode banner at bottom
-                                        match getNextEpisodeText progress with
-                                        | Some episodeText ->
-                                            Html.div [
-                                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-primary/90 to-primary/70 px-2 py-1.5 text-center"
-                                                prop.children [
-                                                    Html.span [
-                                                        prop.className "text-xs font-bold text-primary-content uppercase tracking-wide"
-                                                        prop.text $"Next: {episodeText}"
-                                                    ]
-                                                ]
-                                            ]
-                                        | None -> Html.none
-
-                                        // Shine effect
-                                        Html.div [ prop.className "poster-shine" ]
-                                    ]
-                                ]
-                            ]
-                        ]
+                        PosterCard.seriesWithEpisode entry progress (fun () -> onViewDetail entry.Id false)
                         // Title below card
                         Html.div [
                             prop.className "mt-2 space-y-0.5"
                             prop.children [
                                 Html.p [
                                     prop.className "text-sm font-medium truncate text-base-content/90"
-                                    prop.text (
-                                        match entry.Media with
-                                        | LibraryMovie m -> m.Title
-                                        | LibrarySeries s -> s.Name
-                                    )
+                                    prop.text title
                                 ]
                                 Html.p [
                                     prop.className "text-xs text-base-content/50"
-                                    prop.text (
-                                        match entry.Media with
-                                        | LibraryMovie m -> m.ReleaseDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
-                                        | LibrarySeries s -> s.FirstAirDate |> Option.map (fun d -> string d.Year) |> Option.defaultValue ""
-                                    )
+                                    prop.text year
                                 ]
                             ]
                         ]

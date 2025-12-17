@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Validation.fs" />
     <Compile Include="Migrations.fs" />
     <Compile Include="ImageCache.fs" />
     <Compile Include="Persistence.fs" />
