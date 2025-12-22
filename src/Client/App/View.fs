@@ -133,6 +133,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | GenericImportPage ->
+        match model.GenericImportPage with
+        | Some pageModel ->
+            Pages.GenericImport.View.view pageModel (GenericImportMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | NotFoundPage ->
         Pages.NotFound.View.view ()
 

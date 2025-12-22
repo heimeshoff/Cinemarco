@@ -29,10 +29,12 @@ let private renderRatingBadge (badge: RatingBadge) =
         ]
     ]
 
-/// Render the bottom overlay based on type
-let private renderBottomOverlay (overlay: BottomOverlay) =
+/// Render the status overlay based on type
+/// Finished/Abandoned badges appear at TOP, NextEpisode appears at BOTTOM
+let private renderStatusOverlay (overlay: StatusOverlay) =
     match overlay with
     | NextEpisode text ->
+        // Next episode banner stays at bottom
         Html.div [
             prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-primary/90 to-primary/70 px-2 py-1.5 text-center"
             prop.children [
@@ -43,8 +45,9 @@ let private renderBottomOverlay (overlay: BottomOverlay) =
             ]
         ]
     | FinishedBadge ->
+        // Finished badge at TOP with downward gradient
         Html.div [
-            prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/95 via-emerald-900/80 to-transparent pt-6 pb-2 px-2"
+            prop.className "absolute top-0 left-0 right-0 bg-gradient-to-b from-emerald-900/95 via-emerald-900/80 to-transparent pb-6 pt-2 px-2"
             prop.children [
                 Html.div [
                     prop.className "flex items-center justify-center gap-1"
@@ -62,8 +65,9 @@ let private renderBottomOverlay (overlay: BottomOverlay) =
             ]
         ]
     | AbandonedBadge ->
+        // Abandoned badge at TOP with downward gradient
         Html.div [
-            prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-900/95 via-red-900/80 to-transparent pt-6 pb-2 px-2"
+            prop.className "absolute top-0 left-0 right-0 bg-gradient-to-b from-red-900/95 via-red-900/80 to-transparent pb-6 pt-2 px-2"
             prop.children [
                 Html.div [
                     prop.className "flex items-center justify-center gap-1"
@@ -190,9 +194,9 @@ let view (config: Config) =
                     if config.ShowAddButton then
                         renderAddButtonOverlay ()
 
-                    // Bottom overlay (episode banner, status badge, etc.)
-                    match config.BottomOverlay with
-                    | Some overlay -> renderBottomOverlay overlay
+                    // Status overlay (Finished/Abandoned at top, episode banner at bottom)
+                    match config.StatusOverlay with
+                    | Some overlay -> renderStatusOverlay overlay
                     | None -> Html.none
 
                     // Shine effect (always present)
@@ -222,12 +226,22 @@ let libraryEntry (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> unit) =
         entry.PersonalRating
         |> Option.map ratingToBadge
 
+    // Determine status overlay - only for series (movies don't need Finished/Abandoned badges)
+    let statusOverlay =
+        match entry.Media with
+        | LibrarySeries _ ->
+            match entry.WatchStatus with
+            | Completed -> Some FinishedBadge
+            | Abandoned _ -> Some AbandonedBadge
+            | _ -> None
+        | LibraryMovie _ -> None
+
     let config = {
         PosterUrl = posterPath |> Option.map (fun p -> getLocalPosterUrl (Some p))
         Title = title
         OnClick = fun () -> onViewDetail entry.Id isMovie
         RatingBadge = ratingBadge
-        BottomOverlay = None
+        StatusOverlay = statusOverlay
         IsGrayscale = false
         MediaType = Some (if isMovie then Movie else Series)
         ShowInLibraryOverlay = false
@@ -236,6 +250,50 @@ let libraryEntry (entry: LibraryEntry) (onViewDetail: EntryId -> bool -> unit) =
     }
 
     view config
+
+/// Library entry card with title below - for search results and grids
+let libraryEntryWithTitle (entry: LibraryEntry) (onClick: unit -> unit) =
+    let (title, posterPath) =
+        match entry.Media with
+        | LibraryMovie m -> (m.Title, m.PosterPath)
+        | LibrarySeries s -> (s.Name, s.PosterPath)
+
+    let ratingBadge =
+        entry.PersonalRating
+        |> Option.map ratingToBadge
+
+    // Status overlay only for series (movies don't need Finished/Abandoned badges)
+    let statusOverlay =
+        match entry.Media with
+        | LibrarySeries _ ->
+            match entry.WatchStatus with
+            | Completed -> Some FinishedBadge
+            | Abandoned _ -> Some AbandonedBadge
+            | _ -> None
+        | LibraryMovie _ -> None
+
+    let config = {
+        PosterUrl = posterPath |> Option.map (fun p -> getLocalPosterUrl (Some p))
+        Title = title
+        OnClick = onClick
+        RatingBadge = ratingBadge
+        StatusOverlay = statusOverlay
+        IsGrayscale = false
+        MediaType = Some (match entry.Media with LibraryMovie _ -> Movie | LibrarySeries _ -> Series)
+        ShowInLibraryOverlay = false
+        MediaTypeBadge = None
+        ShowAddButton = false
+    }
+
+    Html.div [
+        prop.children [
+            view config
+            Html.p [
+                prop.className "text-xs mt-3 truncate text-base-content/70 group-hover:text-primary transition-colors"
+                prop.text title
+            ]
+        ]
+    ]
 
 /// Mini poster card for grids (used in YearInReview, etc.)
 let mini (posterUrl: string option) (title: string) (onClick: unit -> unit) =
@@ -270,8 +328,8 @@ let mini (posterUrl: string option) (title: string) (onClick: unit -> unit) =
         ]
     ]
 
-/// Mini poster card with bottom overlay (for series with status badges)
-let miniWithOverlay (posterUrl: string option) (title: string) (overlay: BottomOverlay option) (onClick: unit -> unit) =
+/// Mini poster card with status overlay (for series with status badges)
+let miniWithOverlay (posterUrl: string option) (title: string) (overlay: StatusOverlay option) (onClick: unit -> unit) =
     Html.div [
         prop.className "cursor-pointer group"
         prop.onClick (fun _ -> onClick())
@@ -298,7 +356,7 @@ let miniWithOverlay (posterUrl: string option) (title: string) (overlay: BottomO
                             ]
                         ]
                     match overlay with
-                    | Some o -> renderBottomOverlay o
+                    | Some o -> renderStatusOverlay o
                     | None -> Html.none
                     Html.div [ prop.className "poster-shine" ]
                 ]
@@ -327,7 +385,7 @@ let seriesWithEpisode (entry: LibraryEntry) (progress: WatchProgress) (onClick: 
         Title = name
         OnClick = onClick
         RatingBadge = None
-        BottomOverlay = overlay
+        StatusOverlay = overlay
         IsGrayscale = false
         MediaType = Some Series
         ShowInLibraryOverlay = false

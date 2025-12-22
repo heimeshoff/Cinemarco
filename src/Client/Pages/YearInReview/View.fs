@@ -317,15 +317,29 @@ let private topRatedSection (entries: LibraryEntry list) (dispatch: Msg -> unit)
                 ]
             else
                 Html.div [
-                    prop.className "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3"
+                    prop.className "flex flex-wrap gap-3"
                     prop.children [
                         for entry in entries |> List.truncate 12 do
                             let title = getTitle entry
-                            PosterCard.mini (getPosterUrl entry) title (fun () ->
+                            // Determine status overlay for series (movies don't need badges)
+                            let overlay =
                                 match entry.Media with
-                                | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                            )
+                                | LibrarySeries _ ->
+                                    match entry.WatchStatus with
+                                    | Completed -> Some PosterCardTypes.FinishedBadge
+                                    | Abandoned _ -> Some PosterCardTypes.AbandonedBadge
+                                    | _ -> None
+                                | LibraryMovie _ -> None
+                            Html.div [
+                                prop.className "w-24 sm:w-28 md:w-32"
+                                prop.children [
+                                    PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
+                                        match entry.Media with
+                                        | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                        | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                    )
+                                ]
+                            ]
                     ]
                 ]
         ]
@@ -362,15 +376,20 @@ let private allMoviesSection (movies: LibraryEntry list) (dispatch: Msg -> unit)
                 ]
             else
                 Html.div [
-                    prop.className "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                    prop.className "flex flex-wrap gap-3"
                     prop.children [
                         for entry in movies do
                             let title = getTitle entry
-                            PosterCard.mini (getPosterUrl entry) title (fun () ->
-                                match entry.Media with
-                                | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                | _ -> ()
-                            )
+                            Html.div [
+                                prop.className "w-24 sm:w-28 md:w-32"
+                                prop.children [
+                                    PosterCard.mini (getPosterUrl entry) title (fun () ->
+                                        match entry.Media with
+                                        | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                        | _ -> ()
+                                    )
+                                ]
+                            ]
                     ]
                 ]
         ]
@@ -407,7 +426,7 @@ let private allSeriesSection (seriesWithFlags: SeriesWithFinishedFlag list) (dis
                 ]
             else
                 Html.div [
-                    prop.className "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                    prop.className "flex flex-wrap gap-3"
                     prop.children [
                         for swf in seriesWithFlags do
                             let entry = swf.Entry
@@ -416,11 +435,16 @@ let private allSeriesSection (seriesWithFlags: SeriesWithFinishedFlag list) (dis
                                 if swf.FinishedThisYear then Some PosterCardTypes.FinishedBadge
                                 elif swf.AbandonedThisYear then Some PosterCardTypes.AbandonedBadge
                                 else None
-                            PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
-                                match entry.Media with
-                                | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                                | _ -> ()
-                            )
+                            Html.div [
+                                prop.className "w-24 sm:w-28 md:w-32"
+                                prop.children [
+                                    PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
+                                        match entry.Media with
+                                        | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                        | _ -> ()
+                                    )
+                                ]
+                            ]
                     ]
                 ]
         ]

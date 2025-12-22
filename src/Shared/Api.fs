@@ -391,6 +391,28 @@ type ICinemarcoApi = {
     traktDebugGetShowHistory: int -> Async<Result<string, string>>
     
     // =====================================
+    // Generic Import Operations
+    // =====================================
+
+    /// Parse a JSON string into import items
+    genericImportParseJson: string -> Async<Result<GenericImportItem list, string>>
+
+    /// Generate a preview of what will be imported (with TMDB matching)
+    genericImportPreview: GenericImportItem list -> Async<Result<GenericImportPreview, string>>
+
+    /// Confirm a TMDB match for an ambiguous item (index, selected match)
+    genericImportConfirmMatch: int * TmdbSearchResult -> Async<Result<GenericImportItemWithMatch, string>>
+
+    /// Start the import process with matched items
+    genericImportStart: GenericImportItemWithMatch list -> Async<Result<unit, string>>
+
+    /// Get current import progress
+    genericImportGetProgress: unit -> Async<GenericImportProgress>
+
+    /// Cancel an in-progress import
+    genericImportCancel: unit -> Async<unit>
+
+    // =====================================
     // Graph Operations
     // =====================================
 

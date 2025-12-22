@@ -27,6 +27,7 @@ type Page =
     | TimelinePage
     | GraphPage of focus: FocusedGraphNode option
     | ImportPage
+    | GenericImportPage
     | CachePage
     | NotFoundPage
 
@@ -71,6 +72,7 @@ module Page =
             | FocusedContributor (ContributorId id) -> $"/graph/contributor/{id}"
             | FocusedCollection (CollectionId id) -> $"/graph/collection/{id}"
         | ImportPage -> "/import"
+        | GenericImportPage -> "/import-json"
         | CachePage -> "/cache"
         | NotFoundPage -> "/404"
 
@@ -133,6 +135,7 @@ module Page =
             | true, id -> GraphPage (Some (FocusedCollection (CollectionId id)))
             | _ -> NotFoundPage
         | ["import"] -> ImportPage
+        | ["import-json"] -> GenericImportPage
         | ["cache"] -> CachePage
         | ["404"] -> NotFoundPage
         | _ -> NotFoundPage
@@ -154,6 +157,7 @@ module Page =
         | TimelinePage -> "Timeline"
         | GraphPage _ -> "Graph"
         | ImportPage -> "Import"
+        | GenericImportPage -> "Import JSON"
         | CachePage -> "Cache"
         | NotFoundPage -> "Not Found"
 

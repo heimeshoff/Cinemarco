@@ -1128,6 +1128,112 @@ type TraktSyncStatus = {
 }
 
 // =====================================
+// Generic Import Types
+// =====================================
+
+/// Media type for generic import items
+type GenericImportMediaType =
+    | ImportMovie
+    | ImportSeries
+
+/// Episode watch info for generic import
+type GenericImportEpisode = {
+    SeasonNumber: int
+    EpisodeNumber: int
+    WatchedDate: DateTime option
+}
+
+/// Season watch info for generic import (marks all episodes)
+type GenericImportSeason = {
+    SeasonNumber: int
+    WatchedDate: DateTime option
+}
+
+/// A single item to import from generic JSON
+type GenericImportItem = {
+    /// Title of the movie or series
+    Title: string
+    /// Release year (helps with TMDB matching)
+    Year: int option
+    /// Is this a movie or series?
+    MediaType: GenericImportMediaType
+    /// Optional TMDB ID for precise matching (if known from source)
+    TmdbId: int option
+    /// Watch date(s) for movies (supports rewatches)
+    WatchDates: DateTime list
+    /// For series: season-level watch data (marks all episodes in season)
+    Seasons: GenericImportSeason list
+    /// For series: episode-level watch data
+    Episodes: GenericImportEpisode list
+    /// Rating already in correct format from AI
+    Rating: PersonalRating option
+    /// Personal notes
+    Notes: string option
+    /// Friend names watched with (will attempt to match to existing friends)
+    FriendNames: string list
+    /// Source context (e.g., "AI from Excel", "manual notes")
+    Source: string option
+}
+
+/// Status of TMDB matching for an import item
+type GenericImportMatchStatus =
+    | NotMatched
+    | ExactMatch of TmdbSearchResult
+    | MultipleMatches of TmdbSearchResult list
+    | NoMatchFound
+    | MatchConfirmed of TmdbSearchResult
+
+/// Resolution status for a friend name
+type GenericImportFriendResolution =
+    | ExistingFriend of FriendId
+    | NewFriend of name: string
+
+/// An import item with its match status and resolved data
+type GenericImportItemWithMatch = {
+    /// The original import item
+    ImportItem: GenericImportItem
+    /// TMDB match status
+    MatchStatus: GenericImportMatchStatus
+    /// Whether this item already exists in library
+    ExistsInLibrary: bool
+    /// Resolved friend associations
+    ResolvedFriends: GenericImportFriendResolution list
+}
+
+/// Preview of what will be imported
+type GenericImportPreview = {
+    Items: GenericImportItemWithMatch list
+    TotalItems: int
+    ExactMatches: int
+    AmbiguousMatches: int
+    NoMatches: int
+    AlreadyInLibrary: int
+    NewFriendsToCreate: string list
+}
+
+/// Progress during generic import
+type GenericImportProgress = {
+    InProgress: bool
+    CurrentItem: string option
+    CurrentIndex: int
+    TotalItems: int
+    CompletedSuccessfully: int
+    Skipped: int
+    Errors: string list
+}
+
+/// Result of the generic import operation
+type GenericImportResult = {
+    ImportedMovies: int
+    ImportedSeries: int
+    AddedWatchSessions: int
+    ImportedEpisodes: int
+    CreatedFriends: int
+    Skipped: int
+    Errors: string list
+}
+
+// =====================================
 // Cache Management Types
 // =====================================
 

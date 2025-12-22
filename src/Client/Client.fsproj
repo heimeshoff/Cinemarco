@@ -215,7 +215,12 @@
     <Compile Include="Pages/Import/Types.fs" />
     <Compile Include="Pages/Import/State.fs" />
     <Compile Include="Pages/Import/View.fs" />
-    
+
+    <!-- GenericImport Page -->
+    <Compile Include="Pages/GenericImport/Types.fs" />
+    <Compile Include="Pages/GenericImport/State.fs" />
+    <Compile Include="Pages/GenericImport/View.fs" />
+
     <!-- Graph Page -->
     <Compile Include="Pages/Graph/Types.fs" />
     <Compile Include="Pages/Graph/State.fs" />

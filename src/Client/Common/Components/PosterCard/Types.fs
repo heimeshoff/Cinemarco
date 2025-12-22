@@ -10,8 +10,8 @@ type RatingBadge = {
     Label: string
 }
 
-/// Bottom overlay configuration (for episode banners, "Finished" badges, etc.)
-type BottomOverlay =
+/// Status overlay configuration (for "Finished"/"Abandoned" badges at top, episode banners at bottom)
+type StatusOverlay =
     | NextEpisode of text: string
     | FinishedBadge
     | AbandonedBadge
@@ -27,8 +27,8 @@ type Config = {
     OnClick: unit -> unit
     /// Optional rating badge shown on hover (top-left)
     RatingBadge: RatingBadge option
-    /// Optional bottom overlay (episode banner, status badge, etc.)
-    BottomOverlay: BottomOverlay option
+    /// Optional status overlay (Finished/Abandoned at top, episodes at bottom)
+    StatusOverlay: StatusOverlay option
     /// Grayscale the poster (for "In Library" items in search)
     IsGrayscale: bool
     /// Media type icon for placeholder (film or tv)
@@ -48,7 +48,7 @@ module Config =
         Title = title
         OnClick = onClick
         RatingBadge = None
-        BottomOverlay = None
+        StatusOverlay = None
         IsGrayscale = false
         MediaType = None
         ShowInLibraryOverlay = false
@@ -62,7 +62,7 @@ module Config =
         Title = title
         OnClick = onClick
         RatingBadge = None
-        BottomOverlay = None
+        StatusOverlay = None
         IsGrayscale = isInLibrary
         MediaType = Some mediaType
         ShowInLibraryOverlay = isInLibrary
@@ -71,5 +71,5 @@ module Config =
     }
 
     let withRating badge config = { config with RatingBadge = Some badge }
-    let withBottomOverlay overlay config = { config with BottomOverlay = Some overlay }
+    let withStatusOverlay overlay config = { config with StatusOverlay = Some overlay }
     let withGrayscale config = { config with IsGrayscale = true }

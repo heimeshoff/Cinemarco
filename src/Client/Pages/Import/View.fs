@@ -701,5 +701,29 @@ let view (model: Model) (dispatch: Msg -> unit) =
             | Preview -> previewStep model dispatch
             | Importing -> importingStep model dispatch
             | Complete -> completeStep model dispatch
+
+            // Alternative import option
+            Html.div [
+                prop.className "mt-12 pt-8 border-t border-base-content/10"
+                prop.children [
+                    Html.div [
+                        prop.className "text-center"
+                        prop.children [
+                            Html.p [
+                                prop.className "text-base-content/50 text-sm mb-3"
+                                prop.text "Have a JSON export from another source?"
+                            ]
+                            Html.a [
+                                prop.href "/import-json"
+                                prop.className "btn btn-ghost btn-sm"
+                                prop.children [
+                                    downloadIcon
+                                    Html.span [ prop.text "Import from JSON" ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
         ]
     ]

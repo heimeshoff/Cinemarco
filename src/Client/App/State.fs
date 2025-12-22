@@ -94,6 +94,10 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh import page when navigating to it
         let pageModel, pageCmd = Pages.Import.State.init ()
         { model' with ImportPage = Some pageModel }, Cmd.map ImportMsg pageCmd
+    | GenericImportPage ->
+        // Always refresh generic import page when navigating to it
+        let pageModel, pageCmd = Pages.GenericImport.State.init ()
+        { model' with GenericImportPage = Some pageModel }, Cmd.map GenericImportMsg pageCmd
     | GraphPage focus ->
         // Always refresh graph when navigating to the page
         let pageModel, pageCmd = Pages.Graph.State.initWithFocus focus
@@ -1123,6 +1127,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Import.Types.NoOp -> model', cmd
             | Pages.Import.Types.ShowNotification (msg, isSuccess) ->
                 model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none
+
+    // Page messages - GenericImport
+    | GenericImportMsg genericImportMsg ->
+        match model.GenericImportPage with
+        | Some pageModel ->
+            let newPage, pageCmd, extMsg = Pages.GenericImport.State.update Api.api genericImportMsg pageModel
+            let model' = { model with GenericImportPage = Some newPage }
+            let cmd = Cmd.map GenericImportMsg pageCmd
+            match extMsg with
+            | Pages.GenericImport.Types.NoOp -> model', cmd
+            | Pages.GenericImport.Types.ShowNotification (msg, isSuccess) ->
+                model', Cmd.batch [cmd; Cmd.ofMsg (ShowNotification (msg, isSuccess))]
+        | None -> model, Cmd.none
+
     // Page messages - Graph
     | GraphMsg graphMsg ->
         match model.GraphPage with

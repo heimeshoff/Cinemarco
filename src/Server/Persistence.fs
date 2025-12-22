@@ -1549,6 +1549,19 @@ let getOverallEpisodeProgress (EntryId entryId) : Async<(int * int) list> = asyn
     return records |> Seq.map (fun r -> (r.season_number, r.episode_number)) |> Seq.toList
 }
 
+/// Count unique watched episodes across ALL sessions for an entry
+let countOverallWatchedEpisodes (EntryId entryId) : Async<int> = async {
+    use conn = getConnection()
+    let! count =
+        conn.ExecuteScalarAsync<int>(
+            """SELECT COUNT(DISTINCT season_number || '-' || episode_number)
+               FROM episode_progress
+               WHERE entry_id = @EntryId AND is_watched = 1""",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+    return count
+}
+
 /// Record type for episode watch data used in stats
 [<CLIMutable>]
 type private EpisodeWatchDataRecord = {
@@ -2733,12 +2746,12 @@ let getSeriesInfoForEntry (EntryId entryId) : Async<(SeriesId * int) option> = a
         return Some (SeriesId record.series_id.Value, record.number_of_episodes)
 }
 
-/// Update the watch status based on episode progress
+/// Update the watch status based on episode progress (uses overall count across ALL sessions)
 let updateSeriesWatchStatusFromProgress (entryId: EntryId) : Async<unit> = async {
     match! getSeriesInfoForEntry entryId with
     | None -> ()
     | Some (_, totalEpisodes) ->
-        let! watchedCount = countWatchedEpisodes entryId
+        let! watchedCount = countOverallWatchedEpisodes entryId
         let! progress = getEpisodeProgress entryId
 
         if watchedCount = 0 then

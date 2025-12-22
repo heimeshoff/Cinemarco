@@ -441,10 +441,23 @@ let private topSeriesSection (series: SeriesTimeInvestment list) (dispatch: Msg 
                                         ]
                                     ]
 
-                                    // Progress
+                                    // Progress and status badge
                                     Html.div [
-                                        prop.className "text-right flex-shrink-0"
+                                        prop.className "text-right flex-shrink-0 flex items-center gap-2"
                                         prop.children [
+                                            // Status badge
+                                            match s.Entry.WatchStatus with
+                                            | Completed ->
+                                                Html.span [
+                                                    prop.className "badge badge-success badge-xs"
+                                                    prop.text "FINISHED"
+                                                ]
+                                            | Abandoned _ ->
+                                                Html.span [
+                                                    prop.className "badge badge-warning badge-xs"
+                                                    prop.text "ABANDONED"
+                                                ]
+                                            | _ -> Html.none
                                             Html.div [
                                                 prop.className "text-sm font-medium"
                                                 prop.text (formatPercent s.CompletionPercentage)

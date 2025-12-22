@@ -524,6 +524,7 @@ let cinemarcoApi : ICinemarcoApi = {
                 | None -> return Error "Entry is not a series"
                 | Some (seriesId, _) ->
                     do! Persistence.updateSessionEpisodeProgress sessionId s.EntryId seriesId seasonNumber episodeNumber watched
+                    do! Persistence.updateSeriesWatchStatusFromProgress s.EntryId
                     let! progress = Persistence.getSessionEpisodeProgress sessionId
                     return Ok progress
         with
@@ -557,6 +558,7 @@ let cinemarcoApi : ICinemarcoApi = {
                             | None -> return Error "Series info not found"
                             | Some (seriesId, _) ->
                                 do! Persistence.markSessionSeasonWatched sessionId s.EntryId seriesId seasonNumber episodeCount
+                                do! Persistence.updateSeriesWatchStatusFromProgress s.EntryId
                                 let! progress = Persistence.getSessionEpisodeProgress sessionId
                                 return Ok progress
         with
@@ -903,9 +905,9 @@ let cinemarcoApi : ICinemarcoApi = {
         let! movieSessions = Persistence.getAllMovieWatchSessions()
         let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
 
-        // Helper to count watched episodes for an entry
+        // Use overall watched episodes (unique across ALL sessions) for accurate counts
         let countWatchedEpisodes entryId =
-            Persistence.countWatchedEpisodes entryId
+            Persistence.countOverallWatchedEpisodes entryId
             |> Async.RunSynchronously
 
         let currentYear = DateTime.UtcNow.Year
@@ -950,7 +952,7 @@ let cinemarcoApi : ICinemarcoApi = {
         let! movieSessions = Persistence.getAllMovieWatchSessions()
         let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
         let countWatchedEpisodes entryId =
-            Persistence.countWatchedEpisodes entryId
+            Persistence.countOverallWatchedEpisodes entryId
             |> Async.RunSynchronously
         return Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData None
     }
@@ -960,7 +962,7 @@ let cinemarcoApi : ICinemarcoApi = {
         let! movieSessions = Persistence.getAllMovieWatchSessions()
         let! episodeWatchData = Persistence.getAllWatchedEpisodeData()
         let countWatchedEpisodes entryId =
-            Persistence.countWatchedEpisodes entryId
+            Persistence.countOverallWatchedEpisodes entryId
             |> Async.RunSynchronously
         return Stats.calculateWatchTimeStats entries countWatchedEpisodes movieSessions episodeWatchData (Some year)
     }
@@ -973,7 +975,7 @@ let cinemarcoApi : ICinemarcoApi = {
     statsGetTopSeriesByTime = fun limit -> async {
         let! entries = Persistence.getAllLibraryEntries()
         let countWatchedEpisodes entryId =
-            Persistence.countWatchedEpisodes entryId
+            Persistence.countOverallWatchedEpisodes entryId
             |> Async.RunSynchronously
         return Stats.getTopSeriesByTime entries countWatchedEpisodes limit
     }
@@ -989,8 +991,9 @@ let cinemarcoApi : ICinemarcoApi = {
         let! friends = Persistence.getAllFriends()
         let! collections = Persistence.getAllCollections()
 
+        // Use overall watched episodes (unique across ALL sessions) for accurate finished status
         let countWatchedEpisodes entryId =
-            Persistence.countWatchedEpisodes entryId
+            Persistence.countOverallWatchedEpisodes entryId
             |> Async.RunSynchronously
 
         let friendsByEntry entryId =
@@ -1635,6 +1638,48 @@ let cinemarcoApi : ICinemarcoApi = {
 
     traktDebugGetShowHistory = fun tmdbId -> async {
         return! TraktClient.debugGetShowHistory tmdbId
+    }
+
+    // =====================================
+    // Generic Import Operations
+    // =====================================
+
+    genericImportParseJson = fun jsonString -> async {
+        return GenericImport.parseJson jsonString
+    }
+
+    genericImportPreview = fun items -> async {
+        return! GenericImport.generatePreview items
+    }
+
+    genericImportConfirmMatch = fun (index, selectedMatch) -> async {
+        return! GenericImport.confirmMatch index selectedMatch
+    }
+
+    genericImportStart = fun items -> async {
+        // Start import in background with error logging
+        let importWithLogging = async {
+            printfn "[GenericImport] Starting import with %d items" items.Length
+            try
+                let! result = GenericImport.startImport items
+                match result with
+                | Ok () -> printfn "[GenericImport] Import completed successfully"
+                | Error err -> printfn "[GenericImport] Import failed with error: %s" err
+            with ex ->
+                printfn "[GenericImport] Import threw exception: %s" ex.Message
+                printfn "[GenericImport] Stack trace: %s" ex.StackTrace
+        }
+        Async.Start importWithLogging
+        return Ok ()
+    }
+
+    genericImportGetProgress = fun () -> async {
+        return GenericImport.getProgress()
+    }
+
+    genericImportCancel = fun () -> async {
+        GenericImport.requestCancellation()
+        return ()
     }
 }
 

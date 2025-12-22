@@ -305,13 +305,16 @@ let private filmographyGrid (model: Model) (filmography: TmdbFilmography) (dispa
         ]
     else
         Html.div [
-            prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            prop.className "flex flex-wrap gap-4"
             prop.children [
                 for work in filteredWorks do
                     let key = (work.TmdbId, work.MediaType)
                     let isInLibrary = model.LibraryEntryIds |> Map.containsKey key
                     let entryId = model.LibraryEntryIds |> Map.tryFind key
-                    workCard work isInLibrary entryId dispatch
+                    Html.div [
+                        prop.className "w-32 sm:w-36 md:w-40"
+                        prop.children [ workCard work isInLibrary entryId dispatch ]
+                    ]
             ]
         ]
 

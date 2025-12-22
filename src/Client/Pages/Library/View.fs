@@ -192,11 +192,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
             match model.Entries with
             | Loading ->
                 Html.div [
-                    prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+                    prop.className "flex flex-wrap gap-4"
                     prop.children [
                         for _ in 1..12 do
                             Html.div [
-                                prop.className "space-y-3"
+                                prop.className "w-32 sm:w-36 md:w-40 space-y-3"
                                 prop.children [
                                     Html.div [ prop.className "skeleton aspect-[2/3] rounded-lg" ]
                                     Html.div [ prop.className "skeleton h-4 w-3/4 rounded" ]
@@ -223,16 +223,17 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     ]
                 else
                     Html.div [
-                        prop.className "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+                        prop.className "flex flex-wrap gap-4"
                         prop.children [
                             for entry in filteredEntries do
+                                let (title, releaseDate) =
+                                    match entry.Media with
+                                    | LibraryMovie m -> (m.Title, m.ReleaseDate)
+                                    | LibrarySeries s -> (s.Name, s.FirstAirDate)
                                 Html.div [
                                     prop.key (EntryId.value entry.Id)
+                                    prop.className "w-32 sm:w-36 md:w-40"
                                     prop.children [
-                                        let (title, releaseDate) =
-                                            match entry.Media with
-                                            | LibraryMovie m -> (m.Title, m.ReleaseDate)
-                                            | LibrarySeries s -> (s.Name, s.FirstAirDate)
                                         libraryEntryCard entry (fun id isMovie ->
                                             if isMovie then dispatch (ViewMovieDetail (id, title, releaseDate))
                                             else dispatch (ViewSeriesDetail (id, title, releaseDate)))

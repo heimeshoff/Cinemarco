@@ -8,6 +8,8 @@ open State
 open Components.Icons
 open Components.Cards.View
 
+module PosterCard = Common.Components.PosterCard.View
+
 /// Find a library entry matching a TMDB search result (if it exists)
 let private findInLibrary (libraryEntries: LibraryEntry list) (item: TmdbSearchResult) =
     libraryEntries |> List.tryFind (fun entry ->
@@ -100,49 +102,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                         match entry.Media with
                                                         | LibraryMovie _ -> MediaType.Movie
                                                         | LibrarySeries _ -> MediaType.Series
-                                                    let posterPath =
-                                                        match entry.Media with
-                                                        | LibraryMovie m -> m.PosterPath
-                                                        | LibrarySeries s -> s.PosterPath
                                                     let title =
                                                         match entry.Media with
                                                         | LibraryMovie m -> m.Title
                                                         | LibrarySeries s -> s.Name
-                                                    Html.div [
-                                                        prop.className "poster-card cursor-pointer group"
-                                                        prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
-                                                        prop.children [
-                                                            Html.div [
-                                                                prop.className "poster-image-container poster-shadow"
-                                                                prop.children [
-                                                                    match posterPath with
-                                                                    | Some path ->
-                                                                        Html.img [
-                                                                            prop.src $"https://image.tmdb.org/t/p/w185{path}"
-                                                                            prop.alt title
-                                                                            prop.className "poster-image"
-                                                                        ]
-                                                                    | None ->
-                                                                        Html.div [
-                                                                            prop.className "w-full h-full flex items-center justify-center text-base-content/30"
-                                                                            prop.children [ film ]
-                                                                        ]
-                                                                    // Shine effect
-                                                                    Html.div [
-                                                                        prop.className "poster-shine"
-                                                                    ]
-                                                                    // Hover overlay
-                                                                    Html.div [
-                                                                        prop.className "poster-overlay"
-                                                                    ]
-                                                                ]
-                                                            ]
-                                                            Html.p [
-                                                                prop.className "text-xs mt-3 truncate text-base-content/70 group-hover:text-primary transition-colors"
-                                                                prop.text title
-                                                            ]
-                                                        ]
-                                                    ]
+                                                    PosterCard.libraryEntryWithTitle entry (fun () ->
+                                                        dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                             ]
                                         ]
                                     ]
@@ -224,49 +189,12 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                                     match entry.Media with
                                                                     | LibraryMovie _ -> MediaType.Movie
                                                                     | LibrarySeries _ -> MediaType.Series
-                                                                let posterPath =
-                                                                    match entry.Media with
-                                                                    | LibraryMovie m -> m.PosterPath
-                                                                    | LibrarySeries s -> s.PosterPath
                                                                 let title =
                                                                     match entry.Media with
                                                                     | LibraryMovie m -> m.Title
                                                                     | LibrarySeries s -> s.Name
-                                                                Html.div [
-                                                                    prop.className "poster-card cursor-pointer group"
-                                                                    prop.onClick (fun _ -> dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
-                                                                    prop.children [
-                                                                        Html.div [
-                                                                            prop.className "poster-image-container poster-shadow"
-                                                                            prop.children [
-                                                                                match posterPath with
-                                                                                | Some path ->
-                                                                                    Html.img [
-                                                                                        prop.src $"https://image.tmdb.org/t/p/w185{path}"
-                                                                                        prop.alt title
-                                                                                        prop.className "poster-image"
-                                                                                    ]
-                                                                                | None ->
-                                                                                    Html.div [
-                                                                                        prop.className "w-full h-full flex items-center justify-center text-base-content/30"
-                                                                                        prop.children [ film ]
-                                                                                    ]
-                                                                                // Shine effect
-                                                                                Html.div [
-                                                                                    prop.className "poster-shine"
-                                                                                ]
-                                                                                // Hover overlay
-                                                                                Html.div [
-                                                                                    prop.className "poster-overlay"
-                                                                                ]
-                                                                            ]
-                                                                        ]
-                                                                        Html.p [
-                                                                            prop.className "text-xs mt-3 truncate text-base-content/70 group-hover:text-primary transition-colors"
-                                                                            prop.text title
-                                                                        ]
-                                                                    ]
-                                                                ]
+                                                                PosterCard.libraryEntryWithTitle entry (fun () ->
+                                                                    dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                                         ]
                                                     ]
                                             ]
