@@ -6,12 +6,14 @@ open Shared.Api
 
 type Model = {
     IsMobileMenuOpen: bool
+    IsSidebarExpanded: bool
     HealthCheck: RemoteData<HealthCheckResponse>
 }
 
 type Msg =
     | ToggleMobileMenu
     | CloseMobileMenu
+    | ToggleSidebar
     | CheckHealth
     | HealthCheckResult of Result<HealthCheckResponse, string>
 
@@ -23,5 +25,6 @@ type ExternalMsg =
 module Model =
     let empty = {
         IsMobileMenuOpen = false
+        IsSidebarExpanded = false
         HealthCheck = NotAsked
     }

@@ -17,6 +17,9 @@ let update (api: HealthApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
     | CloseMobileMenu ->
         { model with IsMobileMenuOpen = false }, Cmd.none, NoOp
 
+    | ToggleSidebar ->
+        { model with IsSidebarExpanded = not model.IsSidebarExpanded }, Cmd.none, NoOp
+
     | CheckHealth ->
         let cmd =
             Cmd.OfAsync.either

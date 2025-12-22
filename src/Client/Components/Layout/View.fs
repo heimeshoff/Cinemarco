@@ -51,57 +51,74 @@ let private getIconColor (page: Page) =
     | NotFoundPage -> "text-error"
 
 /// Navigation item component
-let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) =
+let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) (isExpanded: bool) =
     let isActive = page = currentPage
     let iconColor = getIconColor page
     Html.li [
         Html.a [
             prop.className (
                 "nav-item cursor-pointer " +
-                if isActive then "nav-item-active" else ""
+                (if isActive then "nav-item-active " else "") +
+                (if isExpanded then "" else "justify-center px-0")
             )
             prop.onClick (fun _ -> onNavigate page)
+            prop.title (if isExpanded then "" else Page.toString page)
             prop.children [
                 Html.span [
                     prop.className $"nav-icon {iconColor}"
                     prop.children [ getPageIcon page ]
                 ]
-                Html.span [
-                    prop.className "font-medium text-sm"
-                    prop.text (Page.toString page)
-                ]
+                if isExpanded then
+                    Html.span [
+                        prop.className "font-medium text-sm nav-item-text"
+                        prop.text (Page.toString page)
+                    ]
             ]
         ]
     ]
 
 /// Sidebar navigation component
-let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSearch: unit -> unit) =
+let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSearch: unit -> unit) (dispatch: Msg -> unit) =
+    let isExpanded = model.IsSidebarExpanded
     Html.aside [
-        prop.className "sidebar fixed left-0 top-0 h-full w-64 hidden md:flex md:flex-col z-40"
+        prop.className (
+            "sidebar fixed left-0 top-0 h-full hidden md:flex md:flex-col z-40 transition-all duration-300 ease-out " +
+            (if isExpanded then "w-64 sidebar-expanded" else "w-[72px] sidebar-collapsed")
+        )
         prop.children [
-            // Logo section
+            // Logo section - clickable to toggle
             Html.div [
-                prop.className "p-6 border-b border-[#d4a574]/10"
+                prop.className (
+                    "border-b border-[#d4a574]/10 cursor-pointer transition-all duration-300 " +
+                    (if isExpanded then "p-6" else "p-4 flex justify-center")
+                )
+                prop.onClick (fun _ -> dispatch ToggleSidebar)
+                prop.title (if isExpanded then "Collapse sidebar" else "Expand sidebar")
                 prop.children [
                     Html.div [
-                        prop.className "flex items-center gap-3"
+                        prop.className (
+                            "flex items-center transition-all duration-300 " +
+                            (if isExpanded then "gap-3" else "justify-center")
+                        )
                         prop.children [
                             Html.span [
-                                prop.className "text-primary"
+                                prop.className "text-primary flex-shrink-0 transition-transform duration-300 hover:scale-110"
                                 prop.children [ clapperboard ]
                             ]
-                            Html.div [
-                                prop.children [
-                                    Html.h1 [
-                                        prop.className "text-xl font-bold text-gradient"
-                                        prop.text "Cinemarco"
-                                    ]
-                                    Html.p [
-                                        prop.className "text-xs text-base-content/50"
-                                        prop.text "Your Cinema Memories"
+                            if isExpanded then
+                                Html.div [
+                                    prop.className "sidebar-text-container overflow-hidden"
+                                    prop.children [
+                                        Html.h1 [
+                                            prop.className "text-xl font-bold text-gradient whitespace-nowrap"
+                                            prop.text "Cinemarco"
+                                        ]
+                                        Html.p [
+                                            prop.className "text-xs text-base-content/50 whitespace-nowrap"
+                                            prop.text "Your Cinema Memories"
+                                        ]
                                     ]
                                 ]
-                            ]
                         ]
                     ]
                 ]
@@ -109,52 +126,75 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
 
             // Navigation items
             Html.nav [
-                prop.className "flex-1 p-4 overflow-y-auto"
+                prop.className (
+                    "flex-1 overflow-y-auto transition-all duration-300 " +
+                    (if isExpanded then "p-4" else "p-2")
+                )
                 prop.children [
                     Html.ul [
                         prop.className "space-y-1"
                         prop.children [
-                            navItem HomePage currentPage onNavigate
-                            navItem LibraryPage currentPage onNavigate
+                            navItem HomePage currentPage onNavigate isExpanded
+                            navItem LibraryPage currentPage onNavigate isExpanded
 
                             // Search button
                             Html.li [
                                 Html.a [
-                                    prop.className "nav-item cursor-pointer"
+                                    prop.className (
+                                        "nav-item cursor-pointer " +
+                                        (if isExpanded then "" else "justify-center px-0")
+                                    )
                                     prop.onClick (fun _ -> onSearch ())
+                                    prop.title (if isExpanded then "" else "Search")
                                     prop.children [
                                         Html.span [
                                             prop.className "nav-icon text-nav-search"
                                             prop.children [ search ]
                                         ]
-                                        Html.span [
-                                            prop.className "font-medium text-sm"
-                                            prop.text "Search"
-                                        ]
+                                        if isExpanded then
+                                            Html.span [
+                                                prop.className "font-medium text-sm nav-item-text"
+                                                prop.text "Search"
+                                            ]
                                     ]
                                 ]
                             ]
 
                             // Divider
-                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
+                            Html.li [
+                                prop.className (
+                                    "border-t border-[#d4a574]/8 " +
+                                    (if isExpanded then "my-4" else "my-2 mx-2")
+                                )
+                            ]
 
-                            navItem FriendsPage currentPage onNavigate
-                            navItem ContributorsPage currentPage onNavigate
-                            navItem CollectionsPage currentPage onNavigate
-
-                            // Divider
-                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
-
-                            navItem StatsPage currentPage onNavigate
-                            navItem (YearInReviewPage (None, YearInReviewViewMode.Overview)) currentPage onNavigate
-                            navItem TimelinePage currentPage onNavigate
-                            navItem (GraphPage None) currentPage onNavigate
+                            navItem FriendsPage currentPage onNavigate isExpanded
+                            navItem ContributorsPage currentPage onNavigate isExpanded
+                            navItem CollectionsPage currentPage onNavigate isExpanded
 
                             // Divider
-                            Html.li [ prop.className "my-4 border-t border-[#d4a574]/8" ]
+                            Html.li [
+                                prop.className (
+                                    "border-t border-[#d4a574]/8 " +
+                                    (if isExpanded then "my-4" else "my-2 mx-2")
+                                )
+                            ]
 
-                            navItem ImportPage currentPage onNavigate
-                            navItem CachePage currentPage onNavigate
+                            navItem StatsPage currentPage onNavigate isExpanded
+                            navItem (YearInReviewPage (None, YearInReviewViewMode.Overview)) currentPage onNavigate isExpanded
+                            navItem TimelinePage currentPage onNavigate isExpanded
+                            navItem (GraphPage None) currentPage onNavigate isExpanded
+
+                            // Divider
+                            Html.li [
+                                prop.className (
+                                    "border-t border-[#d4a574]/8 " +
+                                    (if isExpanded then "my-4" else "my-2 mx-2")
+                                )
+                            ]
+
+                            navItem ImportPage currentPage onNavigate isExpanded
+                            navItem CachePage currentPage onNavigate isExpanded
                         ]
                     ]
                 ]
@@ -162,36 +202,53 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
 
             // Status footer
             Html.div [
-                prop.className "p-4 border-t border-[#d4a574]/10"
+                prop.className (
+                    "border-t border-[#d4a574]/10 transition-all duration-300 " +
+                    (if isExpanded then "p-4" else "p-2 flex justify-center")
+                )
                 prop.children [
                     match model.HealthCheck with
                     | Success health ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-xs"
+                            prop.className (
+                                "flex items-center text-xs " +
+                                (if isExpanded then "gap-2" else "")
+                            )
+                            prop.title (if isExpanded then "" else $"Connected v{health.Version}")
                             prop.children [
                                 Html.span [
-                                    prop.className "w-2 h-2 bg-success rounded-full animate-pulse-subtle"
+                                    prop.className "w-2 h-2 bg-success rounded-full animate-pulse-subtle flex-shrink-0"
                                 ]
-                                Html.span [
-                                    prop.className "text-base-content/50"
-                                    prop.text $"Connected  v{health.Version}"
-                                ]
+                                if isExpanded then
+                                    Html.span [
+                                        prop.className "text-base-content/50 whitespace-nowrap"
+                                        prop.text $"Connected  v{health.Version}"
+                                    ]
                             ]
                         ]
                     | Loading ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-xs text-base-content/40"
+                            prop.className (
+                                "flex items-center text-xs text-base-content/40 " +
+                                (if isExpanded then "gap-2" else "")
+                            )
                             prop.children [
                                 Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                Html.span [ prop.text "Connecting..." ]
+                                if isExpanded then
+                                    Html.span [ prop.text "Connecting..." ]
                             ]
                         ]
                     | Failure _ ->
                         Html.div [
-                            prop.className "flex items-center gap-2 text-xs text-error/80"
+                            prop.className (
+                                "flex items-center text-xs text-error/80 " +
+                                (if isExpanded then "gap-2" else "")
+                            )
+                            prop.title (if isExpanded then "" else "Offline")
                             prop.children [
-                                Html.span [ prop.className "w-2 h-2 bg-error rounded-full" ]
-                                Html.span [ prop.text "Offline" ]
+                                Html.span [ prop.className "w-2 h-2 bg-error rounded-full flex-shrink-0" ]
+                                if isExpanded then
+                                    Html.span [ prop.text "Offline" ]
                             ]
                         ]
                     | NotAsked -> Html.none

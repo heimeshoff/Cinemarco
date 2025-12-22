@@ -456,6 +456,12 @@ h1, h2, h3, .font-display {
   margin-left: -2rem;
   margin-right: -2rem;
   margin-top: -2rem;
+  transition: margin-left 0.3s ease-out;
+}
+
+/* When sidebar is collapsed, extend backdrop to screen edge */
+.sidebar-collapsed-content .detail-backdrop-section {
+  margin-left: calc(-72px - 2rem);
 }
 
 .detail-backdrop-container {
@@ -956,6 +962,38 @@ h1, h2, h3, .font-display {
   border-right: 1px solid rgba(255, 107, 107, 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed sidebar - fully transparent, floating icons */
+.sidebar-collapsed {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-right: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-collapsed::before {
+  opacity: 0 !important;
+  display: none;
+}
+
+/* Expanded sidebar - full styling */
+.sidebar-expanded {
+  background: linear-gradient(
+    180deg,
+    rgba(10, 10, 10, 0.98) 0%,
+    rgba(5, 5, 5, 0.99) 100%
+  );
+  border-right: 1px solid rgba(255, 107, 107, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.sidebar-expanded::before {
+  opacity: 1;
 }
 
 /* Neon accent line */
@@ -974,6 +1012,7 @@ h1, h2, h3, .font-display {
     rgba(255, 107, 107, 0.4) 80%,
     transparent 100%
   );
+  transition: opacity 0.3s ease;
 }
 
 .nav-item {
@@ -1038,7 +1077,11 @@ h1, h2, h3, .font-display {
   width: 20px;
   height: 20px;
   opacity: 0.7;
-  transition: opacity var(--transition-fast) var(--ease-cinema), filter var(--transition-fast) var(--ease-cinema);
+  transition: opacity var(--transition-fast) var(--ease-cinema),
+              filter var(--transition-fast) var(--ease-cinema),
+              transform var(--transition-fast) var(--ease-cinema),
+              width var(--transition-fast) var(--ease-cinema),
+              height var(--transition-fast) var(--ease-cinema);
 }
 
 .nav-icon[class*="text-nav-"] {
@@ -1049,6 +1092,94 @@ h1, h2, h3, .font-display {
 .nav-item-active .nav-icon {
   opacity: 1;
   filter: brightness(1.2) drop-shadow(0 0 4px currentColor);
+}
+
+/* Collapsed sidebar nav items - floating icons with glass hover */
+.sidebar-collapsed .nav-item {
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: transparent;
+}
+
+/* Keep icon colors vibrant and visible in collapsed state */
+.sidebar-collapsed .nav-icon {
+  opacity: 1 !important;
+  width: 24px;
+  height: 24px;
+}
+
+/* Ensure color classes apply properly */
+.sidebar-collapsed .nav-icon.text-nav-home { color: #ffd700; }
+.sidebar-collapsed .nav-icon.text-nav-library { color: #ff6b6b; }
+.sidebar-collapsed .nav-icon.text-nav-search { color: #ff6b6b; }
+.sidebar-collapsed .nav-icon.text-nav-friends { color: #00ff88; }
+.sidebar-collapsed .nav-icon.text-nav-contributors { color: #c084fc; }
+.sidebar-collapsed .nav-icon.text-nav-collections { color: #ff6bcb; }
+.sidebar-collapsed .nav-icon.text-nav-stats { color: #ff9f43; }
+.sidebar-collapsed .nav-icon.text-nav-timeline { color: #00d4ff; }
+.sidebar-collapsed .nav-icon.text-nav-graph { color: #a78bfa; }
+.sidebar-collapsed .nav-icon.text-nav-import { color: #00ff88; }
+.sidebar-collapsed .nav-icon.text-nav-cache { color: #94a3b8; }
+
+/* Glass button effect on hover */
+.sidebar-collapsed .nav-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(255, 107, 107, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-collapsed .nav-item:hover .nav-icon {
+  filter: brightness(1.2) drop-shadow(0 0 8px currentColor);
+  transform: scale(1.1);
+}
+
+/* Active state - subtle glass indicator */
+.sidebar-collapsed .nav-item-active {
+  background: rgba(255, 107, 107, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.sidebar-collapsed .nav-item-active .nav-icon {
+  filter: brightness(1.2) drop-shadow(0 0 6px currentColor);
+}
+
+.sidebar-collapsed .nav-item::before {
+  display: none;
+}
+
+/* Collapsed sidebar - transparent borders on sections */
+.sidebar-collapsed > div {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Collapsed logo hover - glass button effect */
+.sidebar-collapsed > div:first-child:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Text transition for nav items */
+.nav-item-text {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+/* Sidebar text container for smooth collapse */
+.sidebar-text-container {
+  transition: opacity 0.2s ease, max-width 0.3s ease;
 }
 
 /* ============================================

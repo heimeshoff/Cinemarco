@@ -272,6 +272,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 model.CurrentPage
                 onNavigate
                 onSearch
+                (LayoutMsg >> dispatch)
 
             // Mobile nav
             Components.Layout.View.mobileNav
@@ -290,7 +291,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Main content
             Html.main [
-                prop.className "md:pl-64 min-h-screen relative"
+                prop.className (
+                    "min-h-screen relative transition-all duration-300 ease-out " +
+                    (if model.Layout.IsSidebarExpanded then "md:pl-64 sidebar-expanded-content" else "md:pl-[72px] sidebar-collapsed-content")
+                )
                 prop.children [
                     Html.div [
                         prop.className "p-4 md:p-8 pb-24 md:pb-8"
