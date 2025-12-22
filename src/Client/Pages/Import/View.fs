@@ -19,6 +19,7 @@ let private warningIcon = Components.Icons.warning
 module GlassPanel = Common.Components.GlassPanel.View
 module SectionHeader = Common.Components.SectionHeader.View
 module RemoteDataView = Common.Components.RemoteDataView.View
+module GlassButton = Common.Components.GlassButton.View
 
 /// Step indicator component
 let private stepIndicator (currentStep: ImportStep) =
@@ -362,23 +363,9 @@ let private optionsStep (model: Model) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "flex justify-between"
                 prop.children [
-                    Html.button [
-                        prop.className "btn btn-ghost"
-                        prop.onClick (fun _ -> dispatch (GoToStep Connect))
-                        prop.children [
-                            arrowLeftIcon
-                            Html.span [ prop.text "Back" ]
-                        ]
-                    ]
-                    Html.button [
-                        prop.className "btn btn-primary"
-                        prop.disabled (not opts.ImportWatchedMovies && not opts.ImportWatchedSeries && not opts.ImportWatchlist)
-                        prop.onClick (fun _ -> dispatch ProceedToPreview)
-                        prop.children [
-                            Html.span [ prop.text "Preview Import" ]
-                            arrowRightIcon
-                        ]
-                    ]
+                    GlassButton.withLabel arrowLeftIcon "Back" "Go back" (fun () -> dispatch (GoToStep Connect))
+                    if opts.ImportWatchedMovies || opts.ImportWatchedSeries || opts.ImportWatchlist then
+                        GlassButton.primaryWithLabel arrowRightIcon "Preview Import" "Preview what will be imported" (fun () -> dispatch ProceedToPreview)
                 ]
             ]
         ]
@@ -511,23 +498,11 @@ let private previewStep (model: Model) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "flex justify-between"
                 prop.children [
-                    Html.button [
-                        prop.className "btn btn-ghost"
-                        prop.onClick (fun _ -> dispatch BackToOptions)
-                        prop.children [
-                            arrowLeftIcon
-                            Html.span [ prop.text "Back" ]
-                        ]
-                    ]
-                    Html.button [
-                        prop.className "btn btn-success"
-                        prop.disabled (match model.Preview with Success p -> p.NewItems = 0 | _ -> true)
-                        prop.onClick (fun _ -> dispatch StartImport)
-                        prop.children [
-                            downloadIcon
-                            Html.span [ prop.text "Start Import" ]
-                        ]
-                    ]
+                    GlassButton.withLabel arrowLeftIcon "Back" "Go back to options" (fun () -> dispatch BackToOptions)
+                    match model.Preview with
+                    | Success p when p.NewItems > 0 ->
+                        GlassButton.successWithLabel downloadIcon "Start Import" "Begin importing items" (fun () -> dispatch StartImport)
+                    | _ -> ()
                 ]
             ]
         ]
@@ -597,10 +572,11 @@ let private importingStep (model: Model) (dispatch: Msg -> unit) =
                             ]
 
                         // Cancel button
-                        Html.button [
-                            prop.className "btn btn-ghost btn-sm mt-4"
-                            prop.onClick (fun _ -> dispatch CancelImport)
-                            prop.text "Cancel Import"
+                        Html.div [
+                            prop.className "mt-4"
+                            prop.children [
+                                GlassButton.withLabel Components.Icons.close "Cancel" "Cancel import" (fun () -> dispatch CancelImport)
+                            ]
                         ]
                     ]
                 ]
@@ -663,15 +639,14 @@ let private completeStep (model: Model) (dispatch: Msg -> unit) =
                             prop.className "flex gap-4 justify-center"
                             prop.children [
                                 Html.a [
-                                    prop.className "btn btn-primary"
+                                    prop.className "detail-action-btn detail-action-btn-with-label detail-action-btn-emphasis"
                                     prop.href "/library"
-                                    prop.text "View Library"
+                                    prop.children [
+                                        Html.span [ prop.className "w-5 h-5"; prop.children [ Components.Icons.film ] ]
+                                        Html.span [ prop.className "text-sm font-medium"; prop.text "View Library" ]
+                                    ]
                                 ]
-                                Html.button [
-                                    prop.className "btn btn-ghost"
-                                    prop.onClick (fun _ -> dispatch (GoToStep SelectOptions))
-                                    prop.text "Import More"
-                                ]
+                                GlassButton.withLabel arrowRightIcon "Import More" "Import more items" (fun () -> dispatch (GoToStep SelectOptions))
                             ]
                         ]
                     ]

@@ -14,6 +14,7 @@ module Tabs = Common.Components.Tabs.View
 module RatingButton = Common.Components.RatingButton.View
 module CastCrewSection = Common.Components.CastCrewSection.View
 module BackButton = Common.Components.BackButton.View
+module GlassButton = Common.Components.GlassButton.View
 
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
 let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
@@ -208,18 +209,14 @@ let private friendsTab (sessions: RemoteData<MovieWatchSession list>) (allFriend
                                 )
                                 prop.autoFocus true
                             ]
-                            Html.button [
-                                prop.className "btn btn-ghost btn-xs text-success"
-                                prop.onClick (fun _ -> dispatch SaveSessionDate)
-                                prop.title "Save"
-                                prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
-                            ]
-                            Html.button [
-                                prop.className "btn btn-ghost btn-xs text-error"
-                                prop.onClick (fun _ -> dispatch CancelEditingSessionDate)
-                                prop.title "Cancel"
-                                prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
-                            ]
+                            GlassButton.view
+                                (Common.Components.GlassButton.Types.Model.success check "Save"
+                                    |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                                (fun () -> dispatch SaveSessionDate)
+                            GlassButton.view
+                                (Common.Components.GlassButton.Types.Model.danger close "Cancel"
+                                    |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                                (fun () -> dispatch CancelEditingSessionDate)
                         ]
                     ]
                 else
@@ -256,23 +253,15 @@ let private friendsTab (sessions: RemoteData<MovieWatchSession list>) (allFriend
                     prop.className "flex items-center gap-1 ml-auto"
                     prop.children [
                         // Edit button
-                        Html.button [
-                            prop.className "btn btn-ghost btn-xs opacity-50 hover:opacity-100"
-                            prop.onClick (fun _ -> dispatch (EditWatchSession session))
-                            prop.title "Edit session"
-                            prop.children [
-                                Html.span [ prop.className "w-3 h-3"; prop.children [ edit ] ]
-                            ]
-                        ]
+                        GlassButton.view
+                            (Common.Components.GlassButton.Types.Model.create edit "Edit session"
+                                |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                            (fun () -> dispatch (EditWatchSession session))
                         // Delete button
-                        Html.button [
-                            prop.className "btn btn-ghost btn-xs opacity-50 hover:opacity-100"
-                            prop.onClick (fun _ -> dispatch (DeleteWatchSession session.Id))
-                            prop.title "Delete session"
-                            prop.children [
-                                Html.span [ prop.className "w-3 h-3"; prop.children [ trash ] ]
-                            ]
-                        ]
+                        GlassButton.view
+                            (Common.Components.GlassButton.Types.Model.danger trash "Delete session"
+                                |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                            (fun () -> dispatch (DeleteWatchSession session.Id))
                     ]
                 ]
             ]
@@ -286,14 +275,7 @@ let private friendsTab (sessions: RemoteData<MovieWatchSession list>) (allFriend
                 prop.className "flex items-center justify-between"
                 prop.children [
                     Html.h3 [ prop.className "font-semibold"; prop.text "Watch Sessions" ]
-                    Html.button [
-                        prop.className "btn btn-sm btn-ghost gap-2"
-                        prop.onClick (fun _ -> dispatch OpenWatchSessionModal)
-                        prop.children [
-                            Html.span [ prop.className "w-4 h-4"; prop.children [ plus ] ]
-                            Html.span [ prop.text "Add Watch Session" ]
-                        ]
-                    ]
+                    GlassButton.withLabel plus "Add Session" "Add a new watch session" (fun () -> dispatch OpenWatchSessionModal)
                 ]
             ]
 

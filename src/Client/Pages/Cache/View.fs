@@ -7,6 +7,8 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+module GlassButton = Common.Components.GlassButton.View
+
 /// Format bytes to human-readable string
 let private formatBytes (bytes: int) : string =
     if bytes < 1024 then sprintf "%d B" bytes
@@ -231,28 +233,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                     // Action buttons
                     Html.div [
-                        prop.className "flex gap-2"
+                        prop.className "flex gap-3"
                         prop.children [
-                            Html.button [
-                                prop.className "btn btn-outline btn-sm"
-                                prop.disabled model.IsClearing
-                                prop.onClick (fun _ -> dispatch ClearExpiredCache)
-                                prop.children [
-                                    if model.IsClearing then
-                                        Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                    Html.span [ prop.text "Clear Expired" ]
-                                ]
-                            ]
-                            Html.button [
-                                prop.className "btn btn-error btn-sm"
-                                prop.disabled model.IsClearing
-                                prop.onClick (fun _ -> dispatch ClearAllCache)
-                                prop.children [
-                                    if model.IsClearing then
-                                        Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                                    Html.span [ prop.text "Clear All Cache" ]
-                                ]
-                            ]
+                            if model.IsClearing then
+                                Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                            else
+                                GlassButton.withLabel clock "Clear Expired" "Clear expired cache entries" (fun () -> dispatch ClearExpiredCache)
+                                GlassButton.dangerWithLabel trash "Clear All" "Clear all cache entries" (fun () -> dispatch ClearAllCache)
                         ]
                     ]
                 ]
@@ -270,16 +257,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.className "text-sm text-base-content/60 mb-4"
                         prop.text "Fix series watch status if it wasn't properly set during Trakt import. This will recalculate the InProgress/Completed status for all series based on episode watch data."
                     ]
-                    Html.button [
-                        prop.className "btn btn-primary btn-sm"
-                        prop.disabled model.IsRecalculating
-                        prop.onClick (fun _ -> dispatch RecalculateSeriesWatchStatus)
-                        prop.children [
-                            if model.IsRecalculating then
-                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
-                            Html.span [ prop.text "Recalculate Series Watch Status" ]
-                        ]
-                    ]
+                    if model.IsRecalculating then
+                        Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                    else
+                        GlassButton.primaryWithLabel refresh "Recalculate" "Recalculate series watch status" (fun () -> dispatch RecalculateSeriesWatchStatus)
                 ]
             ]
 

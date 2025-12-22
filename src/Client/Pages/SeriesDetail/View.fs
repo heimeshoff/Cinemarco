@@ -15,6 +15,7 @@ module RatingButton = Common.Components.RatingButton.View
 module CastCrewSection = Common.Components.CastCrewSection.View
 module BackButton = Common.Components.BackButton.View
 module ProgressBar = Common.Components.ProgressBar.View
+module GlassButton = Common.Components.GlassButton.View
 
 /// Progress bar component (using shared component)
 let private progressBar (current: int) (total: int) = ProgressBar.simple current total
@@ -174,7 +175,7 @@ let private EpisodeCard (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bo
                                                         prop.autoFocus true
                                                     ]
                                                     Html.button [
-                                                        prop.className "btn btn-xs btn-ghost text-success"
+                                                        prop.className "detail-action-btn detail-action-btn-sm detail-action-btn-success"
                                                         prop.title "Save"
                                                         prop.onClick (fun e ->
                                                             e.stopPropagation()
@@ -187,10 +188,10 @@ let private EpisodeCard (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bo
                                                                 | _ -> ()
                                                             setIsEditingDate false
                                                             setContextMenu None)
-                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
+                                                        prop.children [ Html.span [ prop.className "w-4 h-4"; prop.children [ check ] ] ]
                                                     ]
                                                     Html.button [
-                                                        prop.className "btn btn-xs btn-ghost text-error"
+                                                        prop.className "detail-action-btn detail-action-btn-sm detail-action-btn-danger"
                                                         prop.title "Cancel"
                                                         prop.onClick (fun e ->
                                                             e.stopPropagation()
@@ -200,7 +201,7 @@ let private EpisodeCard (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bo
                                                                 |> Option.defaultValue ""
                                                             )
                                                             setIsEditingDate false)
-                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
+                                                        prop.children [ Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ] ]
                                                     ]
                                                 ]
                                             ]
@@ -618,27 +619,14 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                     ]
                                     // Delete button (only for non-default sessions)
                                     if not session.IsDefault then
-                                        Html.button [
-                                            prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-error hover:bg-error/10 transition-colors"
-                                            prop.onClick (fun e ->
-                                                e.stopPropagation()
-                                                dispatch (DeleteSession session.Id))
-                                            prop.title "Delete session"
-                                            prop.children [
-                                                Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
-                                            ]
-                                        ]
+                                        GlassButton.view
+                                            (Common.Components.GlassButton.Types.Model.danger close "Delete session"
+                                                |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                                            (fun () -> dispatch (DeleteSession session.Id))
                                 ]
                             ]
                         // New session button
-                        Html.button [
-                            prop.className "btn btn-sm btn-ghost gap-1"
-                            prop.onClick (fun _ -> dispatch OpenNewSessionModal)
-                            prop.children [
-                                Html.span [ prop.className "w-4 h-4"; prop.children [ plus ] ]
-                                Html.span [ prop.text "New" ]
-                            ]
-                        ]
+                        GlassButton.withLabel plus "New" "Add new watch session" (fun () -> dispatch OpenNewSessionModal)
                     | Loading ->
                         Html.span [ prop.className "loading loading-spinner loading-sm" ]
                     | Failure _ | NotAsked -> Html.none
@@ -687,20 +675,15 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                                 prop.className "text-sm text-base-content/60"
                                                                 prop.text $"{watchedInSeason}/{totalInSeason}"
                                                             ]
-                                                            Html.button [
-                                                                prop.className "btn btn-xs btn-ghost"
-                                                                prop.onClick (fun _ -> dispatch (MarkSeasonWatched seasonNum))
-                                                                prop.text "Mark All"
-                                                            ]
-                                                            Html.button [
-                                                                prop.className "btn btn-xs btn-ghost"
-                                                                prop.title "Add season to collection"
-                                                                prop.onClick (fun _ -> dispatch (AddSeasonToCollection seasonNum))
-                                                                prop.children [
-                                                                    Html.span [ prop.text "+" ]
-                                                                    Html.span [ prop.className "hidden sm:inline ml-1"; prop.text "Collection" ]
-                                                                ]
-                                                            ]
+                                                            GlassButton.view
+                                                                (Common.Components.GlassButton.Types.Model.create check "Mark all watched"
+                                                                    |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small
+                                                                    |> Common.Components.GlassButton.Types.Model.withLabel "All")
+                                                                (fun () -> dispatch (MarkSeasonWatched seasonNum))
+                                                            GlassButton.view
+                                                                (Common.Components.GlassButton.Types.Model.create collections "Add season to collection"
+                                                                    |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small)
+                                                                (fun () -> dispatch (AddSeasonToCollection seasonNum))
                                                         ]
                                                     ]
                                                 ]
@@ -725,11 +708,11 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                         prop.className "font-semibold"
                                                         prop.text $"Season {seasonNum}"
                                                     ]
-                                                    Html.button [
-                                                        prop.className "btn btn-xs btn-ghost"
-                                                        prop.onClick (fun _ -> dispatch (LoadSeasonDetails seasonNum))
-                                                        prop.text "Load episodes"
-                                                    ]
+                                                    GlassButton.view
+                                                        (Common.Components.GlassButton.Types.Model.create download "Load episodes"
+                                                            |> Common.Components.GlassButton.Types.Model.withSize Common.Components.GlassButton.Types.Small
+                                                            |> Common.Components.GlassButton.Types.Model.withLabel "Load")
+                                                        (fun () -> dispatch (LoadSeasonDetails seasonNum))
                                                 ]
                                             ]
                                     ]
@@ -812,7 +795,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                     let statusBadge =
                         if allEpisodesWatched then
                             Html.div [
-                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-emerald-900/95 via-emerald-900/80 to-transparent pt-8 pb-3 px-2"
+                                prop.className "absolute top-0 left-0 right-0 bg-gradient-to-b from-emerald-900/95 via-emerald-900/80 to-transparent pb-8 pt-3 px-2"
                                 prop.children [
                                     Html.div [
                                         prop.className "flex items-center justify-center gap-1.5"
@@ -831,7 +814,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                             ]
                         elif isAbandoned then
                             Html.div [
-                                prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-900/95 via-red-900/80 to-transparent pt-8 pb-3 px-2"
+                                prop.className "absolute top-0 left-0 right-0 bg-gradient-to-b from-red-900/95 via-red-900/80 to-transparent pb-8 pt-3 px-2"
                                 prop.children [
                                     Html.div [
                                         prop.className "flex items-center justify-center gap-1.5"
@@ -869,6 +852,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                     prop.className "detail-backdrop-image"
                                                 ]
                                                 Html.div [ prop.className "detail-backdrop-overlay" ]
+                                                statusBadge
                                             ]
                                         ]
                                     ]

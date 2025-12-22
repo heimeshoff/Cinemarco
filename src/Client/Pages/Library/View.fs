@@ -7,6 +7,8 @@ open Types
 open Components.Icons
 open Components.Cards.View
 
+module GlassButton = Common.Components.GlassButton.View
+
 /// Filter bar component
 let private filterBar (filters: LibraryFilters) (dispatch: Msg -> unit) =
     let hasActiveFilters =
@@ -71,33 +73,17 @@ let private filterBar (filters: LibraryFilters) (dispatch: Msg -> unit) =
                                     Html.option [ prop.value "rating"; prop.text "Rating" ]
                                 ]
                             ]
-                            Html.button [
-                                prop.className "w-9 h-9 rounded-lg bg-base-100/50 border border-white/5 flex items-center justify-center hover:bg-base-100 transition-colors"
-                                prop.onClick (fun _ -> dispatch ToggleSortDirection)
-                                prop.title (if filters.SortDirection = Ascending then "Ascending" else "Descending")
-                                prop.children [
-                                    Html.span [
-                                        prop.className (
-                                            "w-4 h-4 text-base-content/60 transition-transform " +
-                                            if filters.SortDirection = Ascending then "" else "rotate-180"
-                                        )
-                                        prop.children [ chevronUp ]
-                                    ]
-                                ]
-                            ]
+                            let sortIcon =
+                                if filters.SortDirection = Ascending then chevronUp else chevronDown
+                            let sortTooltip =
+                                if filters.SortDirection = Ascending then "Sort ascending" else "Sort descending"
+                            GlassButton.small sortIcon sortTooltip (fun () -> dispatch ToggleSortDirection)
                         ]
                     ]
 
                     // Clear filters (if active)
                     if hasActiveFilters then
-                        Html.button [
-                            prop.className "flex items-center gap-1.5 px-3 py-2 text-sm text-base-content/60 hover:text-error transition-colors"
-                            prop.onClick (fun _ -> dispatch ClearFilters)
-                            prop.children [
-                                Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
-                                Html.span [ prop.text "Clear" ]
-                            ]
-                        ]
+                        GlassButton.dangerWithLabel close "Clear" "Clear all filters" (fun () -> dispatch ClearFilters)
                 ]
             ]
 

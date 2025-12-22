@@ -6,6 +6,8 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+module GlassButton = Common.Components.GlassButton.View
+
 /// Filter friends based on search query
 let private filterFriends (model: Model) (friends: Friend list) =
     if System.String.IsNullOrWhiteSpace model.SearchQuery then
@@ -105,13 +107,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.className "text-2xl font-bold"
                         prop.text "Friends"
                     ]
-                    Html.button [
-                        prop.className "btn btn-primary"
-                        prop.onClick (fun _ -> dispatch OpenAddFriendModal)
-                        prop.children [
-                            Html.span [ prop.text "+ Add Friend" ]
-                        ]
-                    ]
+                    GlassButton.primaryWithLabel plus "Add Friend" "Add a new friend" (fun () -> dispatch OpenAddFriendModal)
                 ]
             ]
 
@@ -181,15 +177,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     // Right side: Delete button only
                                     Html.div [
                                         prop.className "flex gap-2"
+                                        prop.onClick (fun e -> e.stopPropagation())
                                         prop.children [
-                                            Html.button [
-                                                prop.className "btn btn-ghost btn-sm text-error"
-                                                prop.onClick (fun e ->
-                                                    e.stopPropagation()
-                                                    dispatch (OpenDeleteFriendModal friend)
-                                                )
-                                                prop.text "Delete"
-                                            ]
+                                            GlassButton.danger trash "Delete friend" (fun () -> dispatch (OpenDeleteFriendModal friend))
                                         ]
                                     ]
                                 ]

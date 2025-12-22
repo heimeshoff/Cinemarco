@@ -4,6 +4,9 @@ open Feliz
 open Common.Types
 open Shared.Domain
 open Types
+open Components.Icons
+
+module GlassButton = Common.Components.GlassButton.View
 
 /// Filter collections based on search query
 let private filterCollections (model: Model) (collections: Collection list) =
@@ -49,13 +52,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.className "text-2xl font-bold"
                         prop.text "Collections"
                     ]
-                    Html.button [
-                        prop.className "btn btn-primary"
-                        prop.onClick (fun _ -> dispatch CreateNewCollection)
-                        prop.children [
-                            Html.span [ prop.text "+ New Collection" ]
-                        ]
-                    ]
+                    GlassButton.primaryWithLabel plus "New Collection" "Create a new collection" (fun () -> dispatch CreateNewCollection)
                 ]
             ]
 
@@ -137,13 +134,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     ]
 
                                     // Delete button
-                                    Html.button [
-                                        prop.className "btn btn-ghost btn-sm text-error"
-                                        prop.onClick (fun e ->
-                                            e.stopPropagation()
-                                            dispatch (OpenDeleteCollectionModal collection)
-                                        )
-                                        prop.text "Delete"
+                                    Html.div [
+                                        prop.onClick (fun e -> e.stopPropagation())
+                                        prop.children [
+                                            GlassButton.danger trash "Delete collection" (fun () -> dispatch (OpenDeleteCollectionModal collection))
+                                        ]
                                     ]
                                 ]
                             ]

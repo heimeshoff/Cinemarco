@@ -7,6 +7,8 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+module GlassButton = Common.Components.GlassButton.View
+
 // =====================================
 // Rating Options (same as MovieDetail)
 // =====================================
@@ -429,6 +431,8 @@ let private monthSection (monthDate: DateTime) (entries: TimelineEntry list) (di
 
 /// Filter bar
 let private filterBar (model: Model) (dispatch: Msg -> unit) =
+    let hasDateFilter = model.IsDateFilterOpen || model.StartDate.IsSome || model.EndDate.IsSome
+
     Html.div [
         prop.className "glass rounded-xl p-4 mb-6"
         prop.children [
@@ -436,56 +440,29 @@ let private filterBar (model: Model) (dispatch: Msg -> unit) =
                 prop.className "flex flex-wrap items-center gap-3"
                 prop.children [
                     // Date range filter toggle (first)
-                    Html.button [
-                        prop.className (
-                            if model.IsDateFilterOpen || model.StartDate.IsSome || model.EndDate.IsSome
-                            then "btn btn-sm btn-accent"
-                            else "btn btn-sm btn-ghost"
-                        )
-                        prop.onClick (fun _ -> dispatch ToggleDateFilter)
-                        prop.children [
-                            Html.span [ prop.className "w-4 h-4 mr-1"; prop.children [ clock ] ]
-                            Html.span [ prop.text "Date Range" ]
-                        ]
-                    ]
+                    if hasDateFilter then
+                        GlassButton.primaryWithLabel clock "Date Range" "Toggle date range filter" (fun () -> dispatch ToggleDateFilter)
+                    else
+                        GlassButton.withLabel clock "Date Range" "Toggle date range filter" (fun () -> dispatch ToggleDateFilter)
 
                     // Media type filter chips
                     Html.div [
                         prop.className "flex gap-2"
                         prop.children [
-                            Html.button [
-                                prop.className (
-                                    if model.MediaType.IsNone
-                                    then "btn btn-sm btn-primary"
-                                    else "btn btn-sm btn-ghost"
-                                )
-                                prop.onClick (fun _ -> dispatch (SetMediaTypeFilter None))
-                                prop.text "All"
-                            ]
-                            Html.button [
-                                prop.className (
-                                    if model.MediaType = Some MediaType.Movie
-                                    then "btn btn-sm btn-primary"
-                                    else "btn btn-sm btn-ghost"
-                                )
-                                prop.onClick (fun _ -> dispatch (SetMediaTypeFilter (Some MediaType.Movie)))
-                                prop.children [
-                                    Html.span [ prop.className "w-4 h-4 mr-1"; prop.children [ film ] ]
-                                    Html.span [ prop.text "Movies" ]
-                                ]
-                            ]
-                            Html.button [
-                                prop.className (
-                                    if model.MediaType = Some MediaType.Series
-                                    then "btn btn-sm btn-primary"
-                                    else "btn btn-sm btn-ghost"
-                                )
-                                prop.onClick (fun _ -> dispatch (SetMediaTypeFilter (Some MediaType.Series)))
-                                prop.children [
-                                    Html.span [ prop.className "w-4 h-4 mr-1"; prop.children [ tv ] ]
-                                    Html.span [ prop.text "Series" ]
-                                ]
-                            ]
+                            if model.MediaType.IsNone then
+                                GlassButton.primaryWithLabel list "All" "Show all" (fun () -> dispatch (SetMediaTypeFilter None))
+                            else
+                                GlassButton.withLabel list "All" "Show all" (fun () -> dispatch (SetMediaTypeFilter None))
+
+                            if model.MediaType = Some MediaType.Movie then
+                                GlassButton.primaryWithLabel film "Movies" "Show movies" (fun () -> dispatch (SetMediaTypeFilter (Some MediaType.Movie)))
+                            else
+                                GlassButton.withLabel film "Movies" "Show movies" (fun () -> dispatch (SetMediaTypeFilter (Some MediaType.Movie)))
+
+                            if model.MediaType = Some MediaType.Series then
+                                GlassButton.primaryWithLabel tv "Series" "Show series" (fun () -> dispatch (SetMediaTypeFilter (Some MediaType.Series)))
+                            else
+                                GlassButton.withLabel tv "Series" "Show series" (fun () -> dispatch (SetMediaTypeFilter (Some MediaType.Series)))
                         ]
                     ]
 
@@ -494,14 +471,7 @@ let private filterBar (model: Model) (dispatch: Msg -> unit) =
 
                     // Clear filters
                     if model.StartDate.IsSome || model.EndDate.IsSome || model.MediaType.IsSome then
-                        Html.button [
-                            prop.className "btn btn-sm btn-ghost text-error"
-                            prop.onClick (fun _ -> dispatch ClearFilters)
-                            prop.children [
-                                Html.span [ prop.className "w-4 h-4 mr-1"; prop.children [ close ] ]
-                                Html.span [ prop.text "Clear" ]
-                            ]
-                        ]
+                        GlassButton.dangerWithLabel close "Clear" "Clear all filters" (fun () -> dispatch ClearFilters)
                 ]
             ]
 

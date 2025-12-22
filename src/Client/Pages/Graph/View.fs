@@ -9,6 +9,8 @@ open Shared.Domain
 open Types
 open Components.Icons
 
+module GlassButton = Common.Components.GlassButton.View
+
 // Import the forceGraph JavaScript module using Emit for correct JS interop
 module private ForceGraph =
     [<Emit("import('../../forceGraph.js').then(m => m.initializeGraph($0, $1, $2, $3))")>]
@@ -296,23 +298,11 @@ let private searchBar (model: Model) (dispatch: Msg -> unit) =
 /// Zoom controls component
 let private zoomControls () =
     Html.div [
-        prop.className "flex items-center gap-1 glass rounded-lg px-2 py-1"
+        prop.className "flex items-center gap-2"
         prop.children [
-            Html.button [
-                prop.className "btn btn-ghost btn-xs"
-                prop.onClick (fun _ -> ForceGraph.setZoom 0.5 |> ignore)
-                prop.text "−"
-            ]
-            Html.button [
-                prop.className "btn btn-ghost btn-xs"
-                prop.onClick (fun _ -> ForceGraph.resetZoom() |> ignore)
-                prop.text "Fit"
-            ]
-            Html.button [
-                prop.className "btn btn-ghost btn-xs"
-                prop.onClick (fun _ -> ForceGraph.setZoom 2.0 |> ignore)
-                prop.text "+"
-            ]
+            GlassButton.small minus "Zoom out" (fun () -> ForceGraph.setZoom 0.5 |> ignore)
+            GlassButton.small maximize "Fit to screen" (fun () -> ForceGraph.resetZoom() |> ignore)
+            GlassButton.small plus "Zoom in" (fun () -> ForceGraph.setZoom 2.0 |> ignore)
         ]
     ]
 
@@ -384,17 +374,19 @@ let private selectedNodePanel (model: Model) (dispatch: Msg -> unit) =
                 ]
 
                 // View details button
-                Html.button [
-                    prop.className "btn btn-primary btn-sm flex-shrink-0"
-                    prop.onClick (fun _ -> action())
-                    prop.text "View"
+                Html.div [
+                    prop.className "flex-shrink-0"
+                    prop.children [
+                        GlassButton.primaryWithLabel arrowRight "View" "View details" action
+                    ]
                 ]
 
                 // Close button
-                Html.button [
-                    prop.className "btn btn-ghost btn-xs btn-circle flex-shrink-0"
-                    prop.onClick (fun _ -> dispatch DeselectNode)
-                    prop.children [ close ]
+                Html.div [
+                    prop.className "flex-shrink-0"
+                    prop.children [
+                        GlassButton.small close "Close" (fun () -> dispatch DeselectNode)
+                    ]
                 ]
             ]
         ]
@@ -433,10 +425,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     prop.className "text-error"
                                     prop.text $"Failed to load graph: {err}"
                                 ]
-                                Html.button [
-                                    prop.className "btn btn-primary mt-4"
-                                    prop.onClick (fun _ -> dispatch LoadGraph)
-                                    prop.text "Retry"
+                                Html.div [
+                                    prop.className "mt-4"
+                                    prop.children [
+                                        GlassButton.primaryWithLabel refresh "Retry" "Retry loading graph" (fun () -> dispatch LoadGraph)
+                                    ]
                                 ]
                             ]
                         ]
@@ -495,22 +488,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             // Focus mode indicator
                             if model.Filter.FocusedNode.IsSome then
                                 Html.div [
-                                    prop.className "flex items-center gap-2 glass rounded-lg px-3 py-2"
+                                    prop.className "flex items-center gap-2"
                                     prop.children [
                                         Html.span [
                                             prop.className "text-sm text-primary font-medium"
                                             prop.text "Focus Mode"
                                         ]
-                                        Html.button [
-                                            prop.className "btn btn-ghost btn-xs"
-                                            prop.onClick (fun _ -> dispatch ClearFocus)
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "text-xs"
-                                                    prop.text "✕ Clear"
-                                                ]
-                                            ]
-                                        ]
+                                        GlassButton.small close "Clear focus" (fun () -> dispatch ClearFocus)
                                     ]
                                 ]
                         ]

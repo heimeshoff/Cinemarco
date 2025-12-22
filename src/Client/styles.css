@@ -814,6 +814,71 @@ h1, h2, h3, .font-display {
   color: #fce7f3;
 }
 
+/* Emphasized variant - always visible glass background (for primary actions) */
+.detail-action-btn-emphasis {
+  background: rgba(128, 128, 128, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(243, 244, 246, 0.3);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.2);
+}
+
+.detail-action-btn-emphasis:hover {
+  background: rgba(156, 163, 175, 0.3);
+  border-color: rgba(243, 244, 246, 0.5);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* Small variant */
+.detail-action-btn-sm {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+}
+
+/* Large variant */
+.detail-action-btn-lg {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 1rem;
+}
+
+/* With label variant - flexible width */
+.detail-action-btn-with-label {
+  width: auto;
+  padding: 0 0.875rem;
+  gap: 0.5rem;
+}
+
+/* Filter chip variant - pill shaped, smaller */
+.detail-action-btn-chip {
+  width: auto;
+  height: auto;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Active chip state */
+.detail-action-btn-chip-active {
+  background: rgba(255, 107, 107, 0.15);
+  border-color: rgba(255, 107, 107, 0.3);
+  color: #ff6b6b;
+}
+
+/* Mobile: always show glass for chips */
+@media (max-width: 767px) {
+  .detail-action-btn-chip {
+    background: rgba(128, 128, 128, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(243, 244, 246, 0.2);
+  }
+}
+
 /* Friend pill - glassmorphism style */
 .friend-pill {
   display: inline-block;
