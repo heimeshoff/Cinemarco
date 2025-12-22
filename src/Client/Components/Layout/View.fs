@@ -58,8 +58,7 @@ let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) 
         Html.a [
             prop.className (
                 "nav-item cursor-pointer " +
-                (if isActive then "nav-item-active " else "") +
-                (if isExpanded then "" else "justify-center px-0")
+                (if isActive then "nav-item-active " else "")
             )
             prop.onClick (fun _ -> onNavigate page)
             prop.title (if isExpanded then "" else Page.toString page)
@@ -68,11 +67,14 @@ let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) 
                     prop.className $"nav-icon {iconColor}"
                     prop.children [ getPageIcon page ]
                 ]
-                if isExpanded then
-                    Html.span [
-                        prop.className "font-medium text-sm nav-item-text"
-                        prop.text (Page.toString page)
-                    ]
+                // Always render text, CSS handles visibility
+                Html.span [
+                    prop.className (
+                        "font-medium text-sm nav-item-text " +
+                        (if isExpanded then "opacity-100" else "opacity-0 w-0")
+                    )
+                    prop.text (Page.toString page)
+                ]
             ]
         ]
     ]
@@ -82,14 +84,14 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
     let isExpanded = model.IsSidebarExpanded
     Html.aside [
         prop.className (
-            "sidebar fixed left-0 top-0 h-full hidden md:flex md:flex-col z-40 transition-all duration-300 ease-out " +
+            "sidebar fixed left-0 top-0 h-full hidden md:flex md:flex-col z-40 transition-[width] duration-300 ease-out " +
             (if isExpanded then "w-64 sidebar-expanded" else "w-[72px] sidebar-collapsed")
         )
         prop.children [
             // Logo section - clickable to toggle
             Html.div [
                 prop.className (
-                    "border-b border-[#d4a574]/10 cursor-pointer transition-all duration-300 " +
+                    "border-b border-[#d4a574]/10 cursor-pointer transition-[padding,background] duration-300 " +
                     (if isExpanded then "p-6" else "p-4 flex justify-center")
                 )
                 prop.onClick (fun _ -> dispatch ToggleSidebar)
@@ -97,7 +99,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                 prop.children [
                     Html.div [
                         prop.className (
-                            "flex items-center transition-all duration-300 " +
+                            "flex items-center transition-[gap] duration-300 " +
                             (if isExpanded then "gap-3" else "justify-center")
                         )
                         prop.children [
@@ -127,7 +129,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
             // Navigation items
             Html.nav [
                 prop.className (
-                    "flex-1 overflow-y-auto transition-all duration-300 " +
+                    "flex-1 overflow-y-auto transition-[padding] duration-300 " +
                     (if isExpanded then "p-4" else "p-2")
                 )
                 prop.children [
@@ -140,10 +142,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             // Search button
                             Html.li [
                                 Html.a [
-                                    prop.className (
-                                        "nav-item cursor-pointer " +
-                                        (if isExpanded then "" else "justify-center px-0")
-                                    )
+                                    prop.className "nav-item cursor-pointer"
                                     prop.onClick (fun _ -> onSearch ())
                                     prop.title (if isExpanded then "" else "Search")
                                     prop.children [
@@ -151,11 +150,14 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                                             prop.className "nav-icon text-nav-search"
                                             prop.children [ search ]
                                         ]
-                                        if isExpanded then
-                                            Html.span [
-                                                prop.className "font-medium text-sm nav-item-text"
-                                                prop.text "Search"
-                                            ]
+                                        // Always render text, CSS handles visibility
+                                        Html.span [
+                                            prop.className (
+                                                "font-medium text-sm nav-item-text " +
+                                                (if isExpanded then "opacity-100" else "opacity-0 w-0")
+                                            )
+                                            prop.text "Search"
+                                        ]
                                     ]
                                 ]
                             ]
@@ -163,7 +165,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             // Divider
                             Html.li [
                                 prop.className (
-                                    "border-t border-[#d4a574]/8 " +
+                                    "sidebar-divider border-t border-[#d4a574]/8 " +
                                     (if isExpanded then "my-4" else "my-2 mx-2")
                                 )
                             ]
@@ -175,7 +177,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             // Divider
                             Html.li [
                                 prop.className (
-                                    "border-t border-[#d4a574]/8 " +
+                                    "sidebar-divider border-t border-[#d4a574]/8 " +
                                     (if isExpanded then "my-4" else "my-2 mx-2")
                                 )
                             ]
@@ -188,7 +190,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
                             // Divider
                             Html.li [
                                 prop.className (
-                                    "border-t border-[#d4a574]/8 " +
+                                    "sidebar-divider border-t border-[#d4a574]/8 " +
                                     (if isExpanded then "my-4" else "my-2 mx-2")
                                 )
                             ]
@@ -203,7 +205,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
             // Status footer
             Html.div [
                 prop.className (
-                    "border-t border-[#d4a574]/10 transition-all duration-300 " +
+                    "border-t border-[#d4a574]/10 transition-[padding,background] duration-300 " +
                     (if isExpanded then "p-4" else "p-2 flex justify-center")
                 )
                 prop.children [

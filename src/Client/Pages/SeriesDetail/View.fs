@@ -22,113 +22,9 @@ let private progressBar (current: int) (total: int) = ProgressBar.simple current
 /// Context menu position
 type ContextMenuPosition = { X: float; Y: float }
 
-/// Episode checkbox component with Ctrl+click support and context menu
+/// Episode card with still image - watched episodes have full color, unwatched are semi-transparent
 [<ReactComponent>]
-let private EpisodeCheckbox (seasonNum: int) (epNum: int) (epName: string) (isWatched: bool) (isHovered: bool) (onHover: int option -> unit) (dispatch: Msg -> unit) =
-    let (contextMenu, setContextMenu) = React.useState<ContextMenuPosition option> None
-
-    let bgColor =
-        if isWatched then
-            if isHovered then "#243324" else "#1a2e1a"
-        else
-            if isHovered then "#242424" else "#1a1a1a"
-
-    let borderColor =
-        if isWatched then
-            if isHovered then "#3d5c3d" else "#2d4a2d"
-        elif isHovered then "#3d3d3d"
-        else "#2a2a2a"
-
-    // Close context menu when clicking outside
-    React.useEffect (fun () ->
-        let closeMenu _ = setContextMenu None
-        Browser.Dom.document.addEventListener("click", closeMenu)
-        { new System.IDisposable with
-            member _.Dispose() =
-                Browser.Dom.document.removeEventListener("click", closeMenu)
-        }
-    , [| box contextMenu |])
-
-    Html.div [
-        prop.className "relative"
-        prop.children [
-            Html.div [
-                prop.className "cursor-pointer p-2 rounded border transition-all duration-150 select-none"
-                prop.title $"E{epNum}: {epName}"
-                prop.style [
-                    style.backgroundColor bgColor
-                    style.borderColor borderColor
-                ]
-                prop.onMouseEnter (fun _ -> onHover (Some epNum))
-                prop.onMouseLeave (fun _ -> onHover None)
-                prop.onClick (fun e ->
-                    e.preventDefault()
-                    let newWatchedState = not isWatched
-                    if e.ctrlKey then
-                        dispatch (MarkEpisodesUpTo (seasonNum, epNum, newWatchedState))
-                    else
-                        dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
-                prop.onContextMenu (fun e ->
-                    e.preventDefault()
-                    setContextMenu (Some { X = e.clientX; Y = e.clientY }))
-                prop.children [
-                    Html.span [
-                        prop.className "text-xs font-medium"
-                        prop.text $"E{epNum}"
-                    ]
-                ]
-            ]
-
-            // Context menu - rendered as portal to body
-            match contextMenu with
-            | Some pos ->
-                ReactDOM.createPortal(
-                    Html.div [
-                        prop.className "fixed z-[9999] glass border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] backdrop-blur-xl"
-                        prop.style [
-                            style.left (length.px pos.X)
-                            style.top (length.px pos.Y)
-                        ]
-                        prop.onClick (fun e -> e.stopPropagation())
-                        prop.children [
-                            Html.div [
-                                prop.className "px-3 py-1.5 text-xs text-base-content/50 border-b border-white/10"
-                                prop.text $"S{seasonNum}E{epNum}"
-                            ]
-                            Html.button [
-                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
-                                prop.onClick (fun e ->
-                                    e.stopPropagation()
-                                    setContextMenu None
-                                    dispatch (AddEpisodeToCollection (seasonNum, epNum)))
-                                prop.children [
-                                    Html.span [ prop.text "+" ]
-                                    Html.span [ prop.text "Add to Collection" ]
-                                ]
-                            ]
-                            Html.button [
-                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
-                                prop.onClick (fun e ->
-                                    e.stopPropagation()
-                                    setContextMenu None
-                                    let newWatchedState = not isWatched
-                                    dispatch (ToggleEpisodeWatched (seasonNum, epNum, newWatchedState)))
-                                prop.children [
-                                    Html.span [ prop.text (if isWatched then "✗" else "✓") ]
-                                    Html.span [ prop.text (if isWatched then "Mark Unwatched" else "Mark Watched") ]
-                                ]
-                            ]
-                        ]
-                    ],
-                    Browser.Dom.document.body
-                )
-            | None -> Html.none
-        ]
-    ]
-
-/// Episode list item with proper name display and editable watched date
-[<ReactComponent>]
-let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bool) (watchedDate: System.DateTime option) (dispatch: Msg -> unit) =
+let private EpisodeCard (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched: bool) (watchedDate: System.DateTime option) (dispatch: Msg -> unit) =
     let (contextMenu, setContextMenu) = React.useState<ContextMenuPosition option> None
     let (isEditingDate, setIsEditingDate) = React.useState false
     let (pendingDate, setPendingDate) = React.useState<string>(
@@ -147,133 +43,81 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
         }
     , [| box contextMenu |])
 
+    let stillUrl = getLocalStillUrl ep.StillPath
+
+    // Format date in German format (DD.MM.YYYY)
+    let formatGermanDate (date: System.DateTime) = date.ToString("dd.MM.yyyy")
+
     Html.div [
         prop.className "relative"
         prop.children [
             Html.div [
-                prop.className (
-                    "flex items-center gap-3 p-3 rounded-lg transition-all duration-150 cursor-pointer " +
-                    if isWatched then "bg-success/10 hover:bg-success/20 border border-success/20"
-                    else "bg-base-200 hover:bg-base-300 border border-base-300"
-                )
-                prop.onClick (fun e ->
-                    e.preventDefault()
-                    let newWatchedState = not isWatched
-                    if e.ctrlKey then
-                        dispatch (MarkEpisodesUpTo (seasonNum, ep.EpisodeNumber, newWatchedState))
-                    else
-                        dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, newWatchedState)))
+                prop.className "episode-card group"
                 prop.onContextMenu (fun e ->
                     e.preventDefault()
                     setContextMenu (Some { X = e.clientX; Y = e.clientY }))
                 prop.children [
-                    // Episode number badge
+                    // Episode still image container
                     Html.div [
                         prop.className (
-                            "flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm " +
-                            if isWatched then "bg-success/20 text-success"
-                            else "bg-base-300 text-base-content/60"
+                            "relative aspect-video rounded-lg overflow-hidden transition-all duration-200 " +
+                            if isWatched then "" else "opacity-40 grayscale"
                         )
-                        prop.text $"{ep.EpisodeNumber}"
-                    ]
-                    // Episode info
-                    Html.div [
-                        prop.className "flex-1 min-w-0"
                         prop.children [
+                            if stillUrl <> "" then
+                                Html.img [
+                                    prop.src stillUrl
+                                    prop.alt ep.Name
+                                    prop.className "w-full h-full object-cover"
+                                ]
+                            else
+                                // Placeholder when no still available
+                                Html.div [
+                                    prop.className "w-full h-full bg-base-300 flex items-center justify-center"
+                                    prop.children [
+                                        Html.span [
+                                            prop.className "text-2xl text-base-content/20"
+                                            prop.children [ tv ]
+                                        ]
+                                    ]
+                                ]
+                            // Hover overlay with duration and watch date
                             Html.div [
-                                prop.className "font-medium text-sm truncate"
-                                prop.text ep.Name
-                            ]
-                            Html.div [
-                                prop.className "flex items-center gap-2 text-xs text-base-content/50 mt-0.5 flex-wrap"
+                                prop.className "absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors duration-200 flex items-end justify-between p-1.5 opacity-0 group-hover:opacity-100"
                                 prop.children [
+                                    // Duration on left
                                     match ep.RuntimeMinutes with
-                                    | Some mins -> Html.span [ prop.text $"{mins} min" ]
-                                    | None -> Html.none
-                                    // Show watched date if watched
+                                    | Some mins ->
+                                        Html.span [
+                                            prop.className "text-xs text-white/90 font-medium"
+                                            prop.text $"{mins}m"
+                                        ]
+                                    | None -> Html.span []
+                                    // Watch date on right (German format)
                                     if isWatched then
-                                        Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
-                                        if isEditingDate then
-                                            Html.div [
-                                                prop.className "inline-flex items-center gap-1"
-                                                prop.onClick (fun e -> e.stopPropagation())
-                                                prop.children [
-                                                    Html.input [
-                                                        prop.className "input input-xs input-bordered w-32 bg-base-100"
-                                                        prop.type' "date"
-                                                        prop.value pendingDate
-                                                        prop.onClick (fun e -> e.stopPropagation())
-                                                        prop.onChange (fun (value: string) -> setPendingDate value)
-                                                        prop.autoFocus true
-                                                    ]
-                                                    Html.button [
-                                                        prop.className "btn btn-xs btn-ghost text-success"
-                                                        prop.title "Save date"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            if System.String.IsNullOrEmpty(pendingDate) then
-                                                                dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, None))
-                                                            else
-                                                                match System.DateTime.TryParse(pendingDate) with
-                                                                | true, date ->
-                                                                    dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, Some date))
-                                                                | _ -> ()
-                                                            setIsEditingDate false)
-                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
-                                                    ]
-                                                    Html.button [
-                                                        prop.className "btn btn-xs btn-ghost text-error"
-                                                        prop.title "Cancel"
-                                                        prop.onClick (fun e ->
-                                                            e.stopPropagation()
-                                                            // Reset to original value
-                                                            setPendingDate (
-                                                                watchedDate
-                                                                |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
-                                                                |> Option.defaultValue ""
-                                                            )
-                                                            setIsEditingDate false)
-                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
-                                                    ]
-                                                ]
-                                            ]
-                                        else
+                                        match watchedDate with
+                                        | Some d ->
                                             Html.span [
-                                                prop.className "hover:text-primary hover:underline cursor-pointer"
-                                                prop.title "Click to edit watched date"
-                                                prop.onClick (fun e ->
-                                                    e.stopPropagation()
-                                                    // Initialize pending date when opening editor
-                                                    setPendingDate (
-                                                        watchedDate
-                                                        |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
-                                                        |> Option.defaultValue ""
-                                                    )
-                                                    setIsEditingDate true)
-                                                prop.text (
-                                                    match watchedDate with
-                                                    | Some d -> d.ToString("MMM d, yyyy")
-                                                    | None -> "Set date"
-                                                )
+                                                prop.className "text-xs text-white/90 font-medium"
+                                                prop.text (formatGermanDate d)
                                             ]
+                                        | None -> Html.none
                                 ]
                             ]
                         ]
                     ]
-                    // Watch indicator
+                    // Episode info below image
                     Html.div [
-                        prop.className "flex-shrink-0"
+                        prop.className "mt-1.5 px-0.5"
                         prop.children [
-                            if isWatched then
-                                Html.span [
-                                    prop.className "w-5 h-5 text-success"
-                                    prop.children [ check ]
-                                ]
-                            else
-                                Html.span [
-                                    prop.className "w-5 h-5 text-base-content/30"
-                                    prop.children [ circle ]
-                                ]
+                            Html.div [
+                                prop.className (
+                                    "text-xs font-medium truncate " +
+                                    if isWatched then "text-base-content" else "text-base-content/50"
+                                )
+                                prop.title ep.Name
+                                prop.text $"{ep.EpisodeNumber}: {ep.Name}"
+                            ]
                         ]
                     ]
                 ]
@@ -284,7 +128,7 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
             | Some pos ->
                 ReactDOM.createPortal(
                     Html.div [
-                        prop.className "fixed z-[9999] glass border border-white/10 rounded-xl shadow-2xl py-1 min-w-[160px] backdrop-blur-xl"
+                        prop.className "fixed z-[9999] glass border border-white/10 rounded-xl shadow-2xl py-1 min-w-[200px] backdrop-blur-xl"
                         prop.style [
                             style.left (length.px pos.X)
                             style.top (length.px pos.Y)
@@ -295,6 +139,107 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
                                 prop.className "px-3 py-1.5 text-xs text-base-content/50 border-b border-white/10"
                                 prop.text $"S{seasonNum}E{ep.EpisodeNumber}: {ep.Name}"
                             ]
+                            // For unwatched: Mark Watched first
+                            if not isWatched then
+                                Html.button [
+                                    prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                    prop.onClick (fun e ->
+                                        e.stopPropagation()
+                                        setContextMenu None
+                                        dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, true)))
+                                    prop.children [
+                                        Html.span [ prop.className "w-4 h-4 text-base-content/60"; prop.children [ check ] ]
+                                        Html.span [ prop.text "Mark Watched" ]
+                                    ]
+                                ]
+                            // For watched: Change date first, then Mark Unwatched
+                            if isWatched then
+                                if isEditingDate then
+                                    Html.div [
+                                        prop.className "px-3 py-2"
+                                        prop.children [
+                                            Html.div [
+                                                prop.className "text-xs text-base-content/50 mb-1"
+                                                prop.text "Watch date"
+                                            ]
+                                            Html.div [
+                                                prop.className "flex items-center gap-1"
+                                                prop.children [
+                                                    Html.input [
+                                                        prop.className "input input-xs input-bordered w-28 bg-base-100"
+                                                        prop.type' "date"
+                                                        prop.value pendingDate
+                                                        prop.onClick (fun e -> e.stopPropagation())
+                                                        prop.onChange (fun (value: string) -> setPendingDate value)
+                                                        prop.autoFocus true
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-xs btn-ghost text-success"
+                                                        prop.title "Save"
+                                                        prop.onClick (fun e ->
+                                                            e.stopPropagation()
+                                                            if System.String.IsNullOrEmpty(pendingDate) then
+                                                                dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, None))
+                                                            else
+                                                                match System.DateTime.TryParse(pendingDate) with
+                                                                | true, date ->
+                                                                    dispatch (UpdateEpisodeWatchedDate (seasonNum, ep.EpisodeNumber, Some date))
+                                                                | _ -> ()
+                                                            setIsEditingDate false
+                                                            setContextMenu None)
+                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ check ] ] ]
+                                                    ]
+                                                    Html.button [
+                                                        prop.className "btn btn-xs btn-ghost text-error"
+                                                        prop.title "Cancel"
+                                                        prop.onClick (fun e ->
+                                                            e.stopPropagation()
+                                                            setPendingDate (
+                                                                watchedDate
+                                                                |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+                                                                |> Option.defaultValue ""
+                                                            )
+                                                            setIsEditingDate false)
+                                                        prop.children [ Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ] ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                else
+                                    Html.button [
+                                        prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                        prop.onClick (fun e ->
+                                            e.stopPropagation()
+                                            setPendingDate (
+                                                watchedDate
+                                                |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+                                                |> Option.defaultValue ""
+                                            )
+                                            setIsEditingDate true)
+                                        prop.children [
+                                            Html.span [ prop.className "w-4 h-4 text-base-content/60"; prop.children [ clock ] ]
+                                            Html.span [
+                                                prop.text (
+                                                    match watchedDate with
+                                                    | Some d -> $"Change date ({formatGermanDate d})"
+                                                    | None -> "Set watch date"
+                                                )
+                                            ]
+                                        ]
+                                    ]
+                                Html.button [
+                                    prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+                                    prop.onClick (fun e ->
+                                        e.stopPropagation()
+                                        setContextMenu None
+                                        dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, false)))
+                                    prop.children [
+                                        Html.span [ prop.className "w-4 h-4 text-base-content/60"; prop.children [ close ] ]
+                                        Html.span [ prop.text "Mark Unwatched" ]
+                                    ]
+                                ]
+                            // Add to Collection is always last
                             Html.button [
                                 prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
                                 prop.onClick (fun e ->
@@ -302,20 +247,8 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
                                     setContextMenu None
                                     dispatch (AddEpisodeToCollection (seasonNum, ep.EpisodeNumber)))
                                 prop.children [
-                                    Html.span [ prop.text "+" ]
+                                    Html.span [ prop.className "w-4 h-4 text-base-content/60"; prop.children [ plus ] ]
                                     Html.span [ prop.text "Add to Collection" ]
-                                ]
-                            ]
-                            Html.button [
-                                prop.className "w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
-                                prop.onClick (fun e ->
-                                    e.stopPropagation()
-                                    setContextMenu None
-                                    let newWatchedState = not isWatched
-                                    dispatch (ToggleEpisodeWatched (seasonNum, ep.EpisodeNumber, newWatchedState)))
-                                prop.children [
-                                    Html.span [ prop.text (if isWatched then "✗" else "✓") ]
-                                    Html.span [ prop.text (if isWatched then "Mark Unwatched" else "Mark Watched") ]
                                 ]
                             ]
                         ]
@@ -326,11 +259,11 @@ let private EpisodeListItem (seasonNum: int) (ep: TmdbEpisodeSummary) (isWatched
         ]
     ]
 
-/// Season episodes list with proper names
+/// Season episodes grid with still images
 [<ReactComponent>]
-let private SeasonEpisodesList (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (episodeProgress: EpisodeProgress list) (dispatch: Msg -> unit) =
+let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (episodeProgress: EpisodeProgress list) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "space-y-2"
+        prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3"
         prop.children [
             for ep in episodes |> List.sortBy (fun e -> e.EpisodeNumber) do
                 let isWatched = Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes
@@ -338,51 +271,9 @@ let private SeasonEpisodesList (seasonNum: int) (episodes: TmdbEpisodeSummary li
                     episodeProgress
                     |> List.tryFind (fun p -> p.SeasonNumber = seasonNum && p.EpisodeNumber = ep.EpisodeNumber)
                     |> Option.bind (fun p -> p.WatchedDate)
-                EpisodeListItem seasonNum ep isWatched watchedDate dispatch
+                EpisodeCard seasonNum ep isWatched watchedDate dispatch
         ]
     ]
-
-/// Season episodes grid with Ctrl+hover preview (compact view)
-[<ReactComponent>]
-let private SeasonEpisodesGrid (seasonNum: int) (episodes: TmdbEpisodeSummary list) (watchedEpisodes: Set<int * int>) (dispatch: Msg -> unit) =
-    let (hoveredEp, setHoveredEp) = React.useState<int option> None
-    let (ctrlPressed, setCtrlPressed) = React.useState false
-
-    React.useEffect (fun () ->
-        let onKeyDown (e: Browser.Types.Event) =
-            let ke = e :?> Browser.Types.KeyboardEvent
-            if ke.key = "Control" then setCtrlPressed true
-        let onKeyUp (e: Browser.Types.Event) =
-            let ke = e :?> Browser.Types.KeyboardEvent
-            if ke.key = "Control" then setCtrlPressed false
-        let onBlur _ = setCtrlPressed false
-
-        Browser.Dom.window.addEventListener("keydown", onKeyDown)
-        Browser.Dom.window.addEventListener("keyup", onKeyUp)
-        Browser.Dom.window.addEventListener("blur", onBlur)
-
-        { new System.IDisposable with
-            member _.Dispose() =
-                Browser.Dom.window.removeEventListener("keydown", onKeyDown)
-                Browser.Dom.window.removeEventListener("keyup", onKeyUp)
-                Browser.Dom.window.removeEventListener("blur", onBlur)
-        }
-    , [||])
-
-    Html.div [
-        prop.className "grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-1"
-        prop.children [
-            for ep in episodes |> List.sortBy (fun e -> e.EpisodeNumber) do
-                let isWatched = Set.contains (seasonNum, ep.EpisodeNumber) watchedEpisodes
-                let isInCtrlRange =
-                    ctrlPressed &&
-                    hoveredEp.IsSome &&
-                    ep.EpisodeNumber <= hoveredEp.Value
-                let showHover = (hoveredEp = Some ep.EpisodeNumber) || isInCtrlRange
-                EpisodeCheckbox seasonNum ep.EpisodeNumber ep.Name isWatched showHover setHoveredEp dispatch
-        ]
-    ]
-
 
 /// Action buttons row for series (rating, abandon/resume, delete)
 let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (isFinished: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
@@ -499,35 +390,20 @@ let private sessionDisplayName (session: WatchSession) (allFriends: Friend list)
             let last = List.last names
             $"with {allButLast} and {last}"
 
-/// Generate clickable friend links for a session (for display with navigation)
-let private sessionFriendLinks (session: WatchSession) (allFriends: Friend list) (dispatch: Msg -> unit) =
-    if session.IsDefault then
-        [ Html.span [ prop.text "Personal" ] ]
-    else
-        let sessionFriends =
-            session.Friends
-            |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
-        match sessionFriends with
-        | [] -> [ Html.span [ prop.text "Personal" ] ]
-        | friends ->
-            let friendLink (f: Friend) =
-                Html.span [
-                    prop.className "underline cursor-pointer hover:text-primary"
-                    prop.onClick (fun e ->
-                        e.stopPropagation()
-                        dispatch (ViewFriendDetail (f.Id, f.Name)))
-                    prop.text f.Name
-                ]
-            let elements = ResizeArray<ReactElement>()
-            elements.Add(Html.span [ prop.text "with " ])
-            for i, friend in friends |> List.indexed do
-                if i > 0 then
-                    if i = friends.Length - 1 then
-                        elements.Add(Html.span [ prop.text " and " ])
-                    else
-                        elements.Add(Html.span [ prop.text ", " ])
-                elements.Add(friendLink friend)
-            elements |> Seq.toList
+/// Generate friend name display for a session (plain text, no links)
+let private sessionFriendNames (session: WatchSession) (allFriends: Friend list) =
+    let sessionFriends =
+        session.Friends
+        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+
+    match sessionFriends with
+    | [] -> "Personal"
+    | [ friend ] -> $"with {friend.Name}"
+    | friends ->
+        let names = friends |> List.map (fun f -> f.Name)
+        let allButLast = names |> List.take (names.Length - 1) |> String.concat ", "
+        let last = List.last names
+        $"with {allButLast} and {last}"
 
 /// Overview tab content
 let private overviewTab (series: Series) (entry: LibraryEntry) (model: Model) (dispatch: Msg -> unit) =
@@ -566,6 +442,140 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
         (fun (id, name) -> dispatch (ViewContributor (id, name)))
         (fun () -> dispatch ToggleFullCastCrew)
 
+/// Session context menu (three-dot menu for navigating to friends, removing, or adding)
+[<ReactComponent>]
+let private SessionContextMenu (session: WatchSession) (allFriends: Friend list) (isOpen: bool) (dispatch: Msg -> unit) =
+    // Close dropdown when clicking outside
+    React.useEffect ((fun () ->
+        let closeDropdown (e: Browser.Types.Event) =
+            dispatch CloseSessionFriendEditor
+        if isOpen then
+            Browser.Dom.window.setTimeout((fun () ->
+                Browser.Dom.document.addEventListener("click", closeDropdown)
+            ), 100) |> ignore
+        { new System.IDisposable with
+            member _.Dispose() =
+                Browser.Dom.document.removeEventListener("click", closeDropdown)
+        }
+    ), [| box isOpen |])
+
+    // Get friends in this session and friends not in this session
+    let sessionFriends =
+        session.Friends
+        |> List.choose (fun fid -> allFriends |> List.tryFind (fun f -> f.Id = fid))
+    let availableFriends =
+        allFriends
+        |> List.filter (fun f -> not (List.contains f.Id session.Friends))
+
+    Html.div [
+        prop.className "relative inline-flex items-center"
+        prop.children [
+            // Three-dot button
+            Html.button [
+                prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-base-content hover:bg-base-300 transition-colors"
+                prop.onClick (fun e ->
+                    e.stopPropagation()
+                    if isOpen then dispatch CloseSessionFriendEditor
+                    else dispatch (OpenSessionFriendEditor session.Id))
+                prop.title "Session options"
+                prop.children [
+                    Html.span [ prop.className "w-4 h-4"; prop.children [ ellipsisVertical ] ]
+                ]
+            ]
+
+            // Context menu dropdown
+            if isOpen then
+                Html.div [
+                    prop.className "absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-lg shadow-xl border border-base-300 overflow-hidden"
+                    prop.style [ style.backgroundColor "#1d232a" ]
+                    prop.onClick (fun e -> e.stopPropagation())
+                    prop.children [
+                        // Current friends section (if any)
+                        if not (List.isEmpty sessionFriends) then
+                            Html.div [
+                                prop.className "px-3 py-2 text-xs text-base-content/50 border-b border-base-300 uppercase tracking-wide"
+                                prop.text "Watching with"
+                            ]
+                            for friend in sessionFriends do
+                                Html.div [
+                                    prop.key (FriendId.value friend.Id |> string)
+                                    prop.className "flex items-center justify-between px-3 py-2 hover:bg-base-300/30"
+                                    prop.children [
+                                        // Friend name (clickable to navigate)
+                                        Html.button [
+                                            prop.className "flex-1 text-left hover:text-primary transition-colors"
+                                            prop.onClick (fun e ->
+                                                e.stopPropagation()
+                                                dispatch CloseSessionFriendEditor
+                                                dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "font-medium"
+                                                    prop.text friend.Name
+                                                ]
+                                                match friend.Nickname with
+                                                | Some nick ->
+                                                    Html.span [
+                                                        prop.className "text-base-content/50 text-sm ml-2"
+                                                        prop.text $"({nick})"
+                                                    ]
+                                                | None -> Html.none
+                                            ]
+                                        ]
+                                        // Remove button
+                                        Html.button [
+                                            prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-error hover:bg-error/10 transition-colors ml-2"
+                                            prop.onClick (fun e ->
+                                                e.stopPropagation()
+                                                dispatch (ToggleSessionFriend (session.Id, friend.Id)))
+                                            prop.title $"Remove {friend.Name}"
+                                            prop.children [
+                                                Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
+                        // Add friends section (if any available)
+                        if not (List.isEmpty availableFriends) then
+                            Html.div [
+                                prop.className "px-3 py-2 text-xs text-base-content/50 border-t border-base-300 uppercase tracking-wide"
+                                prop.text "Add friend"
+                            ]
+                            for friend in availableFriends do
+                                Html.button [
+                                    prop.key (FriendId.value friend.Id |> string)
+                                    prop.className "w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300/30 text-left"
+                                    prop.onClick (fun e ->
+                                        e.stopPropagation()
+                                        dispatch (ToggleSessionFriend (session.Id, friend.Id)))
+                                    prop.children [
+                                        Html.span [ prop.className "w-4 h-4 text-primary"; prop.children [ plus ] ]
+                                        Html.span [
+                                            prop.className "font-medium"
+                                            prop.text friend.Name
+                                        ]
+                                        match friend.Nickname with
+                                        | Some nick ->
+                                            Html.span [
+                                                prop.className "text-base-content/50 text-sm"
+                                                prop.text $"({nick})"
+                                            ]
+                                        | None -> Html.none
+                                    ]
+                                ]
+
+                        // Empty state
+                        if List.isEmpty sessionFriends && List.isEmpty availableFriends then
+                            Html.div [
+                                prop.className "px-4 py-3 text-base-content/50 text-sm"
+                                prop.text "No friends yet"
+                            ]
+                    ]
+                ]
+        ]
+    ]
+
 /// Episodes tab content
 let private episodesTab (series: Series) (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
@@ -584,25 +594,38 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                 else (1, s.StartDate |> Option.defaultValue System.DateTime.MaxValue))
                         for session in sortedSessions do
                             let isSelected = model.SelectedSessionId = Some session.Id
+                            let isEditing = model.EditingSessionId = Some session.Id
                             Html.div [
-                                prop.className "flex items-center gap-0.5"
+                                prop.className "flex items-center gap-1"
                                 prop.children [
-                                    Html.button [
+                                    // Session pill with glassmorphism background
+                                    Html.div [
                                         prop.className (
-                                            "btn btn-sm " +
-                                            if isSelected then "btn-primary" else "btn-ghost"
+                                            "flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer transition-all backdrop-blur-md border " +
+                                            if isSelected
+                                            then "bg-primary/20 border-primary/40 text-primary-content shadow-lg shadow-primary/10"
+                                            else "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
                                         )
                                         prop.onClick (fun _ -> dispatch (SelectSession session.Id))
-                                        prop.children (sessionFriendLinks session friends dispatch)
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "text-sm font-medium"
+                                                prop.text (sessionFriendNames session friends)
+                                            ]
+                                            // Three-dot context menu
+                                            SessionContextMenu session friends isEditing dispatch
+                                        ]
                                     ]
+                                    // Delete button (only for non-default sessions)
                                     if not session.IsDefault then
                                         Html.button [
-                                            prop.className "btn btn-ghost btn-xs text-base-content/40 hover:text-error px-1"
+                                            prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-error hover:bg-error/10 transition-colors"
                                             prop.onClick (fun e ->
                                                 e.stopPropagation()
                                                 dispatch (DeleteSession session.Id))
+                                            prop.title "Delete session"
                                             prop.children [
-                                                Html.span [ prop.className "w-3 h-3"; prop.children [ close ] ]
+                                                Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
                                             ]
                                         ]
                                 ]
@@ -682,7 +705,7 @@ let private episodesTab (series: Series) (model: Model) (friends: Friend list) (
                                                     ]
                                                 ]
                                             ]
-                                            SeasonEpisodesList seasonNum seasonDetails.Episodes watchedEpisodes model.EpisodeProgress dispatch
+                                            SeasonEpisodesGrid seasonNum seasonDetails.Episodes watchedEpisodes model.EpisodeProgress dispatch
                                         | None when isLoading ->
                                             Html.div [
                                                 prop.className "flex items-center gap-2"
@@ -759,10 +782,8 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
             | Success entry ->
                 match entry.Media with
                 | LibrarySeries series ->
-                    let watchedCount =
-                        model.EpisodeProgress
-                        |> List.filter (fun p -> p.IsWatched)
-                        |> List.length
+                    // Use overall watched episodes (unique across all sessions) for the total count
+                    let watchedCount = model.OverallWatchedEpisodes.Count
 
                     // Check if backdrop is available for responsive layout
                     let hasBackdrop = series.BackdropPath.IsSome
@@ -888,8 +909,6 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                     ]
                                                 ]
                                             ]
-                                            // Progress - keeps normal padding
-                                            progressBar watchedCount series.NumberOfEpisodes
                                         ]
                                     ]
 
@@ -916,7 +935,8 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                     | None -> Html.none
                                                     Html.span [ prop.text $"{series.NumberOfSeasons} Seasons" ]
                                                     Html.span [ prop.className "text-base-content/30"; prop.text "·" ]
-                                                    Html.span [ prop.text $"{series.NumberOfEpisodes} Episodes" ]
+                                                    let episodePercentage = if series.NumberOfEpisodes > 0 then int (float watchedCount / float series.NumberOfEpisodes * 100.0) else 0
+                                                    Html.span [ prop.text $"{watchedCount}/{series.NumberOfEpisodes} Episodes ({episodePercentage}%%)" ]
                                                 ]
                                             ]
                                             // Action buttons row

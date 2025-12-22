@@ -16,45 +16,10 @@ module CastCrewSection = Common.Components.CastCrewSection.View
 module BackButton = Common.Components.BackButton.View
 
 /// Action buttons row below the title (glassmorphism square buttons with tooltips)
-let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (watchSessions: RemoteData<MovieWatchSession list>) (dispatch: Msg -> unit) =
-    // Determine if any watch sessions exist
-    let hasWatchSessions =
-        match watchSessions with
-        | Success sessions -> not (List.isEmpty sessions)
-        | _ -> false
-
+let private actionButtonsRow (entry: LibraryEntry) (isRatingOpen: bool) (entryCollections: RemoteData<Collection list>) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "flex flex-wrap items-center gap-3 mt-4"
         prop.children [
-            // Watch status button - visual state based on watch sessions, always adds a new session
-            if hasWatchSessions then
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Add Watch Session")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn detail-action-btn-success-active"
-                            prop.onClick (fun _ -> dispatch MarkWatched)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ checkCircleSolid ] ]
-                            ]
-                        ]
-                    ]
-                ]
-            else
-                Html.div [
-                    prop.className "tooltip tooltip-bottom detail-tooltip"
-                    prop.custom ("data-tip", "Mark as Watched")
-                    prop.children [
-                        Html.button [
-                            prop.className "detail-action-btn"
-                            prop.onClick (fun _ -> dispatch MarkWatched)
-                            prop.children [
-                                Html.span [ prop.className "w-5 h-5"; prop.children [ success ] ]
-                            ]
-                        ]
-                    ]
-                ]
             // Rating button
             RatingButton.button
                 (entry.PersonalRating |> Option.map PersonalRating.toInt)
@@ -516,7 +481,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
                                                 ]
                                             ]
                                             // Action buttons row
-                                            actionButtonsRow entry model.IsRatingOpen model.Collections model.WatchSessions dispatch
+                                            actionButtonsRow entry model.IsRatingOpen model.Collections dispatch
 
                                             // Tab bar and content (hidden on mobile, shown on md+)
                                             Html.div [

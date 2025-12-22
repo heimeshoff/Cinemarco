@@ -118,6 +118,25 @@
   --tab-radius: 0.375rem;
 }
 
+/* Register custom properties for animatable gradient values (projector beam) */
+@property --beam-angle {
+  syntax: '<angle>';
+  initial-value: -90deg;
+  inherits: false;
+}
+
+@property --beam-x {
+  syntax: '<percentage>';
+  initial-value: 50%;
+  inherits: false;
+}
+
+@property --beam-y {
+  syntax: '<percentage>';
+  initial-value: 115%;
+  inherits: false;
+}
+
 /* Keyframes for custom animations */
 @keyframes fadeIn {
   0% { opacity: 0; }
@@ -573,6 +592,17 @@ h1, h2, h3, .font-display {
   }
 }
 
+/* Mobile: fixed position so it stays visible when scrolling */
+@media (max-width: 767px) {
+  .detail-back-button {
+    position: fixed !important;
+    top: 1rem !important;
+    left: 1rem !important;
+    z-index: 50 !important;
+    margin-bottom: 0 !important;
+  }
+}
+
 @media (min-width: 1920px) {
   .detail-back-button {
     position: relative !important;
@@ -591,12 +621,36 @@ h1, h2, h3, .font-display {
     display: block !important;
   }
 
+  /* Grid with poster sized by content, info takes remaining space */
   .detail-grid-with-backdrop {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-columns: auto 1fr !important;
+    max-width: 100rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Regular grid (no backdrop) also needs max-width on 4K+ */
+  .detail-page-content > .grid {
+    grid-template-columns: auto 1fr !important;
+    max-width: 100rem;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .detail-info-column {
-    grid-column: span 2 / span 2 !important;
+    grid-column: auto !important;
+  }
+
+  /* Poster height: 2/3 of screen height on 4K+ */
+  .detail-poster-column .poster-image-container {
+    max-height: 66.6667vh;
+    width: auto;
+  }
+
+  .detail-poster-column .poster-image-container img {
+    max-height: 66.6667vh;
+    width: auto;
+    object-fit: contain;
   }
 }
 
@@ -695,7 +749,7 @@ h1, h2, h3, .font-display {
 }
 
 /* Mobile: always show glassmorphism */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .detail-action-btn {
     background: rgba(128, 128, 128, 0.2);
     backdrop-filter: blur(16px);
@@ -735,7 +789,7 @@ h1, h2, h3, .font-display {
 }
 
 /* Mobile: always show red background for danger */
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
   .detail-action-btn-danger {
     background: rgba(220, 38, 38, 0.2);
     border-color: rgba(252, 165, 165, 0.4);
@@ -954,42 +1008,44 @@ h1, h2, h3, .font-display {
    ============================================ */
 
 .sidebar {
+  /* Base sidebar - transparent, background handled by ::after pseudo-element */
+  background: transparent;
+  border-right: 1px solid transparent;
+  /* Width transition */
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Background layer using ::after for smooth opacity animation */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     180deg,
     rgba(10, 10, 10, 0.98) 0%,
     rgba(5, 5, 5, 0.99) 100%
   );
-  border-right: 1px solid rgba(255, 107, 107, 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-right: 1px solid rgba(255, 107, 107, 0.08);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
-/* Collapsed sidebar - fully transparent, floating icons */
-.sidebar-collapsed {
-  background: transparent !important;
-  background-color: transparent !important;
-  border-right: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
+/* Collapsed sidebar - background faded out */
+.sidebar-collapsed::after {
+  opacity: 0;
 }
 
 .sidebar-collapsed::before {
-  opacity: 0 !important;
-  display: none;
+  opacity: 0;
 }
 
-/* Expanded sidebar - full styling */
-.sidebar-expanded {
-  background: linear-gradient(
-    180deg,
-    rgba(10, 10, 10, 0.98) 0%,
-    rgba(5, 5, 5, 0.99) 100%
-  );
-  border-right: 1px solid rgba(255, 107, 107, 0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+/* Expanded sidebar - background faded in */
+.sidebar-expanded::after {
+  opacity: 1;
 }
 
 .sidebar-expanded::before {
@@ -1012,20 +1068,32 @@ h1, h2, h3, .font-display {
     rgba(255, 107, 107, 0.4) 80%,
     transparent 100%
   );
-  transition: opacity 0.3s ease;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 .nav-item {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   border-radius: 0.375rem;
   font-weight: 500;
   font-family: 'Outfit', sans-serif;
-  transition: all var(--transition-fast) var(--ease-cinema);
+  /* Smooth transitions for all layout changes */
+  transition:
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    gap 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    backdrop-filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+  /* Ensure border starts transparent */
+  border: 1px solid transparent;
 }
 
 /* Nav item text */
@@ -1074,14 +1142,20 @@ h1, h2, h3, .font-display {
 }
 
 .nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
   height: 20px;
   opacity: 0.7;
-  transition: opacity var(--transition-fast) var(--ease-cinema),
-              filter var(--transition-fast) var(--ease-cinema),
-              transform var(--transition-fast) var(--ease-cinema),
-              width var(--transition-fast) var(--ease-cinema),
-              height var(--transition-fast) var(--ease-cinema);
+  flex-shrink: 0;
+  /* Smooth transitions for size and effects */
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-icon[class*="text-nav-"] {
@@ -1098,7 +1172,17 @@ h1, h2, h3, .font-display {
 .sidebar-collapsed .nav-item {
   border-radius: 12px;
   padding: 0.75rem;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   background: transparent;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.sidebar-collapsed .nav-item:focus,
+.sidebar-collapsed .nav-item:focus-visible {
+  outline: none !important;
 }
 
 /* Keep icon colors vibrant and visible in collapsed state */
@@ -1130,7 +1214,7 @@ h1, h2, h3, .font-display {
     0 4px 16px rgba(0, 0, 0, 0.3),
     0 0 24px rgba(255, 107, 107, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .sidebar-collapsed .nav-item:hover .nav-icon {
@@ -1143,7 +1227,7 @@ h1, h2, h3, .font-display {
   background: rgba(255, 107, 107, 0.15);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.2);
 }
 
 .sidebar-collapsed .nav-item-active .nav-icon {
@@ -1154,15 +1238,23 @@ h1, h2, h3, .font-display {
   display: none;
 }
 
+/* Sidebar child elements - smooth transitions */
+.sidebar > div {
+  transition:
+    padding 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Collapsed sidebar - transparent borders on sections */
 .sidebar-collapsed > div {
-  border-color: transparent !important;
-  background: transparent !important;
+  border-color: transparent;
+  background: transparent;
 }
 
 /* Collapsed logo hover - glass button effect */
 .sidebar-collapsed > div:first-child:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-radius: 12px;
@@ -1173,13 +1265,25 @@ h1, h2, h3, .font-display {
 
 /* Text transition for nav items */
 .nav-item-text {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  overflow: hidden;
 }
 
 /* Sidebar text container for smooth collapse */
 .sidebar-text-container {
-  transition: opacity 0.2s ease, max-width 0.3s ease;
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Sidebar dividers - smooth margin transitions */
+.sidebar-divider {
+  transition: margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ============================================
@@ -1922,12 +2026,16 @@ select option:checked,
 }
 
 /* Main projector beam - cone from below the page shooting up (adaptive color) */
+/* Uses CSS custom properties for animatable position - transitions in both directions */
 .projector-beam {
   position: absolute;
   inset: 0;
+  --beam-angle: -90deg;
+  --beam-x: 50%;
+  --beam-y: 115%;
   background:
     conic-gradient(
-      from -90deg at 50% 115%,
+      from var(--beam-angle) at var(--beam-x) var(--beam-y),
       transparent 0deg,
       transparent 65deg,
       rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.08) 75deg,
@@ -1940,6 +2048,8 @@ select option:checked,
     );
   filter: blur(3px);
   animation: beam-flicker 8s ease-in-out infinite;
+  /* Smooth transitions for beam position (works in both directions) */
+  transition: --beam-angle 1s var(--ease-cinema), --beam-x 1s var(--ease-cinema), --beam-y 1s var(--ease-cinema);
 }
 
 .projector-beam-focused {
@@ -1950,9 +2060,12 @@ select option:checked,
 .projector-glow {
   position: absolute;
   inset: 0;
+  --beam-angle: -90deg;
+  --beam-x: 50%;
+  --beam-y: 115%;
   background:
     conic-gradient(
-      from -90deg at 50% 115%,
+      from var(--beam-angle) at var(--beam-x) var(--beam-y),
       transparent 0deg,
       transparent 55deg,
       rgba(var(--projector-r), var(--projector-g), var(--projector-b), 0.15) 75deg,
@@ -1963,10 +2076,28 @@ select option:checked,
     );
   filter: blur(60px);
   animation: glow-pulse 12s ease-in-out infinite;
+  /* Smooth transitions for glow position (works in both directions) */
+  transition: --beam-angle 1s var(--ease-cinema), --beam-x 1s var(--ease-cinema), --beam-y 1s var(--ease-cinema);
 }
 
 .projector-glow-focused {
   opacity: 1.5;
+}
+
+/* 4K+ screens: projector beam from bottom-right pointing to top-left, crossing the poster */
+/* Transitions smoothly in both directions when crossing the 1920px threshold */
+@media (min-width: 1920px) {
+  .projector-beam {
+    --beam-angle: -135deg;
+    --beam-x: 75%;
+    --beam-y: 120%;
+  }
+
+  .projector-glow {
+    --beam-angle: -135deg;
+    --beam-x: 75%;
+    --beam-y: 120%;
+  }
 }
 
 /* Soft hot spot at beam origin - hidden below page (adaptive color) */

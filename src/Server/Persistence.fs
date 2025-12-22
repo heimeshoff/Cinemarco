@@ -1526,6 +1526,29 @@ let getSessionEpisodeProgress (SessionId sessionId) : Async<EpisodeProgress list
     }) |> Seq.toList
 }
 
+/// Record type for unique watched episode
+[<CLIMutable>]
+type private UniqueWatchedEpisodeRecord = {
+    season_number: int
+    episode_number: int
+}
+
+/// Get unique watched episodes across ALL sessions for an entry
+/// Returns (SeasonNumber, EpisodeNumber) tuples without duplicates
+let getOverallEpisodeProgress (EntryId entryId) : Async<(int * int) list> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<UniqueWatchedEpisodeRecord>(
+            """SELECT DISTINCT season_number, episode_number
+               FROM episode_progress
+               WHERE entry_id = @EntryId AND is_watched = 1
+               ORDER BY season_number, episode_number""",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+
+    return records |> Seq.map (fun r -> (r.season_number, r.episode_number)) |> Seq.toList
+}
+
 /// Record type for episode watch data used in stats
 [<CLIMutable>]
 type private EpisodeWatchDataRecord = {
@@ -3233,14 +3256,14 @@ let getTimelineEntries (filter: TimelineFilter) (page: int) (pageSize: int) : As
                         | "series_completed" -> SeriesCompleted
                         | _ -> MovieWatched
 
-                    // Get episode name for episode watches
-                    let! episodeName = async {
+                    // Get episode name and still path for episode watches
+                    let! (episodeName, episodeStillPath) = async {
                         match r.event_type, e.Media with
                         | "episode", LibrarySeries series ->
                             use conn2 = getConnection()
-                            let! name =
-                                conn2.ExecuteScalarAsync<string>(
-                                    """SELECT name FROM episodes
+                            let! result =
+                                conn2.QueryFirstOrDefaultAsync<{| name: string; still_path: string |}>(
+                                    """SELECT name, still_path FROM episodes
                                        WHERE series_id = @SeriesId
                                        AND season_number = @SeasonNumber
                                        AND episode_number = @EpisodeNumber""",
@@ -3248,7 +3271,29 @@ let getTimelineEntries (filter: TimelineFilter) (page: int) (pageSize: int) : As
                                        SeasonNumber = season
                                        EpisodeNumber = episode |}
                                 ) |> Async.AwaitTask
-                            return if isNull name then None else Some name
+                            if isNull (box result) then
+                                return (None, None)
+                            else
+                                let name = if isNull result.name then None else Some result.name
+                                let stillPath = if isNull result.still_path then None else Some result.still_path
+                                return (name, stillPath)
+                        | _ -> return (None, None)
+                    }
+
+                    // Get season poster path for series entries
+                    let! seasonPosterPath = async {
+                        match e.Media with
+                        | LibrarySeries series ->
+                            use conn2 = getConnection()
+                            let! posterPath =
+                                conn2.ExecuteScalarAsync<string>(
+                                    """SELECT poster_path FROM seasons
+                                       WHERE series_id = @SeriesId
+                                       AND season_number = @SeasonNumber""",
+                                    {| SeriesId = SeriesId.value series.Id
+                                       SeasonNumber = season |}
+                                ) |> Async.AwaitTask
+                            return if isNull posterPath then None else Some posterPath
                         | _ -> return None
                     }
 
@@ -3284,6 +3329,8 @@ let getTimelineEntries (filter: TimelineFilter) (page: int) (pageSize: int) : As
                         Entry = e
                         Detail = detail
                         EpisodeName = episodeName
+                        EpisodeStillPath = episodeStillPath
+                        SeasonPosterPath = seasonPosterPath
                         WatchedWithFriends = friends
                     }
                 | _ -> return None

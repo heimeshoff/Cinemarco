@@ -200,6 +200,9 @@ type ICinemarcoApi = {
     /// Get episode progress for a session
     sessionsGetProgress: SessionId -> Async<EpisodeProgress list>
 
+    /// Get unique watched episodes (season, episode) across ALL sessions for an entry
+    sessionsGetOverallProgress: EntryId -> Async<(int * int) list>
+
     // =====================================
     // Movie Watch Session Operations
     // =====================================

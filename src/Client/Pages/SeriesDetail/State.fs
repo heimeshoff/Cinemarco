@@ -12,6 +12,7 @@ type SeriesApi = {
     GetTrackedContributors: unit -> Async<TrackedContributor list>
     GetSessions: EntryId -> Async<WatchSession list>
     GetSessionProgress: SessionId -> Async<EpisodeProgress list>
+    GetOverallProgress: EntryId -> Async<(int * int) list>
     GetSeasonDetails: TmdbSeriesId * int -> Async<Result<TmdbSeasonDetails, string>>
     MarkCompleted: EntryId -> Async<Result<LibraryEntry, string>>
     Abandon: EntryId -> Async<Result<LibraryEntry, string>>
@@ -24,6 +25,7 @@ type SeriesApi = {
     MarkSeasonWatched: SessionId * int -> Async<Result<EpisodeProgress list, string>>
     DeleteSession: SessionId -> Async<Result<unit, string>>
     UpdateEpisodeWatchedDate: SessionId * int * int * System.DateTime option -> Async<Result<unit, string>>
+    ToggleSessionFriend: SessionId * FriendId -> Async<Result<WatchSession, string>>
 }
 
 let init (entryId: EntryId) : Model * Cmd<Msg> =
@@ -163,7 +165,10 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
             match selectedId with
             | Some id -> Cmd.ofMsg (LoadSessionProgress id)
             | None -> Cmd.none
-        { model with Sessions = Success sessions; SelectedSessionId = selectedId }, loadProgressCmd, NoOp
+        // Also load overall progress to get unique watched episodes across all sessions
+        let loadOverallCmd = Cmd.ofMsg LoadOverallProgress
+        { model with Sessions = Success sessions; SelectedSessionId = selectedId },
+        Cmd.batch [ loadProgressCmd; loadOverallCmd ], NoOp
 
     | SessionsLoaded (Error _) ->
         { model with Sessions = Success [] }, Cmd.none, NoOp
@@ -185,6 +190,21 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
 
     | SessionProgressLoaded (Error _) ->
         { model with EpisodeProgress = [] }, Cmd.none, NoOp
+
+    | LoadOverallProgress ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetOverallProgress
+                model.EntryId
+                (Ok >> OverallProgressLoaded)
+                (fun ex -> Error ex.Message |> OverallProgressLoaded)
+        model, cmd, NoOp
+
+    | OverallProgressLoaded (Ok episodes) ->
+        { model with OverallWatchedEpisodes = Set.ofList episodes }, Cmd.none, NoOp
+
+    | OverallProgressLoaded (Error _) ->
+        model, Cmd.none, NoOp
 
     | OpenNewSessionModal ->
         model, Cmd.none, RequestOpenNewSessionModal model.EntryId
@@ -401,7 +421,8 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
         model, Cmd.none, ShowNotification (err, false)
 
     | EpisodeActionResult (Ok progress) ->
-        { model with EpisodeProgress = progress }, Cmd.none, NoOp
+        // Also reload overall progress since watched episodes changed
+        { model with EpisodeProgress = progress }, Cmd.ofMsg LoadOverallProgress, NoOp
 
     | EpisodeActionResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
@@ -430,9 +451,38 @@ let update (api: SeriesApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Exter
             match newSelectedId with
             | Some id when model.SelectedSessionId = Some deletedId -> Cmd.ofMsg (LoadSessionProgress id)
             | _ -> Cmd.none
-        { model with Sessions = updatedSessions; SelectedSessionId = newSelectedId }, loadProgressCmd, WatchSessionRemoved
+        // Also reload overall progress since session deletion may affect total
+        let overallCmd = Cmd.ofMsg LoadOverallProgress
+        { model with Sessions = updatedSessions; SelectedSessionId = newSelectedId },
+        Cmd.batch [ loadProgressCmd; overallCmd ], WatchSessionRemoved
 
     | SessionDeleteResult (Error err) ->
+        model, Cmd.none, ShowNotification (err, false)
+
+    | OpenSessionFriendEditor sessionId ->
+        { model with EditingSessionId = Some sessionId }, Cmd.none, NoOp
+
+    | CloseSessionFriendEditor ->
+        { model with EditingSessionId = None }, Cmd.none, NoOp
+
+    | ToggleSessionFriend (sessionId, friendId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                api.ToggleSessionFriend
+                (sessionId, friendId)
+                SessionFriendToggleResult
+                (fun ex -> Error ex.Message |> SessionFriendToggleResult)
+        model, cmd, NoOp
+
+    | SessionFriendToggleResult (Ok updatedSession) ->
+        // Update the session in the list
+        let updatedSessions =
+            model.Sessions
+            |> RemoteData.map (List.map (fun s ->
+                if s.Id = updatedSession.Id then updatedSession else s))
+        { model with Sessions = updatedSessions }, Cmd.none, NoOp
+
+    | SessionFriendToggleResult (Error err) ->
         model, Cmd.none, ShowNotification (err, false)
 
     | ViewContributor (personId, name) ->

@@ -18,6 +18,8 @@ type Model = {
     Sessions: RemoteData<WatchSession list>
     SelectedSessionId: SessionId option
     EpisodeProgress: EpisodeProgress list
+    /// Set of (SeasonNumber, EpisodeNumber) watched across ALL sessions
+    OverallWatchedEpisodes: Set<int * int>
     SeasonDetails: Map<int, TmdbSeasonDetails>
     LoadingSeasons: Set<int>
     IsRatingOpen: bool
@@ -26,6 +28,8 @@ type Model = {
     ActiveTab: SeriesTab
     /// Whether the full cast and crew section is expanded
     IsFullCastCrewExpanded: bool
+    /// Which session is currently being edited for friends (None = closed)
+    EditingSessionId: SessionId option
 }
 
 type Msg =
@@ -44,6 +48,8 @@ type Msg =
     | SelectSession of SessionId
     | LoadSessionProgress of SessionId
     | SessionProgressLoaded of Result<EpisodeProgress list, string>
+    | LoadOverallProgress
+    | OverallProgressLoaded of Result<(int * int) list, string>
     | LoadSeasonDetails of int
     | SeasonDetailsLoaded of int * Result<TmdbSeasonDetails, string>
     | MarkSeriesCompleted
@@ -64,6 +70,10 @@ type Msg =
     | OpenNewSessionModal
     | DeleteSession of SessionId
     | SessionDeleteResult of Result<SessionId, string>
+    | OpenSessionFriendEditor of SessionId
+    | CloseSessionFriendEditor
+    | ToggleSessionFriend of SessionId * FriendId
+    | SessionFriendToggleResult of Result<WatchSession, string>
     | ToggleFriendSelector
     | ToggleFriend of FriendId
     | AddNewFriend of string
@@ -101,6 +111,7 @@ module Model =
         Sessions = NotAsked
         SelectedSessionId = None
         EpisodeProgress = []
+        OverallWatchedEpisodes = Set.empty
         SeasonDetails = Map.empty
         LoadingSeasons = Set.empty
         IsRatingOpen = false
@@ -108,4 +119,5 @@ module Model =
         IsAddingFriend = false
         ActiveTab = Overview
         IsFullCastCrewExpanded = false
+        EditingSessionId = None
     }

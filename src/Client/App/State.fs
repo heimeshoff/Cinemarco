@@ -815,6 +815,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 GetTrackedContributors = fun () -> Api.api.contributorsGetAll ()
                 GetSessions = fun entryId -> Api.api.sessionsGetForEntry entryId
                 GetSessionProgress = fun sessionId -> Api.api.sessionsGetProgress sessionId
+                GetOverallProgress = fun entryId -> Api.api.sessionsGetOverallProgress entryId
                 GetSeasonDetails = fun (tmdbId, seasonNum) -> Api.api.tmdbGetSeasonDetails (tmdbId, seasonNum)
                 MarkCompleted = fun entryId -> Api.api.libraryMarkSeriesCompleted entryId
                 Abandon = fun entryId -> Api.api.libraryAbandonEntry (entryId, { Reason = None; AbandonedAtSeason = None; AbandonedAtEpisode = None })
@@ -832,6 +833,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 DeleteSession = fun sessionId -> Api.api.sessionsDelete sessionId
                 UpdateEpisodeWatchedDate = fun (sessionId, s, e, date) ->
                     Api.api.sessionsUpdateEpisodeWatchedDate (sessionId, s, e, date)
+                ToggleSessionFriend = fun (sessionId, friendId) ->
+                    Api.api.sessionsToggleFriend (sessionId, friendId)
             }
             let newPage, pageCmd, extMsg = Pages.SeriesDetail.State.update seriesApi seriesMsg pageModel
             let model' = { model with SeriesDetailPage = Some newPage }

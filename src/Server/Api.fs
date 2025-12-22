@@ -565,6 +565,8 @@ let cinemarcoApi : ICinemarcoApi = {
 
     sessionsGetProgress = fun sessionId -> Persistence.getSessionEpisodeProgress sessionId
 
+    sessionsGetOverallProgress = fun entryId -> Persistence.getOverallEpisodeProgress entryId
+
     // =====================================
     // Movie Watch Session Operations
     // =====================================

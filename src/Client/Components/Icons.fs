@@ -221,6 +221,10 @@ let eye =
 let menu =
     icon [ roundPath "M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" ]
 
+/// Vertical ellipsis (three dots) icon
+let ellipsisVertical =
+    icon [ roundPath "M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" ]
+
 /// Ban/slash icon (for abandon)
 let ban =
     icon [ roundPath "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" ]

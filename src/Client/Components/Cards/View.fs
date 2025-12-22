@@ -30,6 +30,14 @@ let getLocalBackdropUrl (path: string option) =
         $"/images/backdrops/{filename}"
     | None -> ""
 
+/// Get local cached episode still URL (for library items)
+let getLocalStillUrl (path: string option) =
+    match path with
+    | Some p ->
+        let filename = if p.StartsWith("/") then p.Substring(1) else p
+        $"/images/stills/{filename}"
+    | None -> ""
+
 /// Poster card component for search results (TMDB data)
 /// isInLibrary: when true, shows a gray overlay to indicate the item is already in library
 let posterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (isInLibrary: bool) =

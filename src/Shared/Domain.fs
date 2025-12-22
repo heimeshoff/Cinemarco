@@ -801,6 +801,10 @@ type TimelineEntry = {
     Detail: TimelineDetail
     /// Episode name (for EpisodeWatched entries)
     EpisodeName: string option
+    /// Episode still image path (for EpisodeWatched entries)
+    EpisodeStillPath: string option
+    /// Season poster path (for series entries)
+    SeasonPosterPath: string option
     /// Friends watched with (for this specific watch event)
     WatchedWithFriends: Friend list
 }
