@@ -8,7 +8,8 @@
     "dev:server": "cd src/Server && dotnet watch run",
     "dev:client": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "dotnet test src/Tests"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.17",

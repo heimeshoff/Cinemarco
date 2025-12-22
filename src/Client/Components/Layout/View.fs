@@ -77,7 +77,7 @@ let private navItem (page: Page) (currentPage: Page) (onNavigate: Page -> unit) 
 /// Sidebar navigation component
 let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSearch: unit -> unit) =
     Html.aside [
-        prop.className "sidebar fixed left-0 top-0 h-full w-64 hidden lg:flex lg:flex-col z-40"
+        prop.className "sidebar fixed left-0 top-0 h-full w-64 hidden md:flex md:flex-col z-40"
         prop.children [
             // Logo section
             Html.div [
@@ -203,7 +203,7 @@ let sidebar (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSea
 /// Mobile bottom navigation
 let mobileNav (model: Model) (currentPage: Page) (onNavigate: Page -> unit) (onSearch: unit -> unit) (dispatch: Msg -> unit) =
     Html.nav [
-        prop.className "fixed bottom-0 left-0 right-0 glass-strong lg:hidden z-40 safe-area-bottom"
+        prop.className "fixed bottom-0 left-0 right-0 glass-strong md:hidden z-40 safe-area-bottom"
         prop.children [
             Html.div [
                 prop.className "flex justify-around items-center h-16"
@@ -292,7 +292,7 @@ let mobileMenuDrawer (model: Model) (currentPage: Page) (onNavigate: Page -> uni
     if not model.IsMobileMenuOpen then Html.none
     else
         Html.div [
-            prop.className "fixed inset-0 z-50 lg:hidden"
+            prop.className "fixed inset-0 z-50 md:hidden"
             prop.children [
                 // Backdrop
                 Html.div [

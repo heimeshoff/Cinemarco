@@ -290,10 +290,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Main content
             Html.main [
-                prop.className "lg:pl-64 min-h-screen relative"
+                prop.className "md:pl-64 min-h-screen relative"
                 prop.children [
                     Html.div [
-                        prop.className "p-4 lg:p-8 pb-24 lg:pb-8"
+                        prop.className "p-4 md:p-8 pb-24 md:pb-8"
                         prop.children [
                             pageContent model dispatch
                         ]

@@ -30,9 +30,9 @@ type DailyCleanupService(logger: ILogger<DailyCleanupService>) =
         else
             logger.LogInformation("No expired cache entries to clear")
 
-        // 2. Delete orphaned images
-        let! (referencedPosters, referencedBackdrops) = Persistence.getAllReferencedImagePaths()
-        let filesDeleted, bytesFreed = ImageCache.deleteOrphanedImages referencedPosters referencedBackdrops
+        // 2. Delete orphaned images (posters, backdrops, season posters, stills, tracked profiles)
+        let! referencedImages = Persistence.getAllReferencedImagePaths()
+        let filesDeleted, bytesFreed = ImageCache.deleteOrphanedImages referencedImages
         if filesDeleted > 0 then
             let sizeMb = float bytesFreed / (1024.0 * 1024.0)
             logger.LogInformation(

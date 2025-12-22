@@ -6,7 +6,8 @@ open Microsoft.Data.Sqlite
 // =====================================
 // Migration System for Cinemarco
 // =====================================
-// Based on DATABASE-SCHEMA.md specification
+// Clean initial schema - no backwards compatibility
+// Future migrations can be added as Version 2, 3, etc.
 
 /// A single migration with version and SQL
 type Migration = {
@@ -17,13 +18,17 @@ type Migration = {
 
 /// All migrations in order
 let private migrations = [
-    // Migration 1: Core tables and configuration
+    // Migration 1: Complete initial schema (fresh start)
     {
         Version = 1
-        Name = "Initial schema - core media tables"
+        Name = "Initial schema - complete database structure"
         Up = """
 -- Enable foreign key constraints
 PRAGMA foreign_keys=ON;
+
+-- =============================================
+-- CORE MEDIA TABLES
+-- =============================================
 
 -- Movies table
 CREATE TABLE IF NOT EXISTS movies (
@@ -114,15 +119,11 @@ CREATE TABLE IF NOT EXISTS episodes (
 
 CREATE INDEX IF NOT EXISTS idx_episodes_series_id ON episodes(series_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_season_id ON episodes(season_id);
-"""
-    }
 
-    // Migration 2: Library entries and watch tracking
-    {
-        Version = 2
-        Name = "Library entries and watch tracking tables"
-        Up = """
--- Friends table (needed for FK in library_entries)
+-- =============================================
+-- FRIENDS
+-- =============================================
+
 CREATE TABLE IF NOT EXISTS friends (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -134,6 +135,10 @@ CREATE TABLE IF NOT EXISTS friends (
 );
 
 CREATE INDEX IF NOT EXISTS idx_friends_name ON friends(name);
+
+-- =============================================
+-- LIBRARY & WATCH TRACKING
+-- =============================================
 
 -- Library entries table
 CREATE TABLE IF NOT EXISTS library_entries (
@@ -179,7 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_library_entries_personal_rating ON library_entrie
 CREATE INDEX IF NOT EXISTS idx_library_entries_date_added ON library_entries(date_added);
 CREATE INDEX IF NOT EXISTS idx_library_entries_is_favorite ON library_entries(is_favorite);
 
--- Watch sessions table
+-- Watch sessions table (for series)
 CREATE TABLE IF NOT EXISTS watch_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_id INTEGER NOT NULL,
@@ -188,6 +193,7 @@ CREATE TABLE IF NOT EXISTS watch_sessions (
     start_date TEXT,
     end_date TEXT,
     notes TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE
@@ -195,12 +201,13 @@ CREATE TABLE IF NOT EXISTS watch_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_watch_sessions_entry_id ON watch_sessions(entry_id);
 CREATE INDEX IF NOT EXISTS idx_watch_sessions_status ON watch_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_default ON watch_sessions(is_default);
 
 -- Episode progress table
 CREATE TABLE IF NOT EXISTS episode_progress (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_id INTEGER NOT NULL,
-    session_id INTEGER,
+    session_id INTEGER NOT NULL,
     series_id INTEGER NOT NULL,
     season_number INTEGER NOT NULL,
     episode_number INTEGER NOT NULL,
@@ -234,15 +241,24 @@ CREATE TABLE IF NOT EXISTS watch_history (
 CREATE INDEX IF NOT EXISTS idx_watch_history_entry_id ON watch_history(entry_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_watched_date ON watch_history(watched_date);
 CREATE INDEX IF NOT EXISTS idx_watch_history_is_completion ON watch_history(is_completion);
-"""
-    }
 
-    // Migration 3: Contributors and organization tables
-    {
-        Version = 3
-        Name = "Contributors, tags, and collections tables"
-        Up = """
--- Contributors table
+-- Movie watch sessions table (for tracking individual viewings)
+CREATE TABLE IF NOT EXISTS movie_watch_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL,
+    watched_date TEXT NOT NULL,
+    name TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_entry_id ON movie_watch_sessions(entry_id);
+CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_watched_date ON movie_watch_sessions(watched_date);
+
+-- =============================================
+-- CONTRIBUTORS
+-- =============================================
+
 CREATE TABLE IF NOT EXISTS contributors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tmdb_person_id INTEGER NOT NULL UNIQUE,
@@ -283,20 +299,23 @@ CREATE INDEX IF NOT EXISTS idx_media_contributors_movie_id ON media_contributors
 CREATE INDEX IF NOT EXISTS idx_media_contributors_series_id ON media_contributors(series_id);
 CREATE INDEX IF NOT EXISTS idx_media_contributors_role_type ON media_contributors(role_type);
 
--- Tags table
-CREATE TABLE IF NOT EXISTS tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    color TEXT,
-    icon TEXT,
-    description TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+-- Tracked contributors (personal tracking)
+CREATE TABLE IF NOT EXISTS tracked_contributors (
+    id TEXT PRIMARY KEY,
+    tmdb_person_id INTEGER NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    profile_path TEXT,
+    known_for_department TEXT,
+    created_at TEXT NOT NULL,
+    notes TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+CREATE INDEX IF NOT EXISTS idx_tracked_contributors_tmdb_id ON tracked_contributors(tmdb_person_id);
 
--- Collections table
+-- =============================================
+-- COLLECTIONS
+-- =============================================
+
 CREATE TABLE IF NOT EXISTS collections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -311,40 +330,36 @@ CREATE TABLE IF NOT EXISTS collections (
 CREATE INDEX IF NOT EXISTS idx_collections_name ON collections(name);
 CREATE INDEX IF NOT EXISTS idx_collections_is_public_franchise ON collections(is_public_franchise);
 
--- Collection items table
+-- Collection items (supports entries, seasons, and episodes)
 CREATE TABLE IF NOT EXISTS collection_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     collection_id INTEGER NOT NULL,
-    entry_id INTEGER NOT NULL,
+    item_type TEXT NOT NULL DEFAULT 'entry',  -- 'entry', 'season', 'episode'
+    entry_id INTEGER,                          -- For library entries (movies/series)
+    series_id INTEGER,                         -- For seasons and episodes
+    season_number INTEGER,                     -- For seasons and episodes
+    episode_number INTEGER,                    -- For episodes only
     position INTEGER NOT NULL,
     notes TEXT,
     FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
     FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE,
-    UNIQUE (collection_id, entry_id)
+    FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
+    CHECK (
+        (item_type = 'entry' AND entry_id IS NOT NULL AND series_id IS NULL) OR
+        (item_type = 'season' AND series_id IS NOT NULL AND season_number IS NOT NULL AND entry_id IS NULL) OR
+        (item_type = 'episode' AND series_id IS NOT NULL AND season_number IS NOT NULL AND episode_number IS NOT NULL AND entry_id IS NULL)
+    )
 );
 
 CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id);
 CREATE INDEX IF NOT EXISTS idx_collection_items_entry_id ON collection_items(entry_id);
+CREATE INDEX IF NOT EXISTS idx_collection_items_series_id ON collection_items(series_id);
 CREATE INDEX IF NOT EXISTS idx_collection_items_position ON collection_items(position);
-"""
-    }
+CREATE INDEX IF NOT EXISTS idx_collection_items_item_type ON collection_items(item_type);
 
-    // Migration 4: Junction tables
-    {
-        Version = 4
-        Name = "Junction tables for many-to-many relationships"
-        Up = """
--- Entry tags junction table
-CREATE TABLE IF NOT EXISTS entry_tags (
-    entry_id INTEGER NOT NULL,
-    tag_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (entry_id, tag_id),
-    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_entry_tags_tag_id ON entry_tags(tag_id);
+-- =============================================
+-- JUNCTION TABLES
+-- =============================================
 
 -- Entry friends junction table
 CREATE TABLE IF NOT EXISTS entry_friends (
@@ -358,18 +373,6 @@ CREATE TABLE IF NOT EXISTS entry_friends (
 
 CREATE INDEX IF NOT EXISTS idx_entry_friends_friend_id ON entry_friends(friend_id);
 
--- Session tags junction table
-CREATE TABLE IF NOT EXISTS session_tags (
-    session_id INTEGER NOT NULL,
-    tag_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (session_id, tag_id),
-    FOREIGN KEY (session_id) REFERENCES watch_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_session_tags_tag_id ON session_tags(tag_id);
-
 -- Session friends junction table
 CREATE TABLE IF NOT EXISTS session_friends (
     session_id INTEGER NOT NULL,
@@ -381,14 +384,23 @@ CREATE TABLE IF NOT EXISTS session_friends (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_friends_friend_id ON session_friends(friend_id);
-"""
-    }
 
-    // Migration 5: Cache tables
-    {
-        Version = 5
-        Name = "Cache and statistics tables"
-        Up = """
+-- Movie session friends junction table
+CREATE TABLE IF NOT EXISTS movie_session_friends (
+    session_id INTEGER NOT NULL,
+    friend_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (session_id, friend_id),
+    FOREIGN KEY (session_id) REFERENCES movie_watch_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (friend_id) REFERENCES friends(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_session_friends_friend_id ON movie_session_friends(friend_id);
+
+-- =============================================
+-- CACHE & STATISTICS
+-- =============================================
+
 -- TMDB cache table
 CREATE TABLE IF NOT EXISTS tmdb_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -429,180 +441,12 @@ CREATE TABLE IF NOT EXISTS stats_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_stats_cache_key ON stats_cache(stat_key);
-"""
-    }
 
-    // Migration 6: Add is_default flag and create default sessions
-    {
-        Version = 6
-        Name = "Add is_default flag to watch_sessions and create default sessions"
-        Up = """
--- Add is_default column to watch_sessions
-ALTER TABLE watch_sessions ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0;
+-- =============================================
+-- INTEGRATIONS
+-- =============================================
 
--- Create default "Personal" session for each series entry that doesn't have one
-INSERT INTO watch_sessions (entry_id, name, status, start_date, is_default, created_at, updated_at)
-SELECT le.id, 'Personal', 'Active', datetime('now'), 1, datetime('now'), datetime('now')
-FROM library_entries le
-WHERE le.media_type = 'Series'
-AND NOT EXISTS (
-    SELECT 1 FROM watch_sessions ws WHERE ws.entry_id = le.id AND ws.is_default = 1
-);
-
--- Migrate entry-level episode progress (session_id = NULL) to the default session
-UPDATE episode_progress
-SET session_id = (
-    SELECT ws.id
-    FROM watch_sessions ws
-    WHERE ws.entry_id = episode_progress.entry_id AND ws.is_default = 1
-)
-WHERE session_id IS NULL
-AND EXISTS (
-    SELECT 1 FROM watch_sessions ws
-    WHERE ws.entry_id = episode_progress.entry_id AND ws.is_default = 1
-);
-
--- Delete any remaining orphaned entry-level progress (shouldn't happen, but cleanup)
-DELETE FROM episode_progress WHERE session_id IS NULL;
-
--- Create index for is_default
-CREATE INDEX IF NOT EXISTS idx_watch_sessions_is_default ON watch_sessions(is_default);
-"""
-    }
-
-    // Migration 7: Tracked contributors table
-    {
-        Version = 7
-        Name = "Add tracked_contributors table"
-        Up = """
--- Tracked contributors table for personal contributor tracking
-CREATE TABLE IF NOT EXISTS tracked_contributors (
-    id TEXT PRIMARY KEY,
-    tmdb_person_id INTEGER NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    profile_path TEXT,
-    known_for_department TEXT,
-    created_at TEXT NOT NULL,
-    notes TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_tracked_contributors_tmdb_id ON tracked_contributors(tmdb_person_id);
-"""
-    }
-
-    // Migration 8: Remove tags feature
-    {
-        Version = 8
-        Name = "Remove tags feature - drop tag tables"
-        Up = """
--- Drop indexes first
-DROP INDEX IF EXISTS idx_session_tags_tag_id;
-DROP INDEX IF EXISTS idx_entry_tags_tag_id;
-DROP INDEX IF EXISTS idx_tags_name;
-
--- Drop junction tables
-DROP TABLE IF EXISTS session_tags;
-DROP TABLE IF EXISTS entry_tags;
-
--- Drop tags table
-DROP TABLE IF EXISTS tags;
-"""
-    }
-
-    // Migration 9: Extend collection_items to support seasons and episodes
-    {
-        Version = 9
-        Name = "Extend collection_items to support seasons and episodes"
-        Up = """
--- SQLite doesn't support ALTER TABLE ADD COLUMN with complex constraints,
--- so we need to recreate the table with the new schema.
-
--- Step 1: Create new table with extended schema
-CREATE TABLE collection_items_new (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    collection_id INTEGER NOT NULL,
-    item_type TEXT NOT NULL DEFAULT 'entry',  -- 'entry', 'season', 'episode'
-    entry_id INTEGER,                          -- For library entries (movies/series)
-    series_id INTEGER,                         -- For seasons and episodes
-    season_number INTEGER,                     -- For seasons and episodes
-    episode_number INTEGER,                    -- For episodes only
-    position INTEGER NOT NULL,
-    notes TEXT,
-    FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
-    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE,
-    FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
-    CHECK (
-        (item_type = 'entry' AND entry_id IS NOT NULL AND series_id IS NULL) OR
-        (item_type = 'season' AND series_id IS NOT NULL AND season_number IS NOT NULL AND entry_id IS NULL) OR
-        (item_type = 'episode' AND series_id IS NOT NULL AND season_number IS NOT NULL AND episode_number IS NOT NULL AND entry_id IS NULL)
-    )
-);
-
--- Step 2: Copy existing data (all existing items are library entries)
-INSERT INTO collection_items_new (id, collection_id, item_type, entry_id, position, notes)
-SELECT id, collection_id, 'entry', entry_id, position, notes
-FROM collection_items;
-
--- Step 3: Drop old table
-DROP TABLE collection_items;
-
--- Step 4: Rename new table
-ALTER TABLE collection_items_new RENAME TO collection_items;
-
--- Step 5: Recreate indexes
-CREATE INDEX IF NOT EXISTS idx_collection_items_collection_id ON collection_items(collection_id);
-CREATE INDEX IF NOT EXISTS idx_collection_items_entry_id ON collection_items(entry_id);
-CREATE INDEX IF NOT EXISTS idx_collection_items_series_id ON collection_items(series_id);
-CREATE INDEX IF NOT EXISTS idx_collection_items_position ON collection_items(position);
-CREATE INDEX IF NOT EXISTS idx_collection_items_item_type ON collection_items(item_type);
-
--- Step 6: Create unique constraint for each item type
--- For entries: unique by (collection_id, entry_id)
--- For seasons: unique by (collection_id, series_id, season_number)
--- For episodes: unique by (collection_id, series_id, season_number, episode_number)
--- SQLite doesn't support partial unique indexes directly, so we use a workaround with a generated column approach
--- Actually, we'll handle uniqueness in application logic for now since the CHECK constraint covers validity
-"""
-    }
-
-    // Migration 10: Movie watch sessions
-    {
-        Version = 10
-        Name = "Add movie watch sessions table"
-        Up = """
--- Movie watch sessions table (for tracking individual viewings of a movie)
-CREATE TABLE IF NOT EXISTS movie_watch_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    entry_id INTEGER NOT NULL,
-    watched_date TEXT NOT NULL,
-    name TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (entry_id) REFERENCES library_entries(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_entry_id ON movie_watch_sessions(entry_id);
-CREATE INDEX IF NOT EXISTS idx_movie_watch_sessions_watched_date ON movie_watch_sessions(watched_date);
-
--- Movie watch session friends junction table
-CREATE TABLE IF NOT EXISTS movie_session_friends (
-    session_id INTEGER NOT NULL,
-    friend_id INTEGER NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (session_id, friend_id),
-    FOREIGN KEY (session_id) REFERENCES movie_watch_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY (friend_id) REFERENCES friends(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_movie_session_friends_friend_id ON movie_session_friends(friend_id);
-"""
-    }
-
-    // Migration 11: Trakt integration settings
-    {
-        Version = 11
-        Name = "Add Trakt integration settings table"
-        Up = """
--- Trakt settings table (stores OAuth tokens and sync state)
+-- Trakt settings table (OAuth tokens and sync state)
 CREATE TABLE IF NOT EXISTS trakt_settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),  -- Only one row allowed
     access_token TEXT,
@@ -614,7 +458,7 @@ CREATE TABLE IF NOT EXISTS trakt_settings (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Insert default row
+-- Insert default Trakt settings row
 INSERT OR IGNORE INTO trakt_settings (id, auto_sync_enabled) VALUES (1, 1);
 """
     }

@@ -1810,9 +1810,9 @@ let clearAllCache () : Async<ClearCacheResult> = async {
     }
 }
 
-/// Get all referenced image paths from the database (posters and backdrops)
-/// Only returns paths for movies/series that are actually in the library
-let getAllReferencedImagePaths () : Async<Set<string> * Set<string>> = async {
+/// Get all referenced image paths from the database
+/// Only returns paths for media that is actually in the library or tracked
+let getAllReferencedImagePaths () : Async<ImageCache.ReferencedImages> = async {
     use conn = getConnection()
 
     // Get poster paths only for movies that are in the library
@@ -1847,6 +1847,31 @@ let getAllReferencedImagePaths () : Async<Set<string> * Set<string>> = async {
             WHERE s.backdrop_path IS NOT NULL AND s.backdrop_path != ''
         """) |> Async.AwaitTask
 
+    // Get season poster paths only for series that are in the library
+    let! seasonPosters =
+        conn.QueryAsync<string>("""
+            SELECT sea.poster_path FROM seasons sea
+            INNER JOIN series s ON sea.series_id = s.id
+            INNER JOIN library_entries le ON le.series_id = s.id
+            WHERE sea.poster_path IS NOT NULL AND sea.poster_path != ''
+        """) |> Async.AwaitTask
+
+    // Get episode still paths only for series that are in the library
+    let! episodeStills =
+        conn.QueryAsync<string>("""
+            SELECT e.still_path FROM episodes e
+            INNER JOIN series s ON e.series_id = s.id
+            INNER JOIN library_entries le ON le.series_id = s.id
+            WHERE e.still_path IS NOT NULL AND e.still_path != ''
+        """) |> Async.AwaitTask
+
+    // Get profile paths only for tracked contributors
+    let! trackedProfiles =
+        conn.QueryAsync<string>("""
+            SELECT profile_path FROM tracked_contributors
+            WHERE profile_path IS NOT NULL AND profile_path != ''
+        """) |> Async.AwaitTask
+
     let posters =
         Seq.append moviePosters seriesPosters
         |> Seq.filter (not << String.IsNullOrEmpty)
@@ -1857,7 +1882,28 @@ let getAllReferencedImagePaths () : Async<Set<string> * Set<string>> = async {
         |> Seq.filter (not << String.IsNullOrEmpty)
         |> Set.ofSeq
 
-    return posters, backdrops
+    let seasonPosterSet =
+        seasonPosters
+        |> Seq.filter (not << String.IsNullOrEmpty)
+        |> Set.ofSeq
+
+    let stillsSet =
+        episodeStills
+        |> Seq.filter (not << String.IsNullOrEmpty)
+        |> Set.ofSeq
+
+    let profilesSet =
+        trackedProfiles
+        |> Seq.filter (not << String.IsNullOrEmpty)
+        |> Set.ofSeq
+
+    return {
+        Posters = posters
+        Backdrops = backdrops
+        SeasonPosters = seasonPosterSet
+        Stills = stillsSet
+        Profiles = profilesSet
+    }
 }
 
 /// Clear expired cache entries and return stats

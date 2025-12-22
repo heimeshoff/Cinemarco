@@ -174,6 +174,8 @@ let cinemarcoApi : ICinemarcoApi = {
                         | Ok season ->
                             // Save episode metadata to DB so names show in timeline
                             do! Persistence.saveSeasonEpisodes series.Id season
+                            // Cache season poster and episode stills
+                            do! ImageCache.cacheSeasonImages season.PosterPath (season.Episodes |> List.map (fun e -> e.StillPath))
                             let episodeCount = season.Episodes.Length
                             do! Persistence.markSeasonWatched entryId seriesId seasonNumber episodeCount
                             do! Persistence.updateSeriesWatchStatusFromProgress entryId
@@ -548,6 +550,8 @@ let cinemarcoApi : ICinemarcoApi = {
                         | Ok season ->
                             // Save episode metadata to DB so names show in timeline
                             do! Persistence.saveSeasonEpisodes series.Id season
+                            // Cache season poster and episode stills
+                            do! ImageCache.cacheSeasonImages season.PosterPath (season.Episodes |> List.map (fun e -> e.StillPath))
                             let episodeCount = season.Episodes.Length
                             match! Persistence.getSeriesInfoForEntry s.EntryId with
                             | None -> return Error "Series info not found"
@@ -765,7 +769,10 @@ let cinemarcoApi : ICinemarcoApi = {
                 Async.Start (async {
                     let! result = TmdbClient.getSeasonDetails tmdbId seasonNumber
                     match result with
-                    | Ok freshSeason -> do! Persistence.saveSeasonEpisodes s.Id freshSeason
+                    | Ok freshSeason ->
+                        do! Persistence.saveSeasonEpisodes s.Id freshSeason
+                        // Cache season poster and episode stills
+                        do! ImageCache.cacheSeasonImages freshSeason.PosterPath (freshSeason.Episodes |> List.map (fun e -> e.StillPath))
                     | Error _ -> () // Ignore errors during background refresh
                 })
                 return Ok cachedSeason
@@ -775,6 +782,8 @@ let cinemarcoApi : ICinemarcoApi = {
                 match result with
                 | Ok season ->
                     do! Persistence.saveSeasonEpisodes s.Id season
+                    // Cache season poster and episode stills
+                    do! ImageCache.cacheSeasonImages season.PosterPath (season.Episodes |> List.map (fun e -> e.StillPath))
                     return Ok season
                 | Error err -> return Error err
         | None ->
@@ -864,7 +873,15 @@ let cinemarcoApi : ICinemarcoApi = {
         | None -> return Error $"Tracked contributor not found for slug: {slug}"
     }
 
-    contributorsTrack = fun request -> Persistence.trackContributor request
+    contributorsTrack = fun request -> async {
+        let! result = Persistence.trackContributor request
+        match result with
+        | Ok tracked ->
+            // Cache the contributor's profile image
+            do! ImageCache.ensureProfileCached tracked.ProfilePath
+            return Ok tracked
+        | Error err -> return Error err
+    }
 
     contributorsUntrack = fun trackedId -> Persistence.untrackContributor trackedId
 
@@ -1653,6 +1670,8 @@ let private imageRoutes : HttpHandler =
         GET >=> routef "/images/profiles/%s" (serveImage "profiles")
         GET >=> routef "/images/collections/%s" (serveImage "collections")
         GET >=> routef "/images/avatars/%s" (serveImage "avatars")
+        GET >=> routef "/images/season_posters/%s" (serveImage "season_posters")
+        GET >=> routef "/images/stills/%s" (serveImage "stills")
     ]
 
 // =====================================

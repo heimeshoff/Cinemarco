@@ -109,6 +109,24 @@ let downloadProfile (tmdbPath: string option) : Async<unit> = async {
         ()
 }
 
+/// Download a season poster image (uses w300 size)
+let downloadSeasonPoster (tmdbPath: string option) : Async<unit> = async {
+    match tmdbPath with
+    | None -> ()
+    | Some path ->
+        let! _ = downloadImage "season_posters" "w300" path
+        ()
+}
+
+/// Download an episode still image (uses w300 size)
+let downloadEpisodeStill (tmdbPath: string option) : Async<unit> = async {
+    match tmdbPath with
+    | None -> ()
+    | Some path ->
+        let! _ = downloadImage "stills" "w300" path
+        ()
+}
+
 /// Ensure a profile image is cached locally, downloading if necessary
 let ensureProfileCached (tmdbPath: string option) : Async<unit> = async {
     match tmdbPath with
@@ -117,6 +135,39 @@ let ensureProfileCached (tmdbPath: string option) : Async<unit> = async {
         let localPath = getLocalImagePath "profiles" path
         if not (File.Exists localPath) then
             do! downloadProfile (Some path)
+}
+
+/// Ensure a season poster is cached locally, downloading if necessary
+let ensureSeasonPosterCached (tmdbPath: string option) : Async<unit> = async {
+    match tmdbPath with
+    | None -> ()
+    | Some path ->
+        let localPath = getLocalImagePath "season_posters" path
+        if not (File.Exists localPath) then
+            do! downloadSeasonPoster (Some path)
+}
+
+/// Ensure an episode still is cached locally, downloading if necessary
+let ensureEpisodeStillCached (tmdbPath: string option) : Async<unit> = async {
+    match tmdbPath with
+    | None -> ()
+    | Some path ->
+        let localPath = getLocalImagePath "stills" path
+        if not (File.Exists localPath) then
+            do! downloadEpisodeStill (Some path)
+}
+
+/// Cache all images for a season (season poster and all episode stills)
+let cacheSeasonImages (seasonPosterPath: string option) (episodeStillPaths: string option list) : Async<unit> = async {
+    // Cache season poster
+    do! ensureSeasonPosterCached seasonPosterPath
+
+    // Cache all episode stills in parallel
+    let! _ =
+        episodeStillPaths
+        |> List.map ensureEpisodeStillCached
+        |> Async.Parallel
+    ()
 }
 
 /// Get the cached image bytes, or None if not cached
@@ -238,46 +289,47 @@ let getContentType (filename: string) =
     | ".webp" -> "image/webp"
     | _ -> "application/octet-stream"
 
+/// Referenced image paths for cleanup
+type ReferencedImages = {
+    Posters: Set<string>
+    Backdrops: Set<string>
+    SeasonPosters: Set<string>
+    Stills: Set<string>
+    Profiles: Set<string>
+}
+
 /// Delete orphaned images that are no longer referenced in the database
 /// Returns the number of files deleted and bytes freed
-let deleteOrphanedImages (referencedPosters: Set<string>) (referencedBackdrops: Set<string>) : int * int64 =
+let deleteOrphanedImages (refs: ReferencedImages) : int * int64 =
     let mutable filesDeleted = 0
     let mutable bytesFreed = 0L
 
     // Helper to convert local filename back to TMDB path format
     let filenameToTmdbPath (filename: string) = "/" + filename
 
-    // Clean up posters
-    let postersDir = Path.Combine(getImagesDir(), "posters")
-    if Directory.Exists(postersDir) then
-        for file in Directory.GetFiles(postersDir) do
-            let filename = Path.GetFileName(file)
-            let tmdbPath = filenameToTmdbPath filename
-            if not (referencedPosters.Contains(tmdbPath)) then
-                try
-                    let fileInfo = FileInfo(file)
-                    bytesFreed <- bytesFreed + fileInfo.Length
-                    File.Delete(file)
-                    filesDeleted <- filesDeleted + 1
-                    printfn $"Deleted orphaned poster: {filename}"
-                with ex ->
-                    printfn $"Failed to delete poster {filename}: {ex.Message}"
+    // Helper to clean up a specific image type directory
+    let cleanupImageType (dirName: string) (referencedPaths: Set<string>) (typeName: string) =
+        let dir = Path.Combine(getImagesDir(), dirName)
+        if Directory.Exists(dir) then
+            for file in Directory.GetFiles(dir) do
+                let filename = Path.GetFileName(file)
+                let tmdbPath = filenameToTmdbPath filename
+                if not (referencedPaths.Contains(tmdbPath)) then
+                    try
+                        let fileInfo = FileInfo(file)
+                        bytesFreed <- bytesFreed + fileInfo.Length
+                        File.Delete(file)
+                        filesDeleted <- filesDeleted + 1
+                        printfn $"Deleted orphaned {typeName}: {filename}"
+                    with ex ->
+                        printfn $"Failed to delete {typeName} {filename}: {ex.Message}"
 
-    // Clean up backdrops
-    let backdropsDir = Path.Combine(getImagesDir(), "backdrops")
-    if Directory.Exists(backdropsDir) then
-        for file in Directory.GetFiles(backdropsDir) do
-            let filename = Path.GetFileName(file)
-            let tmdbPath = filenameToTmdbPath filename
-            if not (referencedBackdrops.Contains(tmdbPath)) then
-                try
-                    let fileInfo = FileInfo(file)
-                    bytesFreed <- bytesFreed + fileInfo.Length
-                    File.Delete(file)
-                    filesDeleted <- filesDeleted + 1
-                    printfn $"Deleted orphaned backdrop: {filename}"
-                with ex ->
-                    printfn $"Failed to delete backdrop {filename}: {ex.Message}"
+    // Clean up all image types
+    cleanupImageType "posters" refs.Posters "poster"
+    cleanupImageType "backdrops" refs.Backdrops "backdrop"
+    cleanupImageType "season_posters" refs.SeasonPosters "season poster"
+    cleanupImageType "stills" refs.Stills "still"
+    cleanupImageType "profiles" refs.Profiles "profile"
 
     filesDeleted, bytesFreed
 

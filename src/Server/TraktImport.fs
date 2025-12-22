@@ -408,7 +408,7 @@ let private importSeriesWithEpisodes (item: TraktWatchedSeries) (rating: int opt
         match existing with
         | Some entryId ->
             printfn "[TraktImport] Series already exists with entryId: %d" (EntryId.value entryId)
-            // Series already exists - import episode watch data
+            // Series already exists - import episode watch data (no binge-detection for already tracked series)
             let! entry = Persistence.getLibraryEntryById entryId
             match entry with
             | Some e ->
@@ -435,12 +435,15 @@ let private importSeriesWithEpisodes (item: TraktWatchedSeries) (rating: int opt
                             match seasonResult with
                             | Ok seasonDetails ->
                                 do! Persistence.saveSeasonEpisodes series.Id seasonDetails
+                                // Cache season poster and episode stills
+                                do! ImageCache.cacheSeasonImages seasonDetails.PosterPath (seasonDetails.Episodes |> List.map (fun e -> e.StillPath))
                                 printfn "[TraktImport] Saved season %d with %d episodes" seasonNum seasonDetails.Episodes.Length
                             | Error err ->
                                 printfn "[TraktImport] Warning: Failed to fetch season %d: %s" seasonNum err
 
-                    do! importEpisodeWatchData entryId series.Id item.WatchedEpisodes
-                | _ -> 
+                    // Use simple import (no binge-detection) for already tracked series
+                    do! importEpisodeWatchDataSimple entryId series.Id item.WatchedEpisodes
+                | _ ->
                     printfn "[TraktImport] WARNING: Entry media is not LibrarySeries!"
 
                 // Update rating if we have one and the entry doesn't have a rating yet
@@ -506,6 +509,8 @@ let private importSeriesWithEpisodes (item: TraktWatchedSeries) (rating: int opt
                             match seasonResult with
                             | Ok seasonDetails ->
                                 do! Persistence.saveSeasonEpisodes series.Id seasonDetails
+                                // Cache season poster and episode stills
+                                do! ImageCache.cacheSeasonImages seasonDetails.PosterPath (seasonDetails.Episodes |> List.map (fun e -> e.StillPath))
                                 printfn "[TraktImport] Saved season %d with %d episodes" seasonNum seasonDetails.Episodes.Length
                             | Error err ->
                                 printfn "[TraktImport] Warning: Failed to fetch season %d: %s" seasonNum err

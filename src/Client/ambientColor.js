@@ -131,6 +131,34 @@ function boostColor(color) {
 }
 
 /**
+ * Find the detail page backdrop image if visible
+ */
+function findBackdropImage() {
+    const backdropImage = document.querySelector('.detail-backdrop-image');
+    if (backdropImage && backdropImage.complete && backdropImage.naturalWidth) {
+        const rect = backdropImage.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            return backdropImage;
+        }
+    }
+    return null;
+}
+
+/**
+ * Find the detail page poster image (in poster-projector-glow container)
+ */
+function findDetailPosterImage() {
+    const detailPoster = document.querySelector('.poster-projector-glow .poster-image');
+    if (detailPoster && detailPoster.complete && detailPoster.naturalWidth) {
+        const rect = detailPoster.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            return detailPoster;
+        }
+    }
+    return null;
+}
+
+/**
  * Find all poster images currently visible on the page
  */
 function findPosterImages() {
@@ -231,19 +259,49 @@ function animateColor() {
 
 /**
  * Main function to update the projector color based on visible images
+ * Priority: 1. Backdrop image, 2. Detail poster, 3. Any visible posters
  */
 export function updateProjectorColor() {
-    const images = findPosterImages();
+    let sourceImage = null;
+    let images = [];
 
-    if (images.length === 0) {
-        // Reset to default warm amber when no images
-        targetColor = { r: 255, g: 180, b: 100 };
-    } else {
+    // Priority 1: Check for backdrop image on detail page
+    const backdropImage = findBackdropImage();
+    if (backdropImage) {
+        sourceImage = backdropImage;
+    }
+
+    // Priority 2: Check for detail page poster (when no backdrop visible)
+    if (!sourceImage) {
+        const detailPoster = findDetailPosterImage();
+        if (detailPoster) {
+            sourceImage = detailPoster;
+        }
+    }
+
+    // Priority 3: Fall back to any visible poster images
+    if (!sourceImage) {
+        images = findPosterImages();
+    }
+
+    // Extract color from the prioritized source
+    if (sourceImage) {
+        const color = extractColorFromImage(sourceImage);
+        if (color) {
+            targetColor = boostColor(color);
+        } else {
+            targetColor = { r: 255, g: 180, b: 100 };
+        }
+    } else if (images.length > 0) {
         const avgColor = calculateAverageColor(images);
         if (avgColor) {
-            // Boost the color for better visual effect
             targetColor = boostColor(avgColor);
+        } else {
+            targetColor = { r: 255, g: 180, b: 100 };
         }
+    } else {
+        // Reset to default warm amber when no images
+        targetColor = { r: 255, g: 180, b: 100 };
     }
 
     // Start animation if not already running

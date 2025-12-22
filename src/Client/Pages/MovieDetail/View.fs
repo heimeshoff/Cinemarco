@@ -386,10 +386,13 @@ let private idToTab = function
 
 let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "space-y-6"
+        prop.className "relative"
         prop.children [
-            // Back button
-            BackButton.view()
+            // Back button - overlays poster on mobile, normal flow on desktop
+            Html.div [
+                prop.className "detail-back-button absolute top-2 left-0 z-10 md:relative md:top-0 md:mb-6"
+                prop.children [ BackButton.view() ]
+            ]
 
             match model.Entry with
             | Loading ->
@@ -402,36 +405,82 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
             | Success entry ->
                 match entry.Media with
                 | LibraryMovie movie ->
-                    // Movie detail content
+                    // Check if backdrop is available for responsive layout
+                    let hasBackdrop = movie.BackdropPath.IsSome
+
+                    // Grid classes: use backdrop layout (no poster column) on md-4xl when backdrop exists
+                    let gridClasses =
+                        if hasBackdrop
+                        then "detail-grid-with-backdrop grid grid-cols-1 gap-8"
+                        else "grid grid-cols-1 md:grid-cols-3 gap-8"
+
+                    // Poster visibility: hide on md-4xl when backdrop exists
+                    let posterClasses =
+                        if hasBackdrop
+                        then "detail-poster-column relative md:hidden"
+                        else "relative"
+
+                    // Info column span: full width on md-4xl when backdrop, otherwise spans 2 cols
+                    let infoColClasses =
+                        if hasBackdrop
+                        then "detail-info-column flex flex-col"
+                        else "md:col-span-2 flex flex-col"
+
+                    // Movie detail content - negative top margin on mobile to touch viewport
                     Html.div [
-                        prop.className "space-y-6"
+                        prop.className "detail-page-content space-y-6 -mt-4 md:mt-0"
                         prop.children [
+                            // Backdrop hero (visible on md-4xl only, when backdrop exists)
+                            if hasBackdrop then
+                                Html.div [
+                                    prop.className "detail-backdrop-section hidden md:block 4xl:hidden mb-6"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "detail-backdrop-container"
+                                            prop.children [
+                                                Html.img [
+                                                    prop.src (getLocalBackdropUrl movie.BackdropPath)
+                                                    prop.alt movie.Title
+                                                    prop.className "detail-backdrop-image"
+                                                ]
+                                                Html.div [ prop.className "detail-backdrop-overlay" ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+
                             // Header: Poster + Title/Meta + Actions + Tabs (on md+)
                             Html.div [
-                                prop.className "grid grid-cols-1 md:grid-cols-3 gap-8"
+                                prop.className gridClasses
                                 prop.children [
-                                    // Left column - Poster
+                                    // Left column - Poster (hidden on md-4xl when backdrop exists)
                                     Html.div [
-                                        prop.className "relative"
+                                        prop.className posterClasses
                                         prop.children [
+                                            // Poster wrapper - full bleed on mobile (horizontal only, top handled by content container)
                                             Html.div [
-                                                prop.className "poster-image-container poster-shadow poster-projector-glow"
+                                                prop.className "detail-poster-mobile -mx-4 md:mx-0"
                                                 prop.children [
-                                                    match movie.PosterPath with
-                                                    | Some _ ->
-                                                        Html.img [
-                                                            prop.src (getLocalPosterUrl movie.PosterPath)
-                                                            prop.alt movie.Title
-                                                            prop.className "poster-image"
-                                                            prop.custom ("crossorigin", "anonymous")
+                                                    Html.div [
+                                                        prop.className "poster-image-container poster-shadow poster-projector-glow"
+                                                        prop.children [
+                                                            match movie.PosterPath with
+                                                            | Some _ ->
+                                                                Html.img [
+                                                                    prop.src (getLocalPosterUrl movie.PosterPath)
+                                                                    prop.alt movie.Title
+                                                                    prop.className "poster-image"
+                                                                    prop.custom ("crossorigin", "anonymous")
+                                                                ]
+                                                            | None ->
+                                                                Html.div [
+                                                                    prop.className "w-full h-full flex items-center justify-center bg-base-200"
+                                                                    prop.children [
+                                                                        Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ film ] ]
+                                                                    ]
+                                                                ]
                                                         ]
-                                                    | None ->
-                                                        Html.div [
-                                                            prop.className "w-full h-full flex items-center justify-center bg-base-200"
-                                                            prop.children [
-                                                                Html.span [ prop.className "text-6xl text-base-content/20"; prop.children [ film ] ]
-                                                            ]
-                                                        ]
+                                                    ]
                                                 ]
                                             ]
                                         ]
@@ -439,7 +488,7 @@ let view (model: Model) (friends: Friend list) (dispatch: Msg -> unit) =
 
                                     // Right column - Title, meta, actions, and tabs (on md+)
                                     Html.div [
-                                        prop.className "md:col-span-2 flex flex-col"
+                                        prop.className infoColClasses
                                         prop.children [
                                             Html.h1 [
                                                 prop.className "text-3xl font-bold"
