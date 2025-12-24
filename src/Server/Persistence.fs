@@ -678,6 +678,17 @@ let getCollectionById (CollectionId id) : Async<Collection option> = async {
     return if isNull (box record) then None else Some (recordToCollection record)
 }
 
+/// Find a collection by name (case-insensitive)
+let getCollectionByName (name: string) : Async<Collection option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<CollectionRecord>(
+            "SELECT * FROM collections WHERE LOWER(name) = LOWER(@Name)",
+            {| Name = name |}
+        ) |> Async.AwaitTask
+    return if isNull (box record) then None else Some (recordToCollection record)
+}
+
 let insertCollection (request: CreateCollectionRequest) : Async<Collection> = async {
     use conn = getConnection()
     let now = DateTime.UtcNow.ToString("o")
@@ -804,28 +815,53 @@ let getCollectionItems (CollectionId collectionId) : Async<CollectionItem list> 
     return records |> Seq.map recordToCollectionItem |> Seq.toList
 }
 
-let addItemToCollection (CollectionId collectionId) (itemRef: CollectionItemRef) (notes: string option) : Async<unit> = async {
+/// Check if an item already exists in a collection
+let isItemInCollection (CollectionId collectionId) (itemRef: CollectionItemRef) : Async<bool> = async {
     use conn = getConnection()
-    // Get the max position for this collection
-    let! maxPos = conn.ExecuteScalarAsync<Nullable<int>>("SELECT MAX(position) FROM collection_items WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
-    let nextPos = if maxPos.HasValue then maxPos.Value + 1 else 0
+    let! count =
+        match itemRef with
+        | LibraryEntryRef (EntryId entryId) ->
+            conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM collection_items WHERE collection_id = @CollectionId AND entry_id = @EntryId",
+                {| CollectionId = collectionId; EntryId = entryId |}) |> Async.AwaitTask
+        | SeasonRef (SeriesId seriesId, seasonNumber) ->
+            conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM collection_items WHERE collection_id = @CollectionId AND series_id = @SeriesId AND season_number = @SeasonNumber AND item_type = 'season'",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber |}) |> Async.AwaitTask
+        | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+            conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM collection_items WHERE collection_id = @CollectionId AND series_id = @SeriesId AND season_number = @SeasonNumber AND episode_number = @EpisodeNumber AND item_type = 'episode'",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber |}) |> Async.AwaitTask
+    return count > 0
+}
 
-    match itemRef with
-    | LibraryEntryRef (EntryId entryId) ->
-        let! _ = conn.ExecuteAsync(
-            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, entry_id, position, notes) VALUES (@CollectionId, 'entry', @EntryId, @Position, @Notes)",
-            {| CollectionId = collectionId; EntryId = entryId; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
-        ()
-    | SeasonRef (SeriesId seriesId, seasonNumber) ->
-        let! _ = conn.ExecuteAsync(
-            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, series_id, season_number, position, notes) VALUES (@CollectionId, 'season', @SeriesId, @SeasonNumber, @Position, @Notes)",
-            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
-        ()
-    | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
-        let! _ = conn.ExecuteAsync(
-            "INSERT OR IGNORE INTO collection_items (collection_id, item_type, series_id, season_number, episode_number, position, notes) VALUES (@CollectionId, 'episode', @SeriesId, @SeasonNumber, @EpisodeNumber, @Position, @Notes)",
-            {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
-        ()
+let addItemToCollection (CollectionId collectionId) (itemRef: CollectionItemRef) (notes: string option) : Async<unit> = async {
+    // Check if item already exists in collection
+    let! alreadyExists = isItemInCollection (CollectionId collectionId) itemRef
+    if alreadyExists then
+        () // Item already in collection, skip
+    else
+        use conn = getConnection()
+        // Get the max position for this collection
+        let! maxPos = conn.ExecuteScalarAsync<Nullable<int>>("SELECT MAX(position) FROM collection_items WHERE collection_id = @CollectionId", {| CollectionId = collectionId |}) |> Async.AwaitTask
+        let nextPos = if maxPos.HasValue then maxPos.Value + 1 else 0
+
+        match itemRef with
+        | LibraryEntryRef (EntryId entryId) ->
+            let! _ = conn.ExecuteAsync(
+                "INSERT INTO collection_items (collection_id, item_type, entry_id, position, notes) VALUES (@CollectionId, 'entry', @EntryId, @Position, @Notes)",
+                {| CollectionId = collectionId; EntryId = entryId; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+            ()
+        | SeasonRef (SeriesId seriesId, seasonNumber) ->
+            let! _ = conn.ExecuteAsync(
+                "INSERT INTO collection_items (collection_id, item_type, series_id, season_number, position, notes) VALUES (@CollectionId, 'season', @SeriesId, @SeasonNumber, @Position, @Notes)",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+            ()
+        | EpisodeRef (SeriesId seriesId, seasonNumber, episodeNumber) ->
+            let! _ = conn.ExecuteAsync(
+                "INSERT INTO collection_items (collection_id, item_type, series_id, season_number, episode_number, position, notes) VALUES (@CollectionId, 'episode', @SeriesId, @SeasonNumber, @EpisodeNumber, @Position, @Notes)",
+                {| CollectionId = collectionId; SeriesId = seriesId; SeasonNumber = seasonNumber; EpisodeNumber = episodeNumber; Position = nextPos; Notes = notes |> Option.toObj |}) |> Async.AwaitTask
+            ()
 }
 
 let removeItemFromCollection (CollectionId collectionId) (itemRef: CollectionItemRef) : Async<unit> = async {
@@ -1377,6 +1413,20 @@ let movieWatchSessionExistsForDate (entryId: EntryId) (watchedDate: DateTime) : 
             {| EntryId = EntryId.value entryId; WatchedDate = dateStr |}
         ) |> Async.AwaitTask
     return count > 0
+}
+
+/// Get a movie watch session ID for a specific date (within same day), if it exists
+let getMovieWatchSessionIdForDate (entryId: EntryId) (watchedDate: DateTime) : Async<SessionId option> = async {
+    use conn = getConnection()
+    let dateStr = watchedDate.Date.ToString("yyyy-MM-dd")
+    let! sessionId =
+        conn.QueryFirstOrDefaultAsync<Nullable<int>>(
+            """SELECT id FROM movie_watch_sessions
+               WHERE entry_id = @EntryId AND date(watched_date) = date(@WatchedDate)
+               LIMIT 1""",
+            {| EntryId = EntryId.value entryId; WatchedDate = dateStr |}
+        ) |> Async.AwaitTask
+    return if sessionId.HasValue then Some (SessionId sessionId.Value) else None
 }
 
 /// Create a movie watch session

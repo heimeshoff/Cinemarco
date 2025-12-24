@@ -1151,6 +1151,8 @@ type GenericImportSeason = {
 
 /// A single item to import from generic JSON
 type GenericImportItem = {
+    /// Custom ID for referencing in collections (e.g., "matrix-1")
+    Id: string option
     /// Title of the movie or series
     Title: string
     /// Release year (helps with TMDB matching)
@@ -1159,6 +1161,8 @@ type GenericImportItem = {
     MediaType: GenericImportMediaType
     /// Optional TMDB ID for precise matching (if known from source)
     TmdbId: int option
+    /// Optional IMDB ID for precise matching (e.g., "tt1883367")
+    ImdbId: string option
     /// Watch date(s) for movies (supports rewatches)
     WatchDates: DateTime list
     /// For series: season-level watch data (marks all episodes in season)
@@ -1209,6 +1213,64 @@ type GenericImportPreview = {
     NoMatches: int
     AlreadyInLibrary: int
     NewFriendsToCreate: string list
+    /// Suggested collections parsed from import file (user can select which to create)
+    SuggestedCollections: GenericImportCollectionSuggestion list
+}
+
+/// Reference to an item within a collection (from import JSON)
+and GenericImportCollectionItemRef =
+    /// Reference by custom ID assigned in items array
+    | ByCustomId of string
+    /// Reference by IMDB ID (recommended - unique across movies and series)
+    | ByImdbId of string
+    /// Reference by TMDB ID (requires media type since IDs overlap)
+    | ByTmdbId of tmdbId: int * mediaType: GenericImportMediaType
+
+/// A collection parsed from import JSON
+and GenericImportCollection = {
+    /// Collection name
+    Name: string
+    /// Optional description
+    Description: string option
+    /// References to items in this collection
+    ItemRefs: GenericImportCollectionItemRef list
+}
+
+/// A resolved item reference in a collection suggestion
+and GenericImportCollectionItemResolution =
+    /// Successfully resolved to a matched item (index in items list)
+    | Resolved of itemIndex: int * title: string * posterPath: string option
+    /// Reference could not be resolved (item not found or not matched)
+    | Unresolved of reason: string
+
+/// A collection suggestion with resolved item references
+and GenericImportCollectionSuggestion = {
+    /// The original parsed collection
+    Collection: GenericImportCollection
+    /// Resolved items with their match status
+    ResolvedItems: GenericImportCollectionItemResolution list
+    /// Whether user has selected this collection for import
+    Selected: bool
+}
+
+/// Result of parsing import JSON (items + collections)
+type GenericImportParseResult = {
+    Items: GenericImportItem list
+    Collections: GenericImportCollection list
+}
+
+/// Info about an imported or skipped item (for summary display)
+type ImportedItemInfo = {
+    Title: string
+    PosterPath: string option
+    MediaType: MediaType
+    Year: int option
+    /// First watch date (if any)
+    WatchDate: DateTime option
+    /// Friends watched with
+    FriendNames: string list
+    /// Personal rating
+    Rating: PersonalRating option
 }
 
 /// Progress during generic import
@@ -1220,6 +1282,10 @@ type GenericImportProgress = {
     CompletedSuccessfully: int
     Skipped: int
     Errors: string list
+    /// Items that were successfully imported (for summary display)
+    ImportedItems: ImportedItemInfo list
+    /// Items that were skipped (for summary display)
+    SkippedItems: ImportedItemInfo list
 }
 
 /// Result of the generic import operation

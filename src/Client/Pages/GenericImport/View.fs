@@ -10,7 +10,22 @@ module GlassPanel = Common.Components.GlassPanel.View
 module GlassButton = Common.Components.GlassButton.View
 module SectionHeader = Common.Components.SectionHeader.View
 module RemoteDataView = Common.Components.RemoteDataView.View
+module PosterCard = Common.Components.PosterCard.View
+module PosterCardTypes = Common.Components.PosterCard.Types
 module Icons = Components.Icons
+
+// =====================================
+// Poster URL Helper
+// =====================================
+
+/// Get poster URL - uses TMDB direct URL for import preview, cached URL for library items
+let private getPosterUrl (path: string) (isInLibrary: bool) =
+    if isInLibrary then
+        // Use locally cached image
+        $"/images/posters{path}"
+    else
+        // Use TMDB direct URL for items not yet in library
+        $"https://image.tmdb.org/t/p/w500{path}"
 
 // =====================================
 // Step Indicator
@@ -115,7 +130,7 @@ let private selectFileStep (model: Model) (dispatch: Msg -> unit) =
                                                 prop.onClick (fun _ -> dispatch ClearFile)
                                                 prop.text "Clear"
                                             ]
-                                            match model.ParsedItems with
+                                            match model.ParsedResult with
                                             | NotAsked ->
                                                 Html.button [
                                                     prop.className "btn btn-primary btn-sm"
@@ -128,12 +143,18 @@ let private selectFileStep (model: Model) (dispatch: Msg -> unit) =
                                                     prop.disabled true
                                                     prop.text "Parsing..."
                                                 ]
-                                            | Success items ->
+                                            | Success result ->
                                                 Html.div [
                                                     prop.className "flex items-center gap-2 text-success"
                                                     prop.children [
                                                         Icons.check
-                                                        Html.span [ prop.text $"{items.Length} items found" ]
+                                                        Html.span [
+                                                            let collectionText =
+                                                                if result.Collections.Length > 0 then
+                                                                    $", {result.Collections.Length} collections"
+                                                                else ""
+                                                            prop.text $"{result.Items.Length} items{collectionText} found"
+                                                        ]
                                                     ]
                                                 ]
                                             | Failure _ -> ()
@@ -203,8 +224,8 @@ let private selectFileStep (model: Model) (dispatch: Msg -> unit) =
             | None -> ()
 
             // Parse result / Continue button
-            match model.ParsedItems with
-            | Success items when items.Length > 0 ->
+            match model.ParsedResult with
+            | Success result when result.Items.Length > 0 ->
                 Html.div [
                     prop.className "flex justify-end"
                     prop.children [
@@ -212,7 +233,7 @@ let private selectFileStep (model: Model) (dispatch: Msg -> unit) =
                             prop.className "btn btn-primary"
                             prop.onClick (fun _ -> dispatch ProceedToMatching)
                             prop.children [
-                                Html.span [ prop.text $"Match {items.Length} items with TMDB" ]
+                                Html.span [ prop.text $"Match {result.Items.Length} items with TMDB" ]
                                 Icons.arrowRight
                             ]
                         ]
@@ -339,6 +360,100 @@ let private matchingPreviewStep (model: Model) (dispatch: Msg -> unit) =
                                 ]
                             ]
 
+                        // Collection suggestions
+                        if model.CollectionSuggestions.Length > 0 then
+                            GlassPanel.standard [
+                                Html.div [
+                                    prop.className "space-y-4"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "flex items-center justify-between"
+                                            prop.children [
+                                                Html.h4 [
+                                                    prop.className "font-medium"
+                                                    prop.text $"Collection Suggestions ({model.CollectionSuggestions.Length})"
+                                                ]
+                                                Html.div [
+                                                    prop.className "flex gap-2"
+                                                    prop.children [
+                                                        Html.button [
+                                                            prop.className "btn btn-xs btn-ghost"
+                                                            prop.onClick (fun _ -> dispatch SelectAllCollections)
+                                                            prop.text "Select All"
+                                                        ]
+                                                        Html.button [
+                                                            prop.className "btn btn-xs btn-ghost"
+                                                            prop.onClick (fun _ -> dispatch DeselectAllCollections)
+                                                            prop.text "Deselect All"
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                        Html.p [
+                                            prop.className "text-sm text-base-content/70"
+                                            prop.text "Select which collections to create during import:"
+                                        ]
+                                        Html.div [
+                                            prop.className "space-y-2 max-h-48 overflow-y-auto"
+                                            prop.children [
+                                                for (idx, suggestion) in model.CollectionSuggestions |> List.indexed do
+                                                    let resolvedCount =
+                                                        suggestion.ResolvedItems
+                                                        |> List.filter (fun r ->
+                                                            match r with
+                                                            | Resolved _ -> true
+                                                            | Unresolved _ -> false)
+                                                        |> List.length
+                                                    let totalCount = suggestion.ResolvedItems.Length
+                                                    Html.label [
+                                                        prop.className "flex items-center gap-3 p-3 rounded-lg bg-base-200/50 cursor-pointer hover:bg-base-200"
+                                                        prop.children [
+                                                            Html.input [
+                                                                prop.type' "checkbox"
+                                                                prop.className "checkbox checkbox-primary"
+                                                                prop.isChecked suggestion.Selected
+                                                                prop.onChange (fun (_: bool) -> dispatch (ToggleCollectionSelection idx))
+                                                            ]
+                                                            Html.div [
+                                                                prop.className "flex-1 min-w-0"
+                                                                prop.children [
+                                                                    Html.p [
+                                                                        prop.className "font-medium"
+                                                                        prop.text suggestion.Collection.Name
+                                                                    ]
+                                                                    match suggestion.Collection.Description with
+                                                                    | Some desc ->
+                                                                        Html.p [
+                                                                            prop.className "text-sm text-base-content/70 truncate"
+                                                                            prop.text desc
+                                                                        ]
+                                                                    | None -> ()
+                                                                ]
+                                                            ]
+                                                            Html.span [
+                                                                prop.className (
+                                                                    "badge " +
+                                                                    if resolvedCount = totalCount then "badge-success"
+                                                                    elif resolvedCount > 0 then "badge-warning"
+                                                                    else "badge-error"
+                                                                )
+                                                                prop.text $"{resolvedCount}/{totalCount} items"
+                                                            ]
+                                                        ]
+                                                    ]
+                                            ]
+                                        ]
+                                        let selectedCount = model.CollectionSuggestions |> List.filter (fun c -> c.Selected) |> List.length
+                                        if selectedCount > 0 then
+                                            Html.p [
+                                                prop.className "text-sm text-success"
+                                                prop.text $"{selectedCount} collection(s) will be created during import"
+                                            ]
+                                    ]
+                                ]
+                            ]
+
                         // Item list
                         GlassPanel.standard [
                             Html.div [
@@ -355,7 +470,7 @@ let private matchingPreviewStep (model: Model) (dispatch: Msg -> unit) =
                                                     | Some path ->
                                                         Html.img [
                                                             prop.className "w-12 h-18 rounded object-cover"
-                                                            prop.src $"/images/posters{path}"
+                                                            prop.src (getPosterUrl path item.ExistsInLibrary)
                                                             prop.alt r.Title
                                                         ]
                                                     | None ->
@@ -466,6 +581,45 @@ let private matchingPreviewStep (model: Model) (dispatch: Msg -> unit) =
 // Resolve Ambiguous Step
 // =====================================
 
+let private renderMatchCard (index: int) (m: TmdbSearchResult) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "cursor-pointer group"
+        prop.onClick (fun _ -> dispatch (ConfirmMatch (index, m)))
+        prop.children [
+            GlassPanel.subtle [
+                Html.div [
+                    prop.className "space-y-2 group-hover:opacity-80 transition-opacity"
+                    prop.children [
+                        match m.PosterPath with
+                        | Some path ->
+                            Html.img [
+                                prop.className "w-full aspect-[2/3] rounded object-cover"
+                                prop.src (getPosterUrl path false)  // Not in library yet
+                                prop.alt m.Title
+                            ]
+                        | None ->
+                            Html.div [
+                                prop.className "w-full aspect-[2/3] rounded bg-base-300 flex items-center justify-center"
+                                prop.text "No Image"
+                            ]
+                        Html.p [
+                            prop.className "font-medium text-sm truncate"
+                            prop.text m.Title
+                        ]
+                        Html.p [
+                            prop.className "text-xs text-base-content/70"
+                            prop.text (
+                                m.ReleaseDate
+                                |> Option.map (fun d -> d.Year.ToString())
+                                |> Option.defaultValue "Unknown year"
+                            )
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
 let private resolveAmbiguousStep (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
@@ -486,56 +640,108 @@ let private resolveAmbiguousStep (model: Model) (dispatch: Msg -> unit) =
                                 ]
                                 Html.p [
                                     prop.className "text-base-content/70"
-                                    prop.text $"Found {matches.Length} possible matches. Select the correct one:"
+                                    prop.text $"Found {matches.Length} possible matches. Select the correct one or search for it:"
                                 ]
                             ]
                         ]
                     ]
 
-                    // Match options
-                    Html.div [
-                        prop.className "grid grid-cols-2 md:grid-cols-4 gap-4"
-                        prop.children [
-                            for m in matches do
+                    // Manual search section
+                    GlassPanel.subtle [
+                        Html.div [
+                            prop.className "space-y-4"
+                            prop.children [
                                 Html.div [
-                                    prop.className "cursor-pointer group"
-                                    prop.onClick (fun _ -> dispatch (ConfirmMatch (index, m)))
+                                    prop.className "flex gap-2"
                                     prop.children [
-                                        GlassPanel.subtle [
+                                        Html.input [
+                                            prop.className "input input-bordered flex-1"
+                                            prop.type' "text"
+                                            prop.placeholder "Search TMDB for a different title..."
+                                            prop.value model.SearchQuery
+                                            prop.onChange (SetSearchQuery >> dispatch)
+                                            prop.onKeyDown (fun e ->
+                                                if e.key = "Enter" then dispatch SearchTmdb)
+                                        ]
+                                        Html.button [
+                                            prop.className "btn btn-primary"
+                                            prop.onClick (fun _ -> dispatch SearchTmdb)
+                                            prop.disabled (model.SearchResults = Loading)
+                                            prop.children [
+                                                if model.SearchResults = Loading then
+                                                    Html.span [ prop.className "loading loading-spinner loading-sm" ]
+                                                else
+                                                    Icons.search
+                                            ]
+                                        ]
+                                        if model.SearchQuery <> "" then
+                                            Html.button [
+                                                prop.className "btn btn-ghost"
+                                                prop.onClick (fun _ -> dispatch ClearSearch)
+                                                prop.children [ Icons.close ]
+                                            ]
+                                    ]
+                                ]
+
+                                // Search results
+                                match model.SearchResults with
+                                | Success [] ->
+                                    Html.p [
+                                        prop.className "text-sm text-warning"
+                                        prop.text "No results found. Try a different search query."
+                                    ]
+                                | Success results ->
+                                    Html.div [
+                                        prop.className "space-y-2"
+                                        prop.children [
+                                            Html.p [
+                                                prop.className "text-sm font-medium text-base-content/70"
+                                                prop.text $"Search results ({results.Length}):"
+                                            ]
                                             Html.div [
-                                                prop.className "space-y-2 group-hover:opacity-80 transition-opacity"
+                                                prop.className "grid grid-cols-2 md:grid-cols-4 gap-4"
                                                 prop.children [
-                                                    match m.PosterPath with
-                                                    | Some path ->
-                                                        Html.img [
-                                                            prop.className "w-full aspect-[2/3] rounded object-cover"
-                                                            prop.src $"/images/posters{path}"
-                                                            prop.alt m.Title
-                                                        ]
-                                                    | None ->
-                                                        Html.div [
-                                                            prop.className "w-full aspect-[2/3] rounded bg-base-300 flex items-center justify-center"
-                                                            prop.text "No Image"
-                                                        ]
-                                                    Html.p [
-                                                        prop.className "font-medium text-sm truncate"
-                                                        prop.text m.Title
-                                                    ]
-                                                    Html.p [
-                                                        prop.className "text-xs text-base-content/70"
-                                                        prop.text (
-                                                            m.ReleaseDate
-                                                            |> Option.map (fun d -> d.Year.ToString())
-                                                            |> Option.defaultValue "Unknown year"
-                                                        )
-                                                    ]
+                                                    for m in results do
+                                                        renderMatchCard index m dispatch
                                                 ]
                                             ]
                                         ]
                                     ]
-                                ]
+                                | Failure err ->
+                                    Html.p [
+                                        prop.className "text-sm text-error"
+                                        prop.text $"Search failed: {err}"
+                                    ]
+                                | Loading ->
+                                    Html.div [
+                                        prop.className "flex justify-center py-4"
+                                        prop.children [
+                                            Html.span [ prop.className "loading loading-spinner loading-md" ]
+                                        ]
+                                    ]
+                                | NotAsked -> ()
+                            ]
                         ]
                     ]
+
+                    // Original match options (when no search is active)
+                    if model.SearchResults = NotAsked then
+                        Html.div [
+                            prop.className "space-y-2"
+                            prop.children [
+                                Html.p [
+                                    prop.className "text-sm font-medium text-base-content/70"
+                                    prop.text "Original matches:"
+                                ]
+                                Html.div [
+                                    prop.className "grid grid-cols-2 md:grid-cols-4 gap-4"
+                                    prop.children [
+                                        for m in matches do
+                                            renderMatchCard index m dispatch
+                                    ]
+                                ]
+                            ]
+                        ]
 
                     // Skip button
                     Html.div [
@@ -663,13 +869,93 @@ let private importingStep (model: Model) (dispatch: Msg -> unit) =
 // Complete Step
 // =====================================
 
+let private renderImportedItemCard (item: ImportedItemInfo) (isImported: bool) =
+    // Build poster URL
+    let posterUrl =
+        item.PosterPath
+        |> Option.map (fun path -> getPosterUrl path isImported)
+
+    // Convert rating to badge
+    let ratingBadge =
+        item.Rating
+        |> Option.map PosterCard.ratingToBadge
+
+    // Create a custom status overlay only for skipped items
+    let statusOverlay =
+        if isImported then
+            None
+        else
+            let badgeElement =
+                Html.div [
+                    prop.className "absolute top-0 left-0 right-0 px-2 pt-2"
+                    prop.children [
+                        Html.div [
+                            prop.className "flex justify-end"
+                            prop.children [
+                                Html.span [
+                                    prop.className "badge badge-warning badge-sm gap-1"
+                                    prop.children [
+                                        Icons.close
+                                        Html.span [ prop.text "Skipped" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            Some (PosterCardTypes.Custom badgeElement)
+
+    // Build config
+    let config : PosterCardTypes.Config = {
+        PosterUrl = posterUrl
+        Title = item.Title
+        OnClick = fun () -> () // No click action in import results
+        RatingBadge = ratingBadge
+        StatusOverlay = statusOverlay
+        IsGrayscale = not isImported
+        MediaType = Some item.MediaType
+        ShowInLibraryOverlay = false
+        MediaTypeBadge = None
+        ShowAddButton = false
+    }
+
+    Html.div [
+        prop.className "space-y-1"
+        prop.children [
+            // Poster card with shine effect and rating on hover
+            PosterCard.view config
+
+            // Title
+            Html.p [
+                prop.className "font-medium text-sm truncate mt-2"
+                prop.text item.Title
+            ]
+
+            // Year
+            Html.p [
+                prop.className "text-xs text-base-content/70"
+                prop.text (item.Year |> Option.map string |> Option.defaultValue "?")
+            ]
+
+            // Watch date on separate line
+            match item.WatchDate with
+            | Some date ->
+                Html.p [
+                    prop.className "text-xs text-base-content/50"
+                    prop.text (date.ToString("MMM d, yyyy"))
+                ]
+            | None -> ()
+        ]
+    ]
+
 let private completeStep (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
+            // Header with stats
             GlassPanel.standard [
                 Html.div [
-                    prop.className "text-center py-8 space-y-6"
+                    prop.className "text-center py-6 space-y-4"
                     prop.children [
                         Html.div [
                             prop.className "text-success text-5xl"
@@ -704,14 +990,14 @@ let private completeStep (model: Model) (dispatch: Msg -> unit) =
                         // Errors if any
                         if model.Progress.Errors.Length > 0 then
                             Html.div [
-                                prop.className "mt-6 text-left max-w-md mx-auto"
+                                prop.className "mt-4 text-left max-w-md mx-auto"
                                 prop.children [
                                     Html.h4 [
                                         prop.className "text-error font-medium mb-2"
                                         prop.text $"{model.Progress.Errors.Length} Errors:"
                                     ]
                                     Html.ul [
-                                        prop.className "text-sm text-base-content/70 space-y-1 max-h-48 overflow-y-auto"
+                                        prop.className "text-sm text-base-content/70 space-y-1 max-h-32 overflow-y-auto"
                                         prop.children [
                                             for err in model.Progress.Errors do
                                                 Html.li [
@@ -725,7 +1011,7 @@ let private completeStep (model: Model) (dispatch: Msg -> unit) =
 
                         // Action buttons
                         Html.div [
-                            prop.className "flex justify-center gap-4 mt-6"
+                            prop.className "flex justify-center gap-4 mt-4"
                             prop.children [
                                 Html.a [
                                     prop.className "btn btn-primary"
@@ -742,6 +1028,58 @@ let private completeStep (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
+
+            // Imported items section - grouped by who they were watched with
+            if model.Progress.ImportedItems.Length > 0 then
+                // Group items by friends (sorted list of friend names as key)
+                let groupedByFriends =
+                    model.Progress.ImportedItems
+                    |> List.groupBy (fun item ->
+                        item.FriendNames |> List.sort |> String.concat ", ")
+                    |> List.sortBy (fun (friends, _) ->
+                        // Sort: items with friends first, then by friend names
+                        if friends = "" then "zzz" else friends)
+
+                Html.div [
+                    prop.className "space-y-6"
+                    prop.children [
+                        for (friendsKey, items) in groupedByFriends do
+                            Html.div [
+                                prop.className "space-y-4"
+                                prop.children [
+                                    // Section header based on friends
+                                    if friendsKey = "" then
+                                        SectionHeader.title "Imported"
+                                    else
+                                        SectionHeader.title (sprintf "Watched with %s" friendsKey)
+
+                                    Html.div [
+                                        prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                                        prop.children [
+                                            for item in items do
+                                                renderImportedItemCard item true
+                                        ]
+                                    ]
+                                ]
+                            ]
+                    ]
+                ]
+
+            // Skipped items section
+            if model.Progress.SkippedItems.Length > 0 then
+                Html.div [
+                    prop.className "space-y-4"
+                    prop.children [
+                        SectionHeader.title "Skipped"
+                        Html.div [
+                            prop.className "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3"
+                            prop.children [
+                                for item in model.Progress.SkippedItems do
+                                    renderImportedItemCard item false
+                            ]
+                        ]
+                    ]
+                ]
         ]
     ]
 

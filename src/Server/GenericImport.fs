@@ -25,6 +25,10 @@ type private ImportState = {
     CancellationRequested: bool
     // Store items being processed for match confirmation
     ProcessingItems: GenericImportItemWithMatch list
+    // Track imported items for summary display
+    ImportedItems: ImportedItemInfo list
+    // Track skipped items for summary display
+    SkippedItems: ImportedItemInfo list
 }
 
 let private importState = ref {
@@ -37,6 +41,8 @@ let private importState = ref {
     Errors = []
     CancellationRequested = false
     ProcessingItems = []
+    ImportedItems = []
+    SkippedItems = []
 }
 
 /// Get the current import progress
@@ -50,6 +56,8 @@ let getProgress () : GenericImportProgress =
         CompletedSuccessfully = state.CompletedSuccessfully
         Skipped = state.Skipped
         Errors = state.Errors
+        ImportedItems = state.ImportedItems
+        SkippedItems = state.SkippedItems
     }
 
 /// Request cancellation of the import
@@ -68,6 +76,8 @@ let private resetState () =
         Errors = []
         CancellationRequested = false
         ProcessingItems = []
+        ImportedItems = []
+        SkippedItems = []
     }
 
 let private updateProgress item index =
@@ -84,6 +94,14 @@ let private incrementCompleted () =
 let private incrementSkipped () =
     let state = !importState
     importState := { state with Skipped = state.Skipped + 1 }
+
+let private addImportedItem (info: ImportedItemInfo) =
+    let state = !importState
+    importState := { state with ImportedItems = state.ImportedItems @ [info] }
+
+let private addSkippedItem (info: ImportedItemInfo) =
+    let state = !importState
+    importState := { state with SkippedItems = state.SkippedItems @ [info] }
 
 let private isCancelled () = (!importState).CancellationRequested
 
@@ -134,6 +152,15 @@ let private parseSeason (obj: JToken) : GenericImportSeason option =
 let private parseItem (obj: JToken) : GenericImportItem option =
     try
         let title = obj.["title"].Value<string>()
+
+        let id =
+            match obj.["id"] with
+            | null -> None
+            | t when t.Type = JTokenType.Null -> None
+            | t ->
+                let s = t.Value<string>()
+                if String.IsNullOrWhiteSpace s then None else Some s
+
         let mediaType =
             match obj.["type"].Value<string>().ToLowerInvariant() with
             | "movie" -> ImportMovie
@@ -151,6 +178,14 @@ let private parseItem (obj: JToken) : GenericImportItem option =
             | null -> None
             | t when t.Type = JTokenType.Null -> None
             | t -> Some (t.Value<int>())
+
+        let imdbId =
+            match obj.["imdb_id"] with
+            | null -> None
+            | t when t.Type = JTokenType.Null -> None
+            | t ->
+                let s = t.Value<string>()
+                if String.IsNullOrWhiteSpace s then None else Some s
 
         let watchDates =
             match obj.["watched"] with
@@ -201,10 +236,12 @@ let private parseItem (obj: JToken) : GenericImportItem option =
                 if String.IsNullOrWhiteSpace s then None else Some s
 
         Some {
+            Id = id
             Title = title
             Year = year
             MediaType = mediaType
             TmdbId = tmdbId
+            ImdbId = imdbId
             WatchDates = watchDates
             Seasons = seasons
             Episodes = episodes
@@ -217,8 +254,96 @@ let private parseItem (obj: JToken) : GenericImportItem option =
         printfn "[GenericImport] Failed to parse item: %s" ex.Message
         None
 
-/// Parse a JSON string into import items
-let parseJson (jsonString: string) : Result<GenericImportItem list, string> =
+/// Parse a collection item reference from JSON
+let private parseCollectionItemRef (obj: JToken) : GenericImportCollectionItemRef option =
+    try
+        // Check for custom id reference first
+        let customId =
+            match obj.["id"] with
+            | null -> None
+            | t when t.Type = JTokenType.Null -> None
+            | t ->
+                let id = t.Value<string>()
+                if String.IsNullOrWhiteSpace id then None else Some id
+
+        match customId with
+        | Some id -> Some (ByCustomId id)
+        | None ->
+            // Check for IMDB ID reference
+            let imdbId =
+                match obj.["imdb_id"] with
+                | null -> None
+                | t when t.Type = JTokenType.Null -> None
+                | t ->
+                    let id = t.Value<string>()
+                    if String.IsNullOrWhiteSpace id then None else Some id
+
+            match imdbId with
+            | Some id -> Some (ByImdbId id)
+            | None ->
+                // Check for TMDB ID reference (requires type)
+                match obj.["tmdb_id"] with
+                | null -> None
+                | t when t.Type = JTokenType.Null -> None
+                | t ->
+                    let tmdbId = t.Value<int>()
+                    let mediaType =
+                        match obj.["type"] with
+                        | null -> ImportMovie // Default to movie if not specified
+                        | typeToken ->
+                            match typeToken.Value<string>().ToLowerInvariant() with
+                            | "movie" -> ImportMovie
+                            | "series" | "tv" | "show" -> ImportSeries
+                            | _ -> ImportMovie
+                    Some (ByTmdbId (tmdbId, mediaType))
+    with ex ->
+        printfn "[GenericImport] Failed to parse collection item ref: %s" ex.Message
+        None
+
+/// Parse a collection from JSON
+let private parseCollection (obj: JToken) : GenericImportCollection option =
+    try
+        let name =
+            match obj.["name"] with
+            | null -> None
+            | t when t.Type = JTokenType.Null -> None
+            | t ->
+                let s = t.Value<string>()
+                if String.IsNullOrWhiteSpace s then None else Some s
+
+        match name with
+        | None -> None // Name is required
+        | Some collectionName ->
+            let description =
+                match obj.["description"] with
+                | null -> None
+                | t when t.Type = JTokenType.Null -> None
+                | t ->
+                    let s = t.Value<string>()
+                    if String.IsNullOrWhiteSpace s then None else Some s
+
+            let itemRefs =
+                match obj.["items"] with
+                | null -> []
+                | t when t.Type = JTokenType.Array ->
+                    t |> Seq.choose parseCollectionItemRef |> Seq.toList
+                | _ -> []
+
+            if itemRefs.IsEmpty then
+                printfn "[GenericImport] Skipping collection '%s' - no valid item references" collectionName
+                None
+            else
+                Some {
+                    Name = collectionName
+                    Description = description
+                    ItemRefs = itemRefs
+                }
+    with ex ->
+        printfn "[GenericImport] Failed to parse collection: %s" ex.Message
+        None
+
+/// Parse a JSON string into import items and collections
+let parseJson (jsonString: string) : Result<GenericImportParseResult, string> =
     try
         let json = JObject.Parse(jsonString)
         let items =
@@ -228,10 +353,17 @@ let parseJson (jsonString: string) : Result<GenericImportItem list, string> =
                 t |> Seq.choose parseItem |> Seq.toList
             | _ -> []
 
+        let collections =
+            match json.["collections"] with
+            | null -> []
+            | t when t.Type = JTokenType.Array ->
+                t |> Seq.choose parseCollection |> Seq.toList
+            | _ -> []
+
         if items.IsEmpty then
             Error "No valid items found in JSON. Expected { \"items\": [...] } format."
         else
-            Ok items
+            Ok { Items = items; Collections = collections }
     with ex ->
         Error $"Failed to parse JSON: {ex.Message}"
 
@@ -239,10 +371,43 @@ let parseJson (jsonString: string) : Result<GenericImportItem list, string> =
 // TMDB Matching
 // =====================================
 
+let private matchByTitleSearch (item: GenericImportItem) : Async<GenericImportMatchStatus> = async {
+    let query =
+        match item.Year with
+        | Some y -> $"{item.Title} {y}"
+        | None -> item.Title
+
+    let! results = TmdbClient.searchAll query
+
+    // Filter by media type
+    let filtered =
+        results
+        |> List.filter (fun r ->
+            match item.MediaType with
+            | ImportMovie -> r.MediaType = Movie
+            | ImportSeries -> r.MediaType = Series)
+
+    match filtered with
+    | [] -> return NoMatchFound
+    | [single] -> return ExactMatch single
+    | multiple ->
+        // Check if any is an exact title + year match
+        let exactMatch =
+            multiple
+            |> List.tryFind (fun r ->
+                r.Title.Equals(item.Title, StringComparison.OrdinalIgnoreCase) &&
+                (match item.Year, r.ReleaseDate with
+                 | Some y, Some d -> d.Year = y
+                 | _, _ -> false))
+        match exactMatch with
+        | Some exact -> return ExactMatch exact
+        | None -> return MultipleMatches multiple
+}
+
 let private matchWithTmdb (item: GenericImportItem) : Async<GenericImportMatchStatus> = async {
+    // Priority 1: Direct TMDB ID lookup
     match item.TmdbId with
     | Some tmdbId ->
-        // Direct lookup by ID
         match item.MediaType with
         | ImportMovie ->
             let! result = TmdbClient.getMovieDetails (TmdbMovieId tmdbId)
@@ -273,37 +438,25 @@ let private matchWithTmdb (item: GenericImportItem) : Async<GenericImportMatchSt
                 }
             | Error _ -> return NoMatchFound
     | None ->
-        // Search by title + year
-        let query =
-            match item.Year with
-            | Some y -> $"{item.Title} {y}"
-            | None -> item.Title
-
-        let! results = TmdbClient.searchAll query
-
-        // Filter by media type
-        let filtered =
-            results
-            |> List.filter (fun r ->
-                match item.MediaType with
-                | ImportMovie -> r.MediaType = Movie
-                | ImportSeries -> r.MediaType = Series)
-
-        match filtered with
-        | [] -> return NoMatchFound
-        | [single] -> return ExactMatch single
-        | multiple ->
-            // Check if any is an exact title + year match
-            let exactMatch =
-                multiple
-                |> List.tryFind (fun r ->
-                    r.Title.Equals(item.Title, StringComparison.OrdinalIgnoreCase) &&
-                    (match item.Year, r.ReleaseDate with
-                     | Some y, Some d -> d.Year = y
-                     | _, _ -> false))
-            match exactMatch with
-            | Some exact -> return ExactMatch exact
-            | None -> return MultipleMatches multiple
+        // Priority 2: Try IMDB ID lookup
+        match item.ImdbId with
+        | Some imdbId ->
+            let! imdbResult = TmdbClient.findByImdbId imdbId
+            match imdbResult with
+            | Some result ->
+                // Verify media type matches
+                let expectedMediaType = match item.MediaType with ImportMovie -> Movie | ImportSeries -> Series
+                if result.MediaType = expectedMediaType then
+                    return ExactMatch result
+                else
+                    // Media type mismatch, fall through to title search
+                    return! matchByTitleSearch item
+            | None ->
+                // IMDB ID not found, fall through to title search
+                return! matchByTitleSearch item
+        | None ->
+            // No IDs provided, search by title + year
+            return! matchByTitleSearch item
 }
 
 // =====================================
@@ -329,7 +482,61 @@ let private resolveFriends (friendNames: string list) : Async<GenericImportFrien
 // =====================================
 
 /// Generate a preview of what will be imported (with TMDB matching)
-let generatePreview (items: GenericImportItem list) : Async<Result<GenericImportPreview, string>> = async {
+/// Resolve collection item references to matched items
+let private resolveCollectionItems
+    (items: GenericImportItem list)
+    (itemsWithMatches: GenericImportItemWithMatch list)
+    (collection: GenericImportCollection)
+    : GenericImportCollectionSuggestion =
+
+    let resolvedItems =
+        collection.ItemRefs
+        |> List.map (fun ref ->
+            // Find the matching item in the items list
+            let findResult =
+                match ref with
+                | ByCustomId customId ->
+                    items
+                    |> List.tryFindIndex (fun item -> item.Id = Some customId)
+                    |> Option.map (fun idx -> idx, $"id: {customId}")
+                | ByImdbId imdbId ->
+                    items
+                    |> List.tryFindIndex (fun item -> item.ImdbId = Some imdbId)
+                    |> Option.map (fun idx -> idx, $"imdb: {imdbId}")
+                | ByTmdbId (tmdbId, mediaType) ->
+                    items
+                    |> List.tryFindIndex (fun item ->
+                        item.TmdbId = Some tmdbId && item.MediaType = mediaType)
+                    |> Option.map (fun idx -> idx, $"tmdb: {tmdbId}")
+
+            match findResult with
+            | None ->
+                let refStr =
+                    match ref with
+                    | ByCustomId id -> $"id '{id}'"
+                    | ByImdbId id -> $"imdb_id '{id}'"
+                    | ByTmdbId (id, _) -> $"tmdb_id '{id}'"
+                Unresolved $"Item not found: {refStr}"
+            | Some (idx, _) ->
+                // Check if the item has a valid match
+                let matchedItem = itemsWithMatches.[idx]
+                match matchedItem.MatchStatus with
+                | ExactMatch r | MatchConfirmed r ->
+                    Resolved (idx, r.Title, r.PosterPath)
+                | MultipleMatches _ ->
+                    Unresolved $"'{matchedItem.ImportItem.Title}' has ambiguous match"
+                | NoMatchFound | NotMatched ->
+                    Unresolved $"'{matchedItem.ImportItem.Title}' has no TMDB match"
+        )
+
+    {
+        Collection = collection
+        ResolvedItems = resolvedItems
+        Selected = false // User must explicitly select
+    }
+
+let generatePreview (parseResult: GenericImportParseResult) : Async<Result<GenericImportPreview, string>> = async {
+    let items = parseResult.Items
     try
         let! itemsWithMatches =
             items
@@ -377,6 +584,11 @@ let generatePreview (items: GenericImportItem list) : Async<Result<GenericImport
                     | _ -> None))
             |> List.distinct
 
+        // Resolve collection suggestions
+        let suggestedCollections =
+            parseResult.Collections
+            |> List.map (resolveCollectionItems items itemsList)
+
         return Ok {
             Items = itemsList
             TotalItems = itemsList.Length
@@ -385,6 +597,7 @@ let generatePreview (items: GenericImportItem list) : Async<Result<GenericImport
             NoMatches = itemsList |> List.filter (fun i -> match i.MatchStatus with NoMatchFound -> true | _ -> false) |> List.length
             AlreadyInLibrary = itemsList |> List.filter (fun i -> i.ExistsInLibrary) |> List.length
             NewFriendsToCreate = newFriendsToCreate
+            SuggestedCollections = suggestedCollections
         }
     with ex ->
         return Error $"Failed to generate preview: {ex.Message}"
@@ -437,15 +650,21 @@ let private importMovie (item: GenericImportItemWithMatch) (tmdbResult: TmdbSear
     let! existing = Persistence.isMovieInLibrary tmdbId
     match existing with
     | Some entryId ->
-        // Movie already exists - add watch sessions for new dates
-        for watchDate in item.ImportItem.WatchDates do
-            let! sessionExists = Persistence.movieWatchSessionExistsForDate entryId watchDate
-            if not sessionExists then
-                // Get resolved friend IDs (only existing friends, new ones will be created)
-                let friendIds =
-                    item.ResolvedFriends
-                    |> List.choose (fun r -> match r with ExistingFriend id -> Some id | _ -> None)
+        // Movie already exists - add watch sessions for new dates or update existing ones
+        // Get resolved friend IDs (only existing friends, new ones will be created)
+        let friendIds =
+            item.ResolvedFriends
+            |> List.choose (fun r -> match r with ExistingFriend id -> Some id | _ -> None)
 
+        for watchDate in item.ImportItem.WatchDates do
+            let! existingSessionId = Persistence.getMovieWatchSessionIdForDate entryId watchDate
+            match existingSessionId with
+            | Some sessionId ->
+                // Session exists for this date - add friends to it
+                for friendId in friendIds do
+                    do! Persistence.addFriendToMovieSession sessionId friendId
+            | None ->
+                // No session for this date - create a new one
                 let request: CreateMovieWatchSessionRequest = {
                     EntryId = entryId
                     WatchedDate = watchDate
@@ -548,6 +767,13 @@ let private importSeries (item: GenericImportItemWithMatch) (tmdbResult: TmdbSea
                 match e.Media with
                 | LibrarySeries s -> s.Id
                 | _ -> failwith "Expected series"
+
+            // Add friends to the entry
+            let friendIds =
+                item.ResolvedFriends
+                |> List.choose (fun r -> match r with ExistingFriend id -> Some id | _ -> None)
+            for friendId in friendIds do
+                do! Persistence.addFriendToEntry entryId friendId
 
             let! defaultSession = Persistence.getDefaultSession entryId
             match defaultSession with
@@ -705,8 +931,83 @@ let private createNewFriends (items: GenericImportItemWithMatch list) : Async<Ma
         |> Map.ofList
 }
 
+/// Create selected collections after items are imported
+let private createSelectedCollections
+    (items: GenericImportItemWithMatch list)
+    (collections: GenericImportCollectionSuggestion list)
+    : Async<unit> = async {
+
+    // Only process selected collections
+    let selectedCollections = collections |> List.filter (fun c -> c.Selected)
+
+    for suggestion in selectedCollections do
+        try
+            // Check if collection with same name already exists
+            let! existingCollection = Persistence.getCollectionByName suggestion.Collection.Name
+            let! collection =
+                match existingCollection with
+                | Some existing ->
+                    printfn "[GenericImport] Found existing collection '%s', adding items to it" suggestion.Collection.Name
+                    async { return existing }
+                | None ->
+                    // Create the collection
+                    let request : CreateCollectionRequest = {
+                        Name = suggestion.Collection.Name
+                        Description = suggestion.Collection.Description
+                        LogoBase64 = None
+                    }
+                    Persistence.insertCollection request
+
+            // Collect resolved items with their sorting date
+            let resolvedItemsWithDates =
+                suggestion.ResolvedItems
+                |> List.choose (fun resolution ->
+                    match resolution with
+                    | Resolved (itemIndex, _, _) when itemIndex >= 0 && itemIndex < items.Length ->
+                        let item = items.[itemIndex]
+                        let tmdbResult =
+                            match item.MatchStatus with
+                            | ExactMatch r | MatchConfirmed r -> Some r
+                            | _ -> None
+                        match tmdbResult with
+                        | Some result ->
+                            // Use watch date if available, otherwise use release date
+                            let sortDate =
+                                match item.ImportItem.WatchDates |> List.tryHead with
+                                | Some watchDate -> Some watchDate
+                                | None -> result.ReleaseDate
+                            Some (result, sortDate)
+                        | None -> None
+                    | _ -> None)
+                |> List.sortBy (fun (_, sortDate) ->
+                    // Sort by date, items without dates go to the end
+                    match sortDate with
+                    | Some d -> d
+                    | None -> DateTime.MaxValue)
+
+            // Add items to collection in sorted order
+            for (result, _) in resolvedItemsWithDates do
+                // Look up the EntryId by TMDB ID
+                let! entryIdOpt =
+                    match result.MediaType with
+                    | Movie -> Persistence.isMovieInLibrary (TmdbMovieId result.TmdbId)
+                    | Series -> Persistence.isSeriesInLibrary (TmdbSeriesId result.TmdbId)
+
+                match entryIdOpt with
+                | Some entryId ->
+                    do! Persistence.addItemToCollection collection.Id (LibraryEntryRef entryId) None
+                | None ->
+                    printfn "[GenericImport] Could not find entry for '%s' to add to collection" result.Title
+
+            match existingCollection with
+            | Some _ -> printfn "[GenericImport] Added items to existing collection '%s'" suggestion.Collection.Name
+            | None -> printfn "[GenericImport] Created collection '%s' with items" suggestion.Collection.Name
+        with ex ->
+            printfn "[GenericImport] Failed to create/update collection '%s': %s" suggestion.Collection.Name ex.Message
+}
+
 /// Start the import process
-let startImport (items: GenericImportItemWithMatch list) : Async<Result<unit, string>> = async {
+let startImport (items: GenericImportItemWithMatch list) (collections: GenericImportCollectionSuggestion list) : Async<Result<unit, string>> = async {
     // Filter to only items with confirmed matches
     let importableItems =
         items
@@ -762,6 +1063,17 @@ let startImport (items: GenericImportItemWithMatch list) : Async<Result<unit, st
 
                     match tmdbResult with
                     | None ->
+                        // Create item info for skipped (no match)
+                        let skippedInfo = {
+                            Title = item.ImportItem.Title
+                            PosterPath = None
+                            MediaType = match item.ImportItem.MediaType with ImportMovie -> Movie | ImportSeries -> Series
+                            Year = item.ImportItem.Year
+                            WatchDate = item.ImportItem.WatchDates |> List.tryHead
+                            FriendNames = item.ImportItem.FriendNames
+                            Rating = item.ImportItem.Rating
+                        }
+                        addSkippedItem skippedInfo
                         incrementSkipped ()
                     | Some result ->
                         let! importResult =
@@ -769,15 +1081,50 @@ let startImport (items: GenericImportItemWithMatch list) : Async<Result<unit, st
                             | ImportMovie -> importMovie item result
                             | ImportSeries -> importSeries item result
 
+                        let itemInfo = {
+                            Title = result.Title
+                            PosterPath = result.PosterPath
+                            MediaType = result.MediaType
+                            Year = result.ReleaseDate |> Option.map (fun d -> d.Year)
+                            WatchDate = item.ImportItem.WatchDates |> List.tryHead
+                            FriendNames = item.ImportItem.FriendNames
+                            Rating = item.ImportItem.Rating
+                        }
+
                         match importResult with
-                        | Ok () -> incrementCompleted ()
+                        | Ok () ->
+                            addImportedItem itemInfo
+                            incrementCompleted ()
                         | Error err ->
                             addError $"{title}: {err}"
+                            addSkippedItem itemInfo
                             incrementSkipped ()
+
+            // Create selected collections after items are imported
+            if not (isCancelled ()) then
+                do! createSelectedCollections itemsWithNewFriends collections
 
             importState := { !importState with InProgress = false }
             return Ok ()
         with ex ->
             importState := { !importState with InProgress = false }
             return Error $"Import failed: {ex.Message}"
+}
+
+// =====================================
+// Manual TMDB Search
+// =====================================
+
+/// Search TMDB for manual match resolution
+let searchTmdb (query: string) (mediaType: GenericImportMediaType) : Async<TmdbSearchResult list> = async {
+    if String.IsNullOrWhiteSpace(query) then
+        return []
+    else
+        let! results = TmdbClient.searchAll query
+        // Filter by media type
+        return results
+            |> List.filter (fun r ->
+                match mediaType with
+                | ImportMovie -> r.MediaType = Movie
+                | ImportSeries -> r.MediaType = Series)
 }

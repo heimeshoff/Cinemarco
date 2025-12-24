@@ -1,5 +1,6 @@
 module Pages.GenericImport.State
 
+open System
 open Elmish
 open Pages.GenericImport.Types
 open Common.Types
@@ -19,7 +20,7 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
         { model with
             SelectedFileName = Some fileName
             FileContent = Some content
-            ParsedItems = NotAsked
+            ParsedResult = NotAsked
             Error = None },
         Cmd.none,
         NoOp
@@ -29,7 +30,7 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
         | None ->
             { model with Error = Some "No file selected" }, Cmd.none, NoOp
         | Some content ->
-            { model with ParsedItems = Loading; Error = None },
+            { model with ParsedResult = Loading; Error = None },
             Cmd.OfAsync.either
                 api.genericImportParseJson
                 content
@@ -39,15 +40,15 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
 
     | FileParsed result ->
         match result with
-        | Ok items ->
+        | Ok parseResult ->
             { model with
-                ParsedItems = Success items
+                ParsedResult = Success parseResult
                 Error = None },
             Cmd.none,
             NoOp
         | Error err ->
             { model with
-                ParsedItems = Failure err
+                ParsedResult = Failure err
                 Error = Some err },
             Cmd.none,
             NoOp
@@ -56,20 +57,21 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
         { model with
             SelectedFileName = None
             FileContent = None
-            ParsedItems = NotAsked
+            ParsedResult = NotAsked
+            CollectionSuggestions = []
             Error = None },
         Cmd.none,
         NoOp
 
     | ProceedToMatching ->
-        match model.ParsedItems with
-        | Success items ->
+        match model.ParsedResult with
+        | Success parseResult ->
             { model with
                 CurrentStep = MatchingPreview
                 Preview = Loading },
             Cmd.OfAsync.either
                 api.genericImportPreview
-                items
+                parseResult
                 PreviewLoaded
                 (fun ex -> PreviewLoaded (Error ex.Message)),
             NoOp
@@ -81,12 +83,12 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
     // =====================================
 
     | LoadPreview ->
-        match model.ParsedItems with
-        | Success items ->
+        match model.ParsedResult with
+        | Success parseResult ->
             { model with Preview = Loading },
             Cmd.OfAsync.either
                 api.genericImportPreview
-                items
+                parseResult
                 PreviewLoaded
                 (fun ex -> PreviewLoaded (Error ex.Message)),
             NoOp
@@ -99,6 +101,7 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
             { model with
                 Preview = Success preview
                 EditingItems = preview.Items
+                CollectionSuggestions = preview.SuggestedCollections
                 Error = None },
             Cmd.none,
             NoOp
@@ -114,9 +117,34 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
             CurrentStep = SelectFile
             Preview = NotAsked
             EditingItems = []
+            CollectionSuggestions = []
             ResolvingIndex = None },
         Cmd.none,
         NoOp
+
+    // =====================================
+    // Collection Suggestions
+    // =====================================
+
+    | ToggleCollectionSelection index ->
+        let updatedCollections =
+            model.CollectionSuggestions
+            |> List.mapi (fun i c ->
+                if i = index then { c with Selected = not c.Selected }
+                else c)
+        { model with CollectionSuggestions = updatedCollections }, Cmd.none, NoOp
+
+    | SelectAllCollections ->
+        let updatedCollections =
+            model.CollectionSuggestions
+            |> List.map (fun c -> { c with Selected = true })
+        { model with CollectionSuggestions = updatedCollections }, Cmd.none, NoOp
+
+    | DeselectAllCollections ->
+        let updatedCollections =
+            model.CollectionSuggestions
+            |> List.map (fun c -> { c with Selected = false })
+        { model with CollectionSuggestions = updatedCollections }, Cmd.none, NoOp
 
     // =====================================
     // Resolve Ambiguous Step
@@ -190,12 +218,17 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
             | None -> None
         match nextIndex with
         | Some idx ->
-            { model with ResolvingIndex = Some idx }, Cmd.none, NoOp
+            { model with
+                ResolvingIndex = Some idx
+                SearchQuery = ""
+                SearchResults = NotAsked }, Cmd.none, NoOp
         | None ->
             // No more ambiguous items, go back to preview
             { model with
                 CurrentStep = MatchingPreview
                 ResolvingIndex = None
+                SearchQuery = ""
+                SearchResults = NotAsked
                 Preview =
                     match model.Preview with
                     | Success preview ->
@@ -203,6 +236,41 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
                     | other -> other },
             Cmd.none,
             NoOp
+
+    // =====================================
+    // Manual Search
+    // =====================================
+
+    | SetSearchQuery query ->
+        { model with SearchQuery = query }, Cmd.none, NoOp
+
+    | SearchTmdb ->
+        if String.IsNullOrWhiteSpace model.SearchQuery then
+            model, Cmd.none, NoOp
+        else
+            // Get the media type of the current item being resolved
+            let mediaType =
+                match model.ResolvingIndex with
+                | Some idx when idx < model.EditingItems.Length ->
+                    model.EditingItems.[idx].ImportItem.MediaType
+                | _ -> ImportMovie  // Default fallback
+            { model with SearchResults = Loading },
+            Cmd.OfAsync.either
+                api.genericImportSearchTmdb
+                (model.SearchQuery, mediaType)
+                (Ok >> SearchResultsReceived)
+                (fun ex -> SearchResultsReceived (Error ex.Message)),
+            NoOp
+
+    | SearchResultsReceived result ->
+        match result with
+        | Ok results ->
+            { model with SearchResults = Success results }, Cmd.none, NoOp
+        | Error err ->
+            { model with SearchResults = Failure err }, Cmd.none, NoOp
+
+    | ClearSearch ->
+        { model with SearchQuery = ""; SearchResults = NotAsked }, Cmd.none, NoOp
 
     | ProceedToImport ->
         { model with CurrentStep = Importing },
@@ -227,7 +295,7 @@ let update (api: ICinemarcoApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * E
         Cmd.batch [
             Cmd.OfAsync.either
                 api.genericImportStart
-                importableItems
+                (importableItems, model.CollectionSuggestions)
                 ImportStarted
                 (fun ex -> ImportStarted (Error ex.Message))
             // Start polling after a short delay

@@ -541,6 +541,37 @@ let searchAll (query: string) : Async<TmdbSearchResult list> = async {
             return []
 }
 
+/// Find movie or series by IMDB ID (e.g., "tt1883367")
+let findByImdbId (imdbId: string) : Async<TmdbSearchResult option> = async {
+    if String.IsNullOrWhiteSpace(imdbId) then
+        return None
+    else
+        let cacheKey = $"find:imdb:{imdbId.ToLowerInvariant()}"
+        let! result = makeRequest $"/find/{imdbId}?external_source=imdb_id" cacheKey CacheDuration.search
+
+        match result with
+        | Ok json ->
+            try
+                let parsed = JObject.Parse(json)
+                // Check movie_results first
+                let movieResults = parsed.["movie_results"]
+                if movieResults <> null && movieResults.HasValues then
+                    let movie = movieResults.[0]
+                    return Some (parseSearchResult movie Movie)
+                else
+                    // Check tv_results
+                    let tvResults = parsed.["tv_results"]
+                    if tvResults <> null && tvResults.HasValues then
+                        let tv = tvResults.[0]
+                        return Some (parseSearchResult tv Series)
+                    else
+                        return None
+            with _ ->
+                return None
+        | Error _ ->
+            return None
+}
+
 /// Get full movie details
 let getMovieDetails (TmdbMovieId movieId) : Async<Result<TmdbMovieDetails, string>> = async {
     let cacheKey = $"movie:{movieId}"

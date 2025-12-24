@@ -394,23 +394,26 @@ type ICinemarcoApi = {
     // Generic Import Operations
     // =====================================
 
-    /// Parse a JSON string into import items
-    genericImportParseJson: string -> Async<Result<GenericImportItem list, string>>
+    /// Parse a JSON string into import items and collection suggestions
+    genericImportParseJson: string -> Async<Result<GenericImportParseResult, string>>
 
-    /// Generate a preview of what will be imported (with TMDB matching)
-    genericImportPreview: GenericImportItem list -> Async<Result<GenericImportPreview, string>>
+    /// Generate a preview of what will be imported (with TMDB matching and collection resolution)
+    genericImportPreview: GenericImportParseResult -> Async<Result<GenericImportPreview, string>>
 
     /// Confirm a TMDB match for an ambiguous item (index, selected match)
     genericImportConfirmMatch: int * TmdbSearchResult -> Async<Result<GenericImportItemWithMatch, string>>
 
-    /// Start the import process with matched items
-    genericImportStart: GenericImportItemWithMatch list -> Async<Result<unit, string>>
+    /// Start the import process with matched items and selected collections
+    genericImportStart: GenericImportItemWithMatch list * GenericImportCollectionSuggestion list -> Async<Result<unit, string>>
 
     /// Get current import progress
     genericImportGetProgress: unit -> Async<GenericImportProgress>
 
     /// Cancel an in-progress import
     genericImportCancel: unit -> Async<unit>
+
+    /// Search TMDB for manual match resolution (query, media type)
+    genericImportSearchTmdb: string * GenericImportMediaType -> Async<TmdbSearchResult list>
 
     // =====================================
     // Graph Operations

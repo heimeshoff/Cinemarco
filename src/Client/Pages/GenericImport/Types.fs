@@ -19,12 +19,14 @@ type Model = {
     SelectedFileName: string option
     /// Content read from the file
     FileContent: string option
-    /// Parsed import items
-    ParsedItems: RemoteData<GenericImportItem list>
+    /// Parsed import result (items + collections)
+    ParsedResult: RemoteData<GenericImportParseResult>
     /// Preview with TMDB matches
     Preview: RemoteData<GenericImportPreview>
     /// Items being edited (for resolving ambiguous matches)
     EditingItems: GenericImportItemWithMatch list
+    /// Collection suggestions with user selection state
+    CollectionSuggestions: GenericImportCollectionSuggestion list
     /// Current item being resolved (index)
     ResolvingIndex: int option
     /// Import progress
@@ -35,13 +37,17 @@ type Model = {
     Result: GenericImportResult option
     /// Any error message
     Error: string option
+    /// Search query for manual TMDB search
+    SearchQuery: string
+    /// Search results from manual TMDB search
+    SearchResults: RemoteData<TmdbSearchResult list>
 }
 
 type Msg =
     // File selection step
     | FileSelected of fileName: string * content: string
     | ParseFile
-    | FileParsed of Result<GenericImportItem list, string>
+    | FileParsed of Result<GenericImportParseResult, string>
     | ClearFile
     | ProceedToMatching
 
@@ -50,6 +56,11 @@ type Msg =
     | PreviewLoaded of Result<GenericImportPreview, string>
     | BackToFile
 
+    // Collection suggestions
+    | ToggleCollectionSelection of collectionIndex: int
+    | SelectAllCollections
+    | DeselectAllCollections
+
     // Resolve ambiguous step
     | StartResolving
     | ConfirmMatch of index: int * TmdbSearchResult
@@ -57,6 +68,12 @@ type Msg =
     | SkipItem of int
     | NextAmbiguous
     | ProceedToImport
+
+    // Manual search
+    | SetSearchQuery of string
+    | SearchTmdb
+    | SearchResultsReceived of Result<TmdbSearchResult list, string>
+    | ClearSearch
 
     // Import step
     | StartImport
@@ -81,18 +98,23 @@ module Model =
         CompletedSuccessfully = 0
         Skipped = 0
         Errors = []
+        ImportedItems = []
+        SkippedItems = []
     }
 
     let empty = {
         CurrentStep = SelectFile
         SelectedFileName = None
         FileContent = None
-        ParsedItems = NotAsked
+        ParsedResult = NotAsked
         Preview = NotAsked
         EditingItems = []
+        CollectionSuggestions = []
         ResolvingIndex = None
         Progress = emptyProgress
         IsPollingProgress = false
         Result = None
         Error = None
+        SearchQuery = ""
+        SearchResults = NotAsked
     }

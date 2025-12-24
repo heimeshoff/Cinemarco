@@ -1648,20 +1648,21 @@ let cinemarcoApi : ICinemarcoApi = {
         return GenericImport.parseJson jsonString
     }
 
-    genericImportPreview = fun items -> async {
-        return! GenericImport.generatePreview items
+    genericImportPreview = fun parseResult -> async {
+        return! GenericImport.generatePreview parseResult
     }
 
     genericImportConfirmMatch = fun (index, selectedMatch) -> async {
         return! GenericImport.confirmMatch index selectedMatch
     }
 
-    genericImportStart = fun items -> async {
+    genericImportStart = fun (items, collections) -> async {
         // Start import in background with error logging
+        let selectedCollections = collections |> List.filter (fun c -> c.Selected)
         let importWithLogging = async {
-            printfn "[GenericImport] Starting import with %d items" items.Length
+            printfn "[GenericImport] Starting import with %d items and %d selected collections" items.Length selectedCollections.Length
             try
-                let! result = GenericImport.startImport items
+                let! result = GenericImport.startImport items collections
                 match result with
                 | Ok () -> printfn "[GenericImport] Import completed successfully"
                 | Error err -> printfn "[GenericImport] Import failed with error: %s" err
@@ -1680,6 +1681,10 @@ let cinemarcoApi : ICinemarcoApi = {
     genericImportCancel = fun () -> async {
         GenericImport.requestCancellation()
         return ()
+    }
+
+    genericImportSearchTmdb = fun (query, mediaType) -> async {
+        return! GenericImport.searchTmdb query mediaType
     }
 }
 
