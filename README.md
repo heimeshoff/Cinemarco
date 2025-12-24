@@ -83,7 +83,8 @@ docker-compose up -d
 ```
 
 # Deploy to Portainer:
-Start Docker, go into wsl {-d distributionname}
+Start Docker
+go into wsl {-d distributionname}
 
 ```markdown
 docker-compose build
