@@ -387,6 +387,9 @@ type ICinemarcoApi = {
     /// Get Trakt sync status (last sync time, auto-sync enabled)
     traktGetSyncStatus: unit -> Async<TraktSyncStatus>
 
+    /// Perform resync from a specific date (for filling gaps in history)
+    traktResyncSince: System.DateTime -> Async<Result<TraktSyncResult, string>>
+
     /// Debug: Get raw episode watch data for a show from Trakt
     traktDebugGetShowHistory: int -> Async<Result<string, string>>
     

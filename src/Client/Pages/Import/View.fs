@@ -725,5 +725,99 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
             ]
+
+            // Resync section - for filling gaps in watch history
+            if model.ConnectionStatus = Connected then
+                Html.div [
+                    prop.className "mt-8 pt-8 border-t border-base-content/10"
+                    prop.children [
+                        GlassPanel.subtle [
+                            SectionHeader.titleSmall "Resync from Date"
+
+                            Html.p [
+                                prop.className "text-base-content/60 text-sm mb-4"
+                                prop.text "Fill gaps in your watch history by resyncing from a specific date. This won't duplicate existing entries."
+                            ]
+
+                            Html.div [
+                                prop.className "flex flex-wrap items-end gap-4"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "form-control"
+                                        prop.children [
+                                            Html.label [
+                                                prop.className "label"
+                                                prop.children [
+                                                    Html.span [ prop.className "label-text"; prop.text "Sync from" ]
+                                                ]
+                                            ]
+                                            Html.input [
+                                                prop.type' "date"
+                                                prop.className "input input-bordered input-sm w-40"
+                                                prop.value (
+                                                    match model.ResyncDate with
+                                                    | Some d -> d.ToString("yyyy-MM-dd")
+                                                    | None -> ""
+                                                )
+                                                prop.onChange (fun (value: string) ->
+                                                    match DateTime.TryParse(value) with
+                                                    | true, date -> dispatch (SetResyncDate date)
+                                                    | false, _ -> ()
+                                                )
+                                            ]
+                                        ]
+                                    ]
+
+                                    match model.ResyncStatus with
+                                    | Loading ->
+                                        Html.button [
+                                            prop.className "btn btn-sm btn-primary"
+                                            prop.disabled true
+                                            prop.children [
+                                                Html.span [ prop.className "loading loading-spinner loading-xs" ]
+                                                Html.span [ prop.text "Syncing..." ]
+                                            ]
+                                        ]
+                                    | _ ->
+                                        Html.button [
+                                            prop.className "btn btn-sm btn-primary"
+                                            prop.disabled model.ResyncDate.IsNone
+                                            prop.onClick (fun _ -> dispatch StartResync)
+                                            prop.text "Start Resync"
+                                        ]
+                                ]
+                            ]
+
+                            // Show result
+                            match model.ResyncStatus with
+                            | Success result ->
+                                Html.div [
+                                    prop.className "mt-4 text-sm"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "badge badge-success gap-1"
+                                            prop.children [
+                                                checkIcon
+                                                Html.span [
+                                                    prop.text (sprintf "%d movies, %d episodes synced" result.NewMovieWatches result.NewEpisodeWatches)
+                                                ]
+                                            ]
+                                        ]
+                                        if not result.Errors.IsEmpty then
+                                            Html.p [
+                                                prop.className "text-warning mt-2"
+                                                prop.text (sprintf "%d errors occurred" result.Errors.Length)
+                                            ]
+                                    ]
+                                ]
+                            | Failure err ->
+                                Html.div [
+                                    prop.className "mt-4 alert alert-error text-sm"
+                                    prop.text err
+                                ]
+                            | _ -> Html.none
+                        ]
+                    ]
+                ]
         ]
     ]

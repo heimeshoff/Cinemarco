@@ -797,52 +797,21 @@ let startImport (options: TraktImportOptions) : Async<Result<unit, string>> = as
 // Incremental Sync (Lightweight - Home Screen)
 // =====================================
 
-/// Perform an incremental sync - lightweight, non-destructive
-/// - Only fetches watch history since last sync (uses start_at parameter)
-/// - Uses Trakt watched dates directly (no binge-detection/air date substitution)
-/// - Only imports new watch sessions for items ALREADY in library
-/// - Syncs Trakt watchlist items to library (adds if not present)
-let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
-    // Check if authenticated
-    let! isAuth = TraktClient.isAuthenticatedAsync()
-    if not isAuth then
-        return Error "Not authenticated with Trakt"
-    else
-
-    // Get last sync time
-    let! lastSyncOpt = TraktClient.getLastSyncTime()
-
-    // For first sync, only go back 24 hours to avoid heavy initial load
-    // Use full import (Import page) for historical data
-    let effectiveLastSync =
-        match lastSyncOpt with
-        | Some dt ->
-            // Ensure we treat the stored time as UTC
-            if dt.Kind = DateTimeKind.Unspecified then
-                DateTime.SpecifyKind(dt, DateTimeKind.Utc)
-            else
-                dt.ToUniversalTime()
-        | None -> DateTime.UtcNow.AddHours(-24.0)
-
-    printfn "[TraktSync] Starting incremental sync. Last sync from DB: %A (Kind: %A). Effective: %A (UTC)"
-        lastSyncOpt
-        (lastSyncOpt |> Option.map (fun d -> d.Kind))
-        effectiveLastSync
-
+/// Internal: Core sync logic from a specific date
+/// Used by both incrementalSync and resyncSince
+let private syncFromDate (effectiveDate: DateTime) : Async<Result<TraktSyncResult, string>> = async {
     try
         let mutable newMovieWatches = 0
         let mutable newEpisodeWatches = 0
         let mutable newWatchlistItems = 0
         let mutable errors: string list = []
 
-        // 1. Sync watched movies since last sync
-        // - If movie is in library: add watch session
-        // - If movie is NOT in library: add to library AND create watch session
-        let! moviesResult = TraktClient.getWatchedMoviesSince effectiveLastSync
+        // 1. Sync watched movies since date
+        let! moviesResult = TraktClient.getWatchedMoviesSince effectiveDate
         match moviesResult with
         | Error err -> errors <- errors @ [$"Failed to fetch movies: {err}"]
         | Ok movies ->
-            printfn "[TraktSync] Fetched %d movie watches since last sync" movies.Length
+            printfn "[TraktSync] Fetched %d movie watches" movies.Length
 
             for movie in movies do
                 let tmdbId = TmdbMovieId movie.TmdbId
@@ -850,7 +819,6 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
 
                 match existsInLibrary with
                 | Some entryId ->
-                    // Movie in library - add watch session if missing
                     match movie.WatchedAt with
                     | Some watchedDate ->
                         let! sessionExists = Persistence.movieWatchSessionExistsForDate entryId watchedDate
@@ -867,39 +835,29 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
                             newMovieWatches <- newMovieWatches + 1
                     | None -> ()
                 | None ->
-                    // Movie NOT in library - add it with watch session
                     printfn "[TraktSync] Adding new movie: %s (watchedAt: %A)" movie.Title movie.WatchedAt
                     let! result = importMovie movie None
                     match result with
                     | Ok () -> newMovieWatches <- newMovieWatches + 1
                     | Error err -> errors <- errors @ [err]
 
-        // 2. Sync watched episodes since last sync
-        // - If series is in library: add episode watch data
-        // - If series is NOT in library: add to library AND import episodes (using simple import, no binge-detection)
-        let! seriesResult = TraktClient.getWatchedShowsWithEpisodesSince effectiveLastSync
+        // 2. Sync watched episodes since date
+        let! seriesResult = TraktClient.getWatchedShowsWithEpisodesSince effectiveDate
         match seriesResult with
         | Error err -> errors <- errors @ [$"Failed to fetch series: {err}"]
         | Ok seriesList ->
             let totalEpisodes = seriesList |> List.sumBy (fun s -> s.WatchedEpisodes.Length)
-            printfn "[TraktSync] Fetched %d series with %d total episodes from Trakt" seriesList.Length totalEpisodes
+            printfn "[TraktSync] Fetched %d series with %d total episodes" seriesList.Length totalEpisodes
             for series in seriesList do
-                printfn "[TraktSync] Series: %s (TMDB: %d), Episodes: %d" series.Title series.TmdbId series.WatchedEpisodes.Length
                 let tmdbId = TmdbSeriesId series.TmdbId
                 let! existsInLibrary = Persistence.isSeriesInLibrary tmdbId
-                printfn "[TraktSync] Library lookup for '%s' (TMDB %d): %s"
-                    series.Title series.TmdbId
-                    (match existsInLibrary with Some id -> sprintf "Found (EntryId %d)" (EntryId.value id) | None -> "Not found")
 
                 match existsInLibrary with
                 | Some entryId ->
-                    // Series in library - sync episodes
                     if not (List.isEmpty series.WatchedEpisodes) then
-                        printfn "[TraktSync] Syncing %d episodes for: %s (EntryId %d)" series.WatchedEpisodes.Length series.Title (EntryId.value entryId)
                         let! syncedCount = importEpisodesForExistingSeries entryId series.WatchedEpisodes
                         newEpisodeWatches <- newEpisodeWatches + syncedCount
                 | None ->
-                    // Series NOT in library - add it with episodes (no binge-detection)
                     if not (List.isEmpty series.WatchedEpisodes) then
                         printfn "[TraktSync] Adding new series: %s (%d episodes)" series.Title series.WatchedEpisodes.Length
                         let! result = importSeriesWithEpisodesSimple series
@@ -907,25 +865,20 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
                         | Ok () -> newEpisodeWatches <- newEpisodeWatches + series.WatchedEpisodes.Length
                         | Error err -> errors <- errors @ [err]
 
-        // 3. Sync watchlist - add items to library if not present
+        // 3. Sync watchlist
         let! watchlistResult = TraktClient.getWatchlist()
         match watchlistResult with
         | Error err -> errors <- errors @ [$"Failed to fetch watchlist: {err}"]
         | Ok watchlistItems ->
-            printfn "[TraktSync] Checking %d watchlist items" watchlistItems.Length
-
             for item in watchlistItems do
                 match item.MediaType with
                 | Movie ->
                     let! result = addWatchlistMovie item
                     match result with
                     | Ok () ->
-                        // Check if it was actually added (not already present)
                         let tmdbId = TmdbMovieId item.TmdbId
                         let! exists = Persistence.isMovieInLibrary tmdbId
-                        if exists.IsSome then
-                            printfn "[TraktSync] Added watchlist movie: %s" item.Title
-                            newWatchlistItems <- newWatchlistItems + 1
+                        if exists.IsSome then newWatchlistItems <- newWatchlistItems + 1
                     | Error err -> errors <- errors @ [err]
                 | Series ->
                     let! result = addWatchlistSeries item
@@ -933,9 +886,7 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
                     | Ok () ->
                         let tmdbId = TmdbSeriesId item.TmdbId
                         let! exists = Persistence.isSeriesInLibrary tmdbId
-                        if exists.IsSome then
-                            printfn "[TraktSync] Added watchlist series: %s" item.Title
-                            newWatchlistItems <- newWatchlistItems + 1
+                        if exists.IsSome then newWatchlistItems <- newWatchlistItems + 1
                     | Error err -> errors <- errors @ [err]
 
         // Update last sync time
@@ -948,7 +899,35 @@ let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
             Errors = errors
         }
     with
-    | ex -> return Error $"Incremental sync failed: {ex.Message}"
+    | ex -> return Error $"Sync failed: {ex.Message}"
+}
+
+/// Perform an incremental sync - lightweight, non-destructive
+/// Uses the most recent watch date from DB as starting point
+let incrementalSync () : Async<Result<TraktSyncResult, string>> = async {
+    let! isAuth = TraktClient.isAuthenticatedAsync()
+    if not isAuth then
+        return Error "Not authenticated with Trakt"
+    else
+
+    let! lastWatchDate = Persistence.getLastKnownWatchDate()
+
+    match lastWatchDate with
+    | None ->
+        printfn "[TraktSync] No watch history found - skipping incremental sync. Use full import."
+        return Ok { NewMovieWatches = 0; NewEpisodeWatches = 0; UpdatedItems = 0; Errors = [] }
+    | Some lastWatch ->
+
+    let effectiveLastSync =
+        let utcDate =
+            if lastWatch.Kind = DateTimeKind.Unspecified then
+                DateTime.SpecifyKind(lastWatch, DateTimeKind.Utc)
+            else
+                lastWatch.ToUniversalTime()
+        utcDate.AddHours(-1.0)
+
+    printfn "[TraktSync] Incremental sync from: %A (effective: %A UTC)" lastWatch effectiveLastSync
+    return! syncFromDate effectiveLastSync
 }
 
 /// Get current sync status
@@ -960,4 +939,27 @@ let getSyncStatus () : Async<TraktSyncStatus> = async {
         LastSyncAt = settings.LastSyncAt
         AutoSyncEnabled = settings.AutoSyncEnabled
     }
+}
+
+/// Resync from a specific date - for filling gaps in watch history
+/// Reuses incrementalSync logic but with an explicit start date
+let resyncSince (sinceDate: DateTime) : Async<Result<TraktSyncResult, string>> = async {
+    let! isAuth = TraktClient.isAuthenticatedAsync()
+    if not isAuth then
+        return Error "Not authenticated with Trakt"
+    else
+
+    // Normalize to UTC and apply 1-hour buffer (same as incrementalSync)
+    let effectiveSinceDate =
+        let utcDate =
+            if sinceDate.Kind = DateTimeKind.Unspecified then
+                DateTime.SpecifyKind(sinceDate, DateTimeKind.Utc)
+            else
+                sinceDate.ToUniversalTime()
+        utcDate.AddHours(-1.0)
+
+    printfn "[TraktResync] Starting resync from: %A (effective: %A UTC)" sinceDate effectiveSinceDate
+
+    // Call the internal sync logic with explicit date
+    return! syncFromDate effectiveSinceDate
 }

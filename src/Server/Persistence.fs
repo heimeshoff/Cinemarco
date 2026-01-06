@@ -3512,3 +3512,18 @@ let setTraktAutoSync (enabled: bool) : Async<unit> = async {
     let param = {| Enabled = (if enabled then 1 else 0); UpdatedAt = now |}
     do! conn.ExecuteAsync("UPDATE trakt_settings SET auto_sync_enabled = @Enabled, updated_at = @UpdatedAt WHERE id = 1", param) |> Async.AwaitTask |> Async.Ignore
 }
+
+/// Get the most recent watched date from the database (for incremental sync)
+/// Returns the latest watch date across both episode_progress and movie_watch_sessions
+let getLastKnownWatchDate () : Async<DateTime option> = async {
+    use conn = getConnection()
+    let sql = """
+        SELECT MAX(watched_date) FROM (
+            SELECT MAX(watched_date) as watched_date FROM episode_progress WHERE watched_date IS NOT NULL
+            UNION ALL
+            SELECT MAX(watched_date) as watched_date FROM movie_watch_sessions WHERE watched_date IS NOT NULL
+        )
+    """
+    let! result = conn.ExecuteScalarAsync<string>(sql) |> Async.AwaitTask
+    return parseDateTime result
+}

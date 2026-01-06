@@ -1,5 +1,6 @@
 module Pages.Import.State
 
+open System
 open Elmish
 open Common.Types
 open Shared.Domain
@@ -14,6 +15,7 @@ type TraktApi = {
     StartImport: TraktImportOptions -> Async<Result<unit, string>>
     GetImportStatus: unit -> Async<ImportStatus>
     CancelImport: unit -> Async<unit>
+    ResyncSince: DateTime -> Async<Result<TraktSyncResult, string>>
 }
 
 let init () : Model * Cmd<Msg> =
@@ -195,3 +197,34 @@ let update (api: TraktApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Navigation
     | GoToStep step ->
         { model with CurrentStep = step; Error = None }, Cmd.none, NoOp
+
+    // Resync
+    | SetResyncDate date ->
+        { model with ResyncDate = Some date }, Cmd.none, NoOp
+
+    | StartResync ->
+        match model.ResyncDate with
+        | None ->
+            model, Cmd.none, ShowNotification ("Please select a date first", false)
+        | Some date ->
+            let cmd =
+                Cmd.OfAsync.either
+                    api.ResyncSince
+                    date
+                    ResyncCompleted
+                    (fun ex -> ResyncCompleted (Error ex.Message))
+            { model with ResyncStatus = Loading }, cmd, NoOp
+
+    | ResyncCompleted (Ok result) ->
+        let msg =
+            if result.Errors.IsEmpty then
+                sprintf "Resync complete! %d movies, %d episodes synced." result.NewMovieWatches result.NewEpisodeWatches
+            else
+                sprintf "Resync complete with %d errors. %d movies, %d episodes synced."
+                    result.Errors.Length result.NewMovieWatches result.NewEpisodeWatches
+        { model with ResyncStatus = Success result }, Cmd.none, ShowNotification (msg, result.Errors.IsEmpty)
+
+    | ResyncCompleted (Error err) ->
+        { model with ResyncStatus = Failure err },
+        Cmd.none,
+        ShowNotification ($"Resync failed: {err}", false)

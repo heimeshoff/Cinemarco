@@ -1119,6 +1119,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 StartImport = fun options -> Api.api.traktStartImport options
                 GetImportStatus = fun () -> Api.api.traktGetImportStatus ()
                 CancelImport = fun () -> Api.api.traktCancelImport ()
+                ResyncSince = fun date -> Api.api.traktResyncSince date
             }
             let newPage, pageCmd, extMsg = Pages.Import.State.update importApi importMsg pageModel
             let model' = { model with ImportPage = Some newPage }
