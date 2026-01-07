@@ -248,10 +248,14 @@ let private upNextSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
         entries
         |> List.choose (fun e ->
             match e.WatchStatus, e.Media with
-            | InProgress progress, LibrarySeries _ -> Some (e, progress)
+            | InProgress progress, LibrarySeries _ ->
+                // Only include if we have valid next episode info
+                match progress.CurrentSeason, progress.CurrentEpisode with
+                | Some _, Some _ -> Some (e, progress)  // Has next episode
+                | _ -> None  // Missing metadata or completed - hide from Up Next
             | _ -> None)
         |> List.sortByDescending (fun (e, _) -> e.DateLastWatched |> Option.defaultValue e.DateAdded)
-        |> List.truncate 12
+        |> List.truncate 24
 
     if List.isEmpty inProgressSeriesWithProgress then Html.none
     else

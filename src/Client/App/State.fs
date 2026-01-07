@@ -35,8 +35,13 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
             let pageModel, pageCmd = Pages.Home.State.init ()
             { model' with HomePage = Some pageModel }, Cmd.map HomeMsg pageCmd
         | Some _ ->
-            // Already loaded - just trigger sync check
-            model', Cmd.map HomeMsg (Cmd.ofMsg Pages.Home.Types.CheckTraktSync)
+            // Already loaded - reload library to get fresh data (e.g., after episode updates)
+            // and trigger sync check
+            let cmds = Cmd.batch [
+                Cmd.map HomeMsg (Cmd.ofMsg Pages.Home.Types.LoadLibrary)
+                Cmd.map HomeMsg (Cmd.ofMsg Pages.Home.Types.CheckTraktSync)
+            ]
+            model', cmds
     | LibraryPage when model.LibraryPage.IsNone ->
         let pageModel, pageCmd = Pages.Library.State.init ()
         { model' with LibraryPage = Some pageModel }, Cmd.map LibraryMsg pageCmd

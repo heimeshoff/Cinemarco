@@ -60,6 +60,18 @@ let main args =
     printfn $"Database path: {Persistence.getDatabasePath()}"
     Migrations.runMigrations Persistence.connectionString
 
+    // Migrate existing InProgress series to use next episode (one-time fix)
+    printfn "Recalculating episode progress for in-progress series..."
+    async {
+        let! entries = Persistence.getAllLibraryEntries()
+        for entry in entries do
+            match entry.WatchStatus, entry.Media with
+            | Shared.Domain.InProgress _, Shared.Domain.LibrarySeries _ ->
+                do! Persistence.updateSeriesWatchStatusFromProgress entry.Id
+            | _ -> ()
+    } |> Async.RunSynchronously
+    printfn "Episode progress recalculation complete."
+
     if app.Environment.IsDevelopment() then
         app.UseDeveloperExceptionPage() |> ignore
 

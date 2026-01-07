@@ -108,6 +108,12 @@ type SeasonRecord = {
 }
 
 [<CLIMutable>]
+type SeasonEpisodeCountRecord = {
+    season_number: int
+    episode_count: int
+}
+
+[<CLIMutable>]
 type EpisodeRecord = {
     id: int
     series_id: int
@@ -2709,6 +2715,64 @@ let getLocalSeasonDetails (seriesId: SeriesId) (seasonNumber: int) : Async<TmdbS
             return Some seasonDetails
 }
 
+/// Get episode counts for all seasons of a series
+/// Returns a map of season_number -> episode_count
+/// Used for calculating next episode to watch
+let getSeasonEpisodeCounts (seriesId: SeriesId) : Async<Map<int, int>> = async {
+    use conn = getConnection()
+    let! records =
+        conn.QueryAsync<SeasonEpisodeCountRecord>(
+            """SELECT season_number, episode_count FROM seasons
+               WHERE series_id = @SeriesId AND season_number > 0
+               ORDER BY season_number""",
+            {| SeriesId = SeriesId.value seriesId |}
+        ) |> Async.AwaitTask
+
+    return records
+        |> Seq.map (fun r -> (r.season_number, r.episode_count))
+        |> Map.ofSeq
+}
+
+/// Calculate the next episode to watch based on current progress
+/// Returns None if series is completed or metadata is missing
+let calculateNextEpisode
+    (seasonEpisodeCounts: Map<int, int>)
+    (watchedEpisodes: EpisodeProgress list)
+    (totalSeasons: int)
+    : (int * int) option =
+
+    // If no season metadata, return None (hide from Up Next)
+    if Map.isEmpty seasonEpisodeCounts then
+        None
+    else
+        // Build set of watched (season, episode) tuples
+        let watchedSet =
+            watchedEpisodes
+            |> List.filter (fun p -> p.IsWatched)
+            |> List.map (fun p -> (p.SeasonNumber, p.EpisodeNumber))
+            |> Set.ofList
+
+        // Find first unwatched episode by iterating through seasons in order
+        let rec findNext season =
+            if season > totalSeasons then
+                None  // Completed all seasons
+            else
+                match Map.tryFind season seasonEpisodeCounts with
+                | None ->
+                    // No metadata for this season, skip to next
+                    findNext (season + 1)
+                | Some episodeCount ->
+                    // Find first unwatched episode in this season
+                    let firstUnwatched =
+                        [1 .. episodeCount]
+                        |> List.tryFind (fun ep -> not (Set.contains (season, ep) watchedSet))
+
+                    match firstUnwatched with
+                    | Some ep -> Some (season, ep)
+                    | None -> findNext (season + 1)  // All watched in this season
+
+        findNext 1
+
 /// Save season and episode metadata from TMDB to the database
 /// This enables episode names to be shown in the timeline
 let saveSeasonEpisodes (seriesId: SeriesId) (season: TmdbSeasonDetails) : Async<unit> = async {
@@ -2797,35 +2861,62 @@ let getSeriesInfoForEntry (EntryId entryId) : Async<(SeriesId * int) option> = a
 }
 
 /// Update the watch status based on episode progress (uses overall count across ALL sessions)
+/// Now stores the NEXT episode to watch, not the last watched episode
 let updateSeriesWatchStatusFromProgress (entryId: EntryId) : Async<unit> = async {
     match! getSeriesInfoForEntry entryId with
     | None -> ()
-    | Some (_, totalEpisodes) ->
+    | Some (seriesId, totalEpisodes) ->
         let! watchedCount = countOverallWatchedEpisodes entryId
         let! progress = getEpisodeProgress entryId
+
+        // Debug: Get series name for logging
+        let! series = getSeriesById seriesId
+        let seriesName = series |> Option.map (fun s -> s.Name) |> Option.defaultValue "Unknown"
 
         if watchedCount = 0 then
             do! updateWatchStatus entryId NotStarted None
         elif watchedCount >= totalEpisodes then
+            printfn $"[UpNext Debug] {seriesName}: watchedCount={watchedCount} >= totalEpisodes={totalEpisodes} -> Completed"
             do! updateWatchStatus entryId Completed (Some DateTime.UtcNow)
         else
-            // Find the latest watched episode
-            let lastWatched =
+            // Get the series to find number of seasons
+            let totalSeasons = series |> Option.map (fun s -> s.NumberOfSeasons) |> Option.defaultValue 0
+
+            // Get season episode counts for next episode calculation
+            let! seasonEpisodeCounts = getSeasonEpisodeCounts seriesId
+
+            printfn $"[UpNext Debug] {seriesName}: watchedCount={watchedCount}, totalEpisodes={totalEpisodes}, totalSeasons={totalSeasons}, seasonEpisodeCounts={seasonEpisodeCounts}"
+
+            // Calculate NEXT episode to watch (not last watched)
+            let nextEpisode = calculateNextEpisode seasonEpisodeCounts progress totalSeasons
+
+            printfn $"[UpNext Debug] {seriesName}: nextEpisode={nextEpisode}"
+
+            // Get last watched date for display
+            let lastWatchedDate =
                 progress
                 |> List.filter (fun p -> p.IsWatched)
-                |> List.sortByDescending (fun p -> (p.SeasonNumber, p.EpisodeNumber))
+                |> List.choose (fun p -> p.WatchedDate)
+                |> List.sortDescending
                 |> List.tryHead
 
-            match lastWatched with
-            | Some ep ->
+            match nextEpisode with
+            | Some (nextSeason, nextEp) ->
                 let progressInfo : WatchProgress = {
-                    CurrentSeason = Some ep.SeasonNumber
-                    CurrentEpisode = Some ep.EpisodeNumber
-                    LastWatchedDate = ep.WatchedDate
+                    CurrentSeason = Some nextSeason
+                    CurrentEpisode = Some nextEp
+                    LastWatchedDate = lastWatchedDate
                 }
-                do! updateWatchStatus entryId (InProgress progressInfo) ep.WatchedDate
+                do! updateWatchStatus entryId (InProgress progressInfo) lastWatchedDate
             | None ->
-                do! updateWatchStatus entryId NotStarted None
+                // No next episode found (missing metadata) - mark as InProgress but hide from Up Next
+                printfn $"[UpNext Debug] {seriesName}: No next episode found - hiding from Up Next"
+                let progressInfo : WatchProgress = {
+                    CurrentSeason = None
+                    CurrentEpisode = None
+                    LastWatchedDate = lastWatchedDate
+                }
+                do! updateWatchStatus entryId (InProgress progressInfo) lastWatchedDate
 }
 
 // =====================================
