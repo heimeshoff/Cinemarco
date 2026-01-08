@@ -1636,6 +1636,10 @@ let cinemarcoApi : ICinemarcoApi = {
         return! TraktImport.getSyncStatus()
     }
 
+    traktResyncSince = fun sinceDate -> async {
+        return! TraktImport.resyncSince sinceDate
+    }
+
     traktDebugGetShowHistory = fun tmdbId -> async {
         return! TraktClient.debugGetShowHistory tmdbId
     }

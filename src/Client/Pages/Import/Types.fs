@@ -1,5 +1,6 @@
 module Pages.Import.Types
 
+open System
 open Common.Types
 open Shared.Domain
 
@@ -38,6 +39,10 @@ type Model = {
     IsPollingStatus: bool
     /// Any error message
     Error: string option
+    /// Date for resync operation
+    ResyncDate: DateTime option
+    /// Status of resync operation
+    ResyncStatus: RemoteData<TraktSyncResult>
 }
 
 type Msg =
@@ -74,6 +79,11 @@ type Msg =
     // Navigation
     | GoToStep of ImportStep
 
+    // Resync
+    | SetResyncDate of DateTime
+    | StartResync
+    | ResyncCompleted of Result<TraktSyncResult, string>
+
 type ExternalMsg =
     | NoOp
     | ShowNotification of message: string * isSuccess: bool
@@ -104,4 +114,6 @@ module Model =
         ImportStatus = emptyStatus
         IsPollingStatus = false
         Error = None
+        ResyncDate = None
+        ResyncStatus = NotAsked
     }
