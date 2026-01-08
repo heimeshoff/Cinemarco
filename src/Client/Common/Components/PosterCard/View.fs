@@ -44,6 +44,17 @@ let private renderStatusOverlay (overlay: StatusOverlay) =
                 ]
             ]
         ]
+    | LastWatchedEpisode text ->
+        // Last watched episode banner at bottom (success/green color)
+        Html.div [
+            prop.className "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-success/90 to-success/70 px-2 py-1.5 text-center"
+            prop.children [
+                Html.span [
+                    prop.className "text-xs font-bold text-success-content uppercase tracking-wide"
+                    prop.text text
+                ]
+            ]
+        ]
     | FinishedBadge ->
         // Finished badge at TOP with downward gradient
         Html.div [

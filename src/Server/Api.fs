@@ -586,6 +586,8 @@ let cinemarcoApi : ICinemarcoApi = {
                 | LibrarySeries _ -> return Error "Watch sessions are for movies, use watch logs for series"
                 | LibraryMovie _ ->
                     let! session = Persistence.insertMovieWatchSession request
+                    // Update the library entry's DateLastWatched based on all sessions
+                    do! Persistence.updateMovieDateLastWatched request.EntryId
                     return Ok session
         with
         | ex -> return Error $"Failed to create movie watch session: {ex.Message}"
@@ -593,7 +595,13 @@ let cinemarcoApi : ICinemarcoApi = {
 
     movieSessionsDelete = fun sessionId -> async {
         try
+            // Get the session first to know which entry to update
+            let! session = Persistence.getMovieWatchSessionById sessionId
             do! Persistence.deleteMovieWatchSession sessionId
+            // Update the library entry's DateLastWatched based on remaining sessions
+            match session with
+            | Some s -> do! Persistence.updateMovieDateLastWatched s.EntryId
+            | None -> ()
             return Ok ()
         with
         | ex -> return Error $"Failed to delete movie watch session: {ex.Message}"
@@ -603,7 +611,10 @@ let cinemarcoApi : ICinemarcoApi = {
         try
             let! result = Persistence.updateMovieWatchSessionDate request
             match result with
-            | Some session -> return Ok session
+            | Some session ->
+                // Update the library entry's DateLastWatched based on all sessions
+                do! Persistence.updateMovieDateLastWatched session.EntryId
+                return Ok session
             | None -> return Error "Watch session not found"
         with
         | ex -> return Error $"Failed to update watch session date: {ex.Message}"
@@ -613,7 +624,10 @@ let cinemarcoApi : ICinemarcoApi = {
         try
             let! result = Persistence.updateMovieWatchSession request
             match result with
-            | Some session -> return Ok session
+            | Some session ->
+                // Update the library entry's DateLastWatched based on all sessions
+                do! Persistence.updateMovieDateLastWatched session.EntryId
+                return Ok session
             | None -> return Error "Watch session not found"
         with
         | ex -> return Error $"Failed to update watch session: {ex.Message}"
@@ -826,8 +840,10 @@ let cinemarcoApi : ICinemarcoApi = {
     // =====================================
 
     maintenanceRecalculateSeriesWatchStatus = fun () -> async {
-        // Get all library entries that are series
         let! entries = Persistence.getAllLibraryEntries()
+        let mutable updatedCount = 0
+
+        // Recalculate series watch status (progress + DateLastWatched)
         let seriesEntries =
             entries
             |> List.filter (fun e ->
@@ -835,9 +851,20 @@ let cinemarcoApi : ICinemarcoApi = {
                 | LibrarySeries _ -> true
                 | _ -> false)
 
-        let mutable updatedCount = 0
         for entry in seriesEntries do
             do! Persistence.updateSeriesWatchStatusFromProgress entry.Id
+            updatedCount <- updatedCount + 1
+
+        // Recalculate movie DateLastWatched from watch sessions
+        let movieEntries =
+            entries
+            |> List.filter (fun e ->
+                match e.Media with
+                | LibraryMovie _ -> true
+                | _ -> false)
+
+        for entry in movieEntries do
+            do! Persistence.updateMovieDateLastWatched entry.Id
             updatedCount <- updatedCount + 1
 
         return updatedCount

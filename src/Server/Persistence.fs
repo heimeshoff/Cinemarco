@@ -1376,6 +1376,30 @@ let getMovieWatchSessionsForEntry (EntryId entryId) : Async<MovieWatchSession li
     return sessions |> Array.toList
 }
 
+
+/// Get a single movie watch session by ID
+let getMovieWatchSessionById (SessionId sessionId) : Async<MovieWatchSession option> = async {
+    use conn = getConnection()
+    let! record =
+        conn.QueryFirstOrDefaultAsync<MovieWatchSessionRecord>(
+            "SELECT * FROM movie_watch_sessions WHERE id = @Id",
+            {| Id = sessionId |}
+        ) |> Async.AwaitTask
+
+    if isNull (box record) then
+        return None
+    else
+        let! friendIds = getMovieSessionFriends (SessionId record.id)
+        return Some {
+            Id = SessionId record.id
+            EntryId = EntryId record.entry_id
+            WatchedDate = DateTime.Parse(record.watched_date)
+            Friends = friendIds
+            Name = if String.IsNullOrEmpty(record.name) then None else Some record.name
+            CreatedAt = DateTime.Parse(record.created_at)
+        }
+}
+
 /// Get all movie watch sessions (for stats calculation)
 let getAllMovieWatchSessions () : Async<MovieWatchSession list> = async {
     use conn = getConnection()
@@ -1467,6 +1491,44 @@ let insertMovieWatchSession (request: CreateMovieWatchSessionRequest) : Async<Mo
         Name = request.Name
         CreatedAt = DateTime.UtcNow
     }
+}
+
+
+/// Update a movie's DateLastWatched based on the latest watch session
+/// Should be called after creating, updating, or deleting movie watch sessions
+let updateMovieDateLastWatched (entryId: EntryId) : Async<unit> = async {
+    use conn = getConnection()
+    let entryIdVal = EntryId.value entryId
+    
+    // Get the max watched_date from all movie watch sessions for this entry
+    let! maxWatchedDate =
+        conn.ExecuteScalarAsync<string>(
+            """SELECT MAX(watched_date) FROM movie_watch_sessions WHERE entry_id = @EntryId""",
+            {| EntryId = entryIdVal |}
+        ) |> Async.AwaitTask
+    
+    // Update the library entry's date_last_watched
+    match parseDateTime maxWatchedDate with
+    | Some date ->
+        let dateStr = date.ToString("o")
+        let! _ =
+            conn.ExecuteAsync(
+                """UPDATE library_entries 
+                   SET date_last_watched = @DateLastWatched, updated_at = @UpdatedAt
+                   WHERE id = @Id""",
+                {| Id = entryIdVal; DateLastWatched = dateStr; UpdatedAt = DateTime.UtcNow.ToString("o") |}
+            ) |> Async.AwaitTask
+        ()
+    | None ->
+        // No watch sessions - clear date_last_watched and set status to NotStarted
+        let! _ =
+            conn.ExecuteAsync(
+                """UPDATE library_entries 
+                   SET date_last_watched = NULL, watch_status = 'NotStarted', updated_at = @UpdatedAt
+                   WHERE id = @Id""",
+                {| Id = entryIdVal; UpdatedAt = DateTime.UtcNow.ToString("o") |}
+            ) |> Async.AwaitTask
+        ()
 }
 
 /// Delete a movie watch session
@@ -1616,6 +1678,20 @@ let countOverallWatchedEpisodes (EntryId entryId) : Async<int> = async {
             {| EntryId = entryId |}
         ) |> Async.AwaitTask
     return count
+}
+
+
+/// Get the latest watched date across ALL sessions for an entry
+let getOverallLastWatchedDate (EntryId entryId) : Async<DateTime option> = async {
+    use conn = getConnection()
+    let! result =
+        conn.ExecuteScalarAsync<string>(
+            """SELECT MAX(watched_date)
+               FROM episode_progress
+               WHERE entry_id = @EntryId AND is_watched = 1 AND watched_date IS NOT NULL""",
+            {| EntryId = entryId |}
+        ) |> Async.AwaitTask
+    return parseDateTime result
 }
 
 /// Record type for episode watch data used in stats
@@ -2562,9 +2638,10 @@ let updateWatchStatus (EntryId id) (status: WatchStatus) (watchedDate: DateTime 
         | Completed | InProgress _ -> formatDateTime watchedDate
         | _ -> null
 
+    // Use the actual watchedDate from the parameter (which comes from episode progress across all sessions)
     let dateLastWatched =
         match status with
-        | Completed | InProgress _ -> formatDateTime (Some DateTime.UtcNow)
+        | Completed | InProgress _ -> formatDateTime watchedDate
         | _ -> null
 
     let param = {|
@@ -2867,17 +2944,35 @@ let updateSeriesWatchStatusFromProgress (entryId: EntryId) : Async<unit> = async
     | None -> ()
     | Some (seriesId, totalEpisodes) ->
         let! watchedCount = countOverallWatchedEpisodes entryId
-        let! progress = getEpisodeProgress entryId
+        // Get overall progress across ALL sessions (not just default)
+        let! overallWatchedEpisodes = getOverallEpisodeProgress entryId
+        // Convert to EpisodeProgress format for calculateNextEpisode
+        // (only SeasonNumber, EpisodeNumber, IsWatched are used by calculateNextEpisode)
+        let progress =
+            overallWatchedEpisodes
+            |> List.map (fun (season, ep) -> {
+                EntryId = entryId
+                SessionId = SessionId 0  // Placeholder, not used by calculateNextEpisode
+                SeriesId = seriesId
+                SeasonNumber = season
+                EpisodeNumber = ep
+                IsWatched = true
+                WatchedDate = None  // Date not needed for next episode calculation
+            })
 
         // Debug: Get series name for logging
         let! series = getSeriesById seriesId
         let seriesName = series |> Option.map (fun s -> s.Name) |> Option.defaultValue "Unknown"
 
+        // Get last watched date from ALL sessions (not just default)
+        let! lastWatchedDate = getOverallLastWatchedDate entryId
+
         if watchedCount = 0 then
             do! updateWatchStatus entryId NotStarted None
         elif watchedCount >= totalEpisodes then
             printfn $"[UpNext Debug] {seriesName}: watchedCount={watchedCount} >= totalEpisodes={totalEpisodes} -> Completed"
-            do! updateWatchStatus entryId Completed (Some DateTime.UtcNow)
+            // Use actual last watched date from all sessions, not DateTime.UtcNow
+            do! updateWatchStatus entryId Completed lastWatchedDate
         else
             // Get the series to find number of seasons
             let totalSeasons = series |> Option.map (fun s -> s.NumberOfSeasons) |> Option.defaultValue 0
@@ -2891,14 +2986,6 @@ let updateSeriesWatchStatusFromProgress (entryId: EntryId) : Async<unit> = async
             let nextEpisode = calculateNextEpisode seasonEpisodeCounts progress totalSeasons
 
             printfn $"[UpNext Debug] {seriesName}: nextEpisode={nextEpisode}"
-
-            // Get last watched date for display
-            let lastWatchedDate =
-                progress
-                |> List.filter (fun p -> p.IsWatched)
-                |> List.choose (fun p -> p.WatchedDate)
-                |> List.sortDescending
-                |> List.tryHead
 
             match nextEpisode with
             | Some (nextSeason, nextEp) ->

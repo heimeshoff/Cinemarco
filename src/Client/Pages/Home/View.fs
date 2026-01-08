@@ -137,6 +137,39 @@ let private posterScrollList (entries: LibraryEntry list) (onViewDetail: EntryId
         ]
     ]
 
+let recentlyAddedScrollList (entries: LibraryEntry list) (onViewDetail: EntryId -> bool -> unit) =
+    Html.div [
+        prop.className "flex gap-4 overflow-x-auto py-4 px-2 -mx-2 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.children [
+            for entry in entries do
+                Html.div [
+                    prop.key (EntryId.value entry.Id)
+                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
+                    prop.children [
+                        libraryEntryCard entry onViewDetail
+                        // Title below card
+                        Html.div [
+                            prop.className "mt-2 space-y-0.5"
+                            prop.children [
+                                Html.p [
+                                    prop.className "text-sm font-medium truncate text-base-content/90"
+                                    prop.text (
+                                        match entry.Media with
+                                        | LibraryMovie m -> m.Title
+                                        | LibrarySeries s -> s.Name
+                                    )
+                                ]
+                                Html.p [
+                                    prop.className "text-xs text-base-content/50"
+                                    prop.text (formatRelativeTime entry.DateAdded)
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
 /// Horizontal scroll poster list for series with next episode indicator
 let private seriesScrollListWithEpisode (entries: (LibraryEntry * WatchProgress) list) (onViewDetail: EntryId -> bool -> unit) =
     Html.div [
@@ -164,6 +197,83 @@ let private seriesScrollListWithEpisode (entries: (LibraryEntry * WatchProgress)
                                 Html.p [
                                     prop.className "text-xs text-base-content/50"
                                     prop.text year
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Format a date for display (e.g., "Dec 21, 2025")
+let private formatWatchedDate (date: DateTime) =
+    date.ToString("MMM d, yyyy")
+
+/// Calculate the last watched episode from WatchProgress (which stores the NEXT episode)
+let private getLastWatchedEpisode (progress: WatchProgress) : (int * int) option =
+    match progress.CurrentSeason, progress.CurrentEpisode with
+    | Some season, Some episode when episode > 1 ->
+        Some (season, episode - 1)
+    | _ -> None
+
+/// Horizontal scroll poster list for recently watched (shows last watched date and episode)
+let private recentlyWatchedScrollList (entries: LibraryEntry list) (onViewDetail: EntryId -> bool -> unit) =
+    Html.div [
+        prop.className "flex gap-4 overflow-x-auto py-4 px-2 -mx-2 scrollbar-thin scrollbar-thumb-base-content/20 scrollbar-track-transparent"
+        prop.children [
+            for entry in entries do
+                let title =
+                    match entry.Media with
+                    | LibraryMovie m -> m.Title
+                    | LibrarySeries s -> s.Name
+
+                let posterPath =
+                    match entry.Media with
+                    | LibraryMovie m -> m.PosterPath
+                    | LibrarySeries s -> s.PosterPath
+
+                let isMovie =
+                    match entry.Media with
+                    | LibraryMovie _ -> true
+                    | LibrarySeries _ -> false
+
+                // Subtitle: show the last watched date
+                let subtitle =
+                    entry.DateLastWatched
+                    |> Option.map formatWatchedDate
+                    |> Option.defaultValue ""
+
+                // For series, calculate last watched episode for overlay
+                let overlay =
+                    match entry.Media, entry.WatchStatus with
+                    | LibrarySeries _, InProgress progress ->
+                        match getLastWatchedEpisode progress with
+                        | Some (season, episode) -> Some (PosterCardTypes.LastWatchedEpisode $"S{season} E{episode}")
+                        | None ->
+                            match progress.CurrentSeason with
+                            | Some s -> Some (PosterCardTypes.LastWatchedEpisode $"S{s}")
+                            | None -> None
+                    | LibrarySeries _, Completed -> Some PosterCardTypes.FinishedBadge
+                    | LibrarySeries _, Abandoned _ -> Some PosterCardTypes.AbandonedBadge
+                    | _ -> None
+
+                let posterUrl = posterPath |> Option.map (fun p -> getLocalPosterUrl (Some p))
+                Html.div [
+                    prop.key (EntryId.value entry.Id)
+                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
+                    prop.children [
+                        PosterCard.miniWithOverlay posterUrl title overlay (fun () -> onViewDetail entry.Id isMovie)
+
+                        Html.div [
+                            prop.className "mt-2 space-y-0.5"
+                            prop.children [
+                                Html.p [
+                                    prop.className "text-sm font-medium truncate text-base-content/90"
+                                    prop.text title
+                                ]
+                                Html.p [
+                                    prop.className "text-xs text-base-content/50"
+                                    prop.text subtitle
                                 ]
                             ]
                         ]
@@ -304,7 +414,7 @@ let private recentlyWatchedSection (entries: LibraryEntry list) (dispatch: Msg -
     if List.isEmpty recentlyWatched then Html.none
     else
         homeSection "Recently Watched" eye "text-success" true (fun () -> dispatch ViewLibrary) (
-            posterScrollList recentlyWatched (fun id isMovie ->
+            recentlyWatchedScrollList recentlyWatched (fun id isMovie ->
                 let entry = recentlyWatched |> List.find (fun e -> e.Id = id)
                 match entry.Media with
                 | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))
@@ -322,7 +432,7 @@ let private recentlyAddedSection (entries: LibraryEntry list) (dispatch: Msg -> 
     if List.isEmpty recentlyAdded then Html.none
     else
         homeSection "Recently Added" plus "text-secondary" true (fun () -> dispatch ViewLibrary) (
-            posterScrollList recentlyAdded (fun id isMovie ->
+            recentlyAddedScrollList recentlyAdded (fun id isMovie ->
                 let entry = recentlyAdded |> List.find (fun e -> e.Id = id)
                 match entry.Media with
                 | LibraryMovie m -> dispatch (ViewMovieDetail (id, m.Title, m.ReleaseDate))

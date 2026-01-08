@@ -13,6 +13,7 @@ type RatingBadge = {
 /// Status overlay configuration (for "Finished"/"Abandoned" badges at top, episode banners at bottom)
 type StatusOverlay =
     | NextEpisode of text: string
+    | LastWatchedEpisode of text: string
     | FinishedBadge
     | AbandonedBadge
     | Custom of ReactElement
