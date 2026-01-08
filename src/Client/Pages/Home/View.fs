@@ -274,7 +274,7 @@ let private watchlistSection (entries: LibraryEntry list) (dispatch: Msg -> unit
         entries
         |> List.filter (fun e -> match e.WatchStatus with NotStarted -> true | _ -> false)
         |> List.sortByDescending (fun e -> e.DateAdded)
-        |> List.truncate 12
+        |> List.truncate 24
 
     if List.isEmpty notStarted then Html.none
     else
@@ -287,7 +287,7 @@ let private watchlistSection (entries: LibraryEntry list) (dispatch: Msg -> unit
             )
         )
 
-/// Recently Watched section - completed or has watch date
+/// Recently Watched section - completed, abandoned, or has watch date
 let private recentlyWatchedSection (entries: LibraryEntry list) (dispatch: Msg -> unit) =
     let recentlyWatched =
         entries
@@ -295,10 +295,11 @@ let private recentlyWatchedSection (entries: LibraryEntry list) (dispatch: Msg -
             match e.WatchStatus with
             | Completed -> true
             | InProgress _ -> e.DateLastWatched.IsSome
+            | Abandoned _ -> true  // Include abandoned series
             | _ -> false)
         |> List.filter (fun e -> e.DateLastWatched.IsSome)
         |> List.sortByDescending (fun e -> e.DateLastWatched.Value)
-        |> List.truncate 12
+        |> List.truncate 24
 
     if List.isEmpty recentlyWatched then Html.none
     else
@@ -316,7 +317,7 @@ let private recentlyAddedSection (entries: LibraryEntry list) (dispatch: Msg -> 
     let recentlyAdded =
         entries
         |> List.sortByDescending (fun e -> e.DateAdded)
-        |> List.truncate 12
+        |> List.truncate 24
 
     if List.isEmpty recentlyAdded then Html.none
     else
