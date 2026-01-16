@@ -462,6 +462,35 @@ CREATE TABLE IF NOT EXISTS trakt_settings (
 INSERT OR IGNORE INTO trakt_settings (id, auto_sync_enabled) VALUES (1, 1);
 """
     }
+
+    // Migration 2: Fix movies with watch sessions that are incorrectly marked as NotStarted
+    {
+        Version = 2
+        Name = "Fix movie watch status from sessions"
+        Up = """
+-- Update movies that have watch sessions but are still marked as NotStarted
+-- This fixes a bug where creating a watch session didn't update the watch_status
+UPDATE library_entries
+SET watch_status = 'Completed',
+    date_first_watched = COALESCE(date_first_watched, (
+        SELECT MIN(watched_date)
+        FROM movie_watch_sessions
+        WHERE movie_watch_sessions.entry_id = library_entries.id
+    )),
+    date_last_watched = COALESCE(date_last_watched, (
+        SELECT MAX(watched_date)
+        FROM movie_watch_sessions
+        WHERE movie_watch_sessions.entry_id = library_entries.id
+    )),
+    updated_at = datetime('now')
+WHERE LOWER(media_type) = 'movie'
+  AND watch_status = 'NotStarted'
+  AND id IN (
+      SELECT DISTINCT entry_id
+      FROM movie_watch_sessions
+  );
+"""
+    }
 ]
 
 /// Create the migrations tracking table if it doesn't exist

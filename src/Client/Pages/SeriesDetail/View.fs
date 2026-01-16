@@ -446,6 +446,22 @@ let private castCrewTab (model: Model) (dispatch: Msg -> unit) =
 /// Session context menu (three-dot menu for navigating to friends, removing, or adding)
 [<ReactComponent>]
 let private SessionContextMenu (session: WatchSession) (allFriends: Friend list) (isOpen: bool) (dispatch: Msg -> unit) =
+    let buttonRef = React.useRef<Browser.Types.HTMLElement option> None
+    let (menuPosition, setMenuPosition) = React.useState<{| X: float; Y: float |} option> None
+
+    // Update menu position when opened
+    React.useEffect ((fun () ->
+        if isOpen then
+            match buttonRef.current with
+            | Some btn ->
+                let rect = btn.getBoundingClientRect()
+                setMenuPosition (Some {| X = rect.right; Y = rect.bottom + 4.0 |})
+            | None -> ()
+        else
+            setMenuPosition None
+        None
+    ), [| box isOpen |])
+
     // Close dropdown when clicking outside
     React.useEffect ((fun () ->
         let closeDropdown (e: Browser.Types.Event) =
@@ -469,10 +485,11 @@ let private SessionContextMenu (session: WatchSession) (allFriends: Friend list)
         |> List.filter (fun f -> not (List.contains f.Id session.Friends))
 
     Html.div [
-        prop.className "relative inline-flex items-center"
+        prop.className "inline-flex items-center"
         prop.children [
             // Three-dot button
             Html.button [
+                prop.ref buttonRef
                 prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-base-content hover:bg-base-300 transition-colors"
                 prop.onClick (fun e ->
                     e.stopPropagation()
@@ -484,96 +501,105 @@ let private SessionContextMenu (session: WatchSession) (allFriends: Friend list)
                 ]
             ]
 
-            // Context menu dropdown
-            if isOpen then
-                Html.div [
-                    prop.className "absolute right-0 top-full mt-1 z-50 min-w-[220px] rounded-lg shadow-xl border border-base-300 overflow-hidden"
-                    prop.style [ style.backgroundColor "#1d232a" ]
-                    prop.onClick (fun e -> e.stopPropagation())
-                    prop.children [
-                        // Current friends section (if any)
-                        if not (List.isEmpty sessionFriends) then
-                            Html.div [
-                                prop.className "px-3 py-2 text-xs text-base-content/50 border-b border-base-300 uppercase tracking-wide"
-                                prop.text "Watching with"
-                            ]
-                            for friend in sessionFriends do
+            // Context menu dropdown - rendered as portal to body
+            match isOpen, menuPosition with
+            | true, Some pos ->
+                ReactDOM.createPortal(
+                    Html.div [
+                        prop.className "fixed z-[9999] min-w-[220px] rounded-lg shadow-xl border border-base-300 overflow-hidden backdrop-blur-xl"
+                        prop.style [
+                            style.right (length.px (Browser.Dom.window.innerWidth - pos.X))
+                            style.top (length.px pos.Y)
+                            style.backgroundColor "#1d232a"
+                        ]
+                        prop.onClick (fun e -> e.stopPropagation())
+                        prop.children [
+                            // Current friends section (if any)
+                            if not (List.isEmpty sessionFriends) then
                                 Html.div [
-                                    prop.key (FriendId.value friend.Id |> string)
-                                    prop.className "flex items-center justify-between px-3 py-2 hover:bg-base-300/30"
-                                    prop.children [
-                                        // Friend name (clickable to navigate)
-                                        Html.button [
-                                            prop.className "flex-1 text-left hover:text-primary transition-colors"
-                                            prop.onClick (fun e ->
-                                                e.stopPropagation()
-                                                dispatch CloseSessionFriendEditor
-                                                dispatch (ViewFriendDetail (friend.Id, friend.Name)))
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "font-medium"
-                                                    prop.text friend.Name
-                                                ]
-                                                match friend.Nickname with
-                                                | Some nick ->
+                                    prop.className "px-3 py-2 text-xs text-base-content/50 border-b border-base-300 uppercase tracking-wide"
+                                    prop.text "Watching with"
+                                ]
+                                for friend in sessionFriends do
+                                    Html.div [
+                                        prop.key (FriendId.value friend.Id |> string)
+                                        prop.className "flex items-center justify-between px-3 py-2 hover:bg-base-300/30"
+                                        prop.children [
+                                            // Friend name (clickable to navigate)
+                                            Html.button [
+                                                prop.className "flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch CloseSessionFriendEditor
+                                                    dispatch (ViewFriendDetail (friend.Id, friend.Name)))
+                                                prop.children [
                                                     Html.span [
-                                                        prop.className "text-base-content/50 text-sm ml-2"
-                                                        prop.text $"({nick})"
+                                                        prop.className "font-medium"
+                                                        prop.text friend.Name
                                                     ]
-                                                | None -> Html.none
+                                                    match friend.Nickname with
+                                                    | Some nick ->
+                                                        Html.span [
+                                                            prop.className "text-base-content/50 text-sm ml-2"
+                                                            prop.text $"({nick})"
+                                                        ]
+                                                    | None -> Html.none
+                                                ]
                                             ]
-                                        ]
-                                        // Remove button
-                                        Html.button [
-                                            prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-error hover:bg-error/10 transition-colors ml-2"
-                                            prop.onClick (fun e ->
-                                                e.stopPropagation()
-                                                dispatch (ToggleSessionFriend (session.Id, friend.Id)))
-                                            prop.title $"Remove {friend.Name}"
-                                            prop.children [
-                                                Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
+                                            // Remove button
+                                            Html.button [
+                                                prop.className "w-6 h-6 flex items-center justify-center rounded-full text-base-content/40 hover:text-error hover:bg-error/10 transition-colors ml-2 cursor-pointer"
+                                                prop.onClick (fun e ->
+                                                    e.stopPropagation()
+                                                    dispatch (ToggleSessionFriend (session.Id, friend.Id)))
+                                                prop.title $"Remove {friend.Name}"
+                                                prop.children [
+                                                    Html.span [ prop.className "w-4 h-4"; prop.children [ close ] ]
+                                                ]
                                             ]
                                         ]
                                     ]
-                                ]
 
-                        // Add friends section (if any available)
-                        if not (List.isEmpty availableFriends) then
-                            Html.div [
-                                prop.className "px-3 py-2 text-xs text-base-content/50 border-t border-base-300 uppercase tracking-wide"
-                                prop.text "Add friend"
-                            ]
-                            for friend in availableFriends do
-                                Html.button [
-                                    prop.key (FriendId.value friend.Id |> string)
-                                    prop.className "w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300/30 text-left"
-                                    prop.onClick (fun e ->
-                                        e.stopPropagation()
-                                        dispatch (ToggleSessionFriend (session.Id, friend.Id)))
-                                    prop.children [
-                                        Html.span [ prop.className "w-4 h-4 text-primary"; prop.children [ plus ] ]
-                                        Html.span [
-                                            prop.className "font-medium"
-                                            prop.text friend.Name
-                                        ]
-                                        match friend.Nickname with
-                                        | Some nick ->
+                            // Add friends section (if any available)
+                            if not (List.isEmpty availableFriends) then
+                                Html.div [
+                                    prop.className "px-3 py-2 text-xs text-base-content/50 border-t border-base-300 uppercase tracking-wide"
+                                    prop.text "Add friend"
+                                ]
+                                for friend in availableFriends do
+                                    Html.button [
+                                        prop.key (FriendId.value friend.Id |> string)
+                                        prop.className "w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300/30 text-left cursor-pointer"
+                                        prop.onClick (fun e ->
+                                            e.stopPropagation()
+                                            dispatch (ToggleSessionFriend (session.Id, friend.Id)))
+                                        prop.children [
+                                            Html.span [ prop.className "w-4 h-4 text-primary"; prop.children [ plus ] ]
                                             Html.span [
-                                                prop.className "text-base-content/50 text-sm"
-                                                prop.text $"({nick})"
+                                                prop.className "font-medium"
+                                                prop.text friend.Name
                                             ]
-                                        | None -> Html.none
+                                            match friend.Nickname with
+                                            | Some nick ->
+                                                Html.span [
+                                                    prop.className "text-base-content/50 text-sm"
+                                                    prop.text $"({nick})"
+                                                ]
+                                            | None -> Html.none
+                                        ]
                                     ]
-                                ]
 
-                        // Empty state
-                        if List.isEmpty sessionFriends && List.isEmpty availableFriends then
-                            Html.div [
-                                prop.className "px-4 py-3 text-base-content/50 text-sm"
-                                prop.text "No friends yet"
-                            ]
-                    ]
-                ]
+                            // Empty state
+                            if List.isEmpty sessionFriends && List.isEmpty availableFriends then
+                                Html.div [
+                                    prop.className "px-4 py-3 text-base-content/50 text-sm"
+                                    prop.text "No friends yet"
+                                ]
+                        ]
+                    ],
+                    Browser.Dom.document.body
+                )
+            | _ -> Html.none
         ]
     ]
 

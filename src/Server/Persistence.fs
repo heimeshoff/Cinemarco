@@ -1507,14 +1507,17 @@ let updateMovieDateLastWatched (entryId: EntryId) : Async<unit> = async {
             {| EntryId = entryIdVal |}
         ) |> Async.AwaitTask
     
-    // Update the library entry's date_last_watched
+    // Update the library entry's date_last_watched and watch_status
     match parseDateTime maxWatchedDate with
     | Some date ->
+        // Has watch sessions - mark as Completed
         let dateStr = date.ToString("o")
         let! _ =
             conn.ExecuteAsync(
                 """UPDATE library_entries 
-                   SET date_last_watched = @DateLastWatched, updated_at = @UpdatedAt
+                   SET date_last_watched = @DateLastWatched, 
+                       watch_status = 'Completed',
+                       updated_at = @UpdatedAt
                    WHERE id = @Id""",
                 {| Id = entryIdVal; DateLastWatched = dateStr; UpdatedAt = DateTime.UtcNow.ToString("o") |}
             ) |> Async.AwaitTask
