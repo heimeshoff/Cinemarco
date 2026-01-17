@@ -151,6 +151,11 @@ let cinemarcoApi : ICinemarcoApi = {
     sessionsUpdateEpisodeWatchedDate = fun (sessionId, seasonNumber, episodeNumber, watchedDate) -> async {
         try
             do! Persistence.updateSessionEpisodeWatchedDate sessionId seasonNumber episodeNumber watchedDate
+            // Update the series DateLastWatched based on all episode progress
+            let! session = Persistence.getSessionById sessionId
+            match session with
+            | Some s -> do! Persistence.updateSeriesWatchStatusFromProgress s.EntryId
+            | None -> ()
             return Ok ()
         with
         | ex -> return Error $"Failed to update episode watched date: {ex.Message}"
@@ -474,6 +479,7 @@ let cinemarcoApi : ICinemarcoApi = {
                 | LibraryMovie _ -> return Error "Sessions can only be created for series"
                 | LibrarySeries _ ->
                     let! session = Persistence.insertWatchSession request
+                    do! Persistence.updateSeriesWatchStatusFromProgress request.EntryId
                     return Ok session
         with
         | ex -> return Error $"Failed to create session: {ex.Message}"
@@ -484,7 +490,9 @@ let cinemarcoApi : ICinemarcoApi = {
             do! Persistence.updateWatchSession request
             let! session = Persistence.getSessionById request.Id
             match session with
-            | Some s -> return Ok s
+            | Some s ->
+                do! Persistence.updateSeriesWatchStatusFromProgress s.EntryId
+                return Ok s
             | None -> return Error "Session not found after update"
         with
         | ex -> return Error $"Failed to update session: {ex.Message}"
@@ -492,7 +500,11 @@ let cinemarcoApi : ICinemarcoApi = {
 
     sessionsDelete = fun sessionId -> async {
         try
+            let! session = Persistence.getSessionById sessionId
             do! Persistence.deleteWatchSession sessionId
+            match session with
+            | Some s -> do! Persistence.updateSeriesWatchStatusFromProgress s.EntryId
+            | None -> ()
             return Ok ()
         with
         | ex -> return Error $"Failed to delete session: {ex.Message}"
@@ -1061,6 +1073,10 @@ let cinemarcoApi : ICinemarcoApi = {
 
     timelineGetByMonth = fun (year, month) -> async {
         return! Persistence.getTimelineEntriesByMonth year month
+    }
+
+    timelineGetDateRange = fun filter -> async {
+        return! Persistence.getTimelineDateRange filter
     }
 
     // =====================================

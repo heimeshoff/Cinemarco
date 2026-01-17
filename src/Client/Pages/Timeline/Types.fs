@@ -6,12 +6,20 @@ open Shared.Domain
 
 /// Model for Timeline page
 type Model = {
-    /// Timeline entries, paged
-    Entries: RemoteData<PagedResponse<TimelineEntry>>
-    /// Current page
+    /// Timeline entries (accumulated for infinite scroll)
+    Entries: RemoteData<TimelineEntry list>
+    /// Total count of entries
+    TotalCount: int
+    /// Whether there are more entries to load
+    HasNextPage: bool
+    /// Current page (for pagination)
     Page: int
     /// Page size
     PageSize: int
+    /// Date range for time axis
+    DateRange: RemoteData<TimelineDateRange option>
+    /// Currently visible date (for time axis position indicator)
+    CurrentVisibleDate: DateTime option
     /// Start date filter (optional)
     StartDate: DateTime option
     /// End date filter (optional)
@@ -30,6 +38,10 @@ type Msg =
     | EntriesLoaded of Result<PagedResponse<TimelineEntry>, string>
     | LoadMoreEntries
     | MoreEntriesLoaded of Result<PagedResponse<TimelineEntry>, string>
+    | LoadDateRange
+    | DateRangeLoaded of Result<TimelineDateRange option, string>
+    | UpdateVisibleDate of DateTime
+    | JumpToDate of DateTime
     | SetStartDate of DateTime option
     | SetEndDate of DateTime option
     | SetMediaTypeFilter of MediaType option
@@ -47,8 +59,12 @@ type ExternalMsg =
 module Model =
     let empty = {
         Entries = NotAsked
+        TotalCount = 0
+        HasNextPage = false
         Page = 1
         PageSize = 30
+        DateRange = NotAsked
+        CurrentVisibleDate = None
         StartDate = None
         EndDate = None
         MediaType = None

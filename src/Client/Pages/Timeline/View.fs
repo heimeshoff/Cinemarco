@@ -2,12 +2,32 @@ module Pages.Timeline.View
 
 open System
 open Feliz
+open Fable.Core
+open Fable.Core.JsInterop
+open Browser.Types
 open Common.Types
 open Shared.Domain
 open Types
 open Components.Icons
 
 module GlassButton = Common.Components.GlassButton.View
+
+// =====================================
+// JS Interop for IntersectionObserver
+// =====================================
+
+module private IntersectionObserverInterop =
+    [<Emit("new IntersectionObserver($0, { rootMargin: '200px', threshold: 0 })")>]
+    let create (callback: obj -> unit) : obj = jsNative
+
+    [<Emit("$0.observe($1)")>]
+    let observe (observer: obj) (element: Element) : unit = jsNative
+
+    [<Emit("$0.disconnect()")>]
+    let disconnect (observer: obj) : unit = jsNative
+
+    [<Emit("$0.scrollIntoView({ behavior: 'smooth', block: 'start' })")>]
+    let scrollIntoViewSmooth (element: Element) : unit = jsNative
 
 // =====================================
 // Rating Options (same as MovieDetail)
@@ -45,9 +65,15 @@ let private formatMonthHeader (date: DateTime) =
 let private formatDay (date: DateTime) =
     date.ToString("d MMM")
 
-/// Format full date (e.g., "December 15, 2024")
-let private formatFullDate (date: DateTime) =
-    date.ToString("MMMM d, yyyy")
+/// Generate month range from earliest to now
+let private generateMonthRange (earliest: DateTime) (latest: DateTime) : DateTime list =
+    let mutable months = []
+    let mutable current = DateTime(earliest.Year, earliest.Month, 1)
+    let endMonth = DateTime(latest.Year, latest.Month, 1)
+    while current <= endMonth do
+        months <- current :: months
+        current <- current.AddMonths(1)
+    months |> List.rev
 
 /// Get image URL from timeline entry with fallback logic
 /// For movies: use poster
@@ -91,6 +117,93 @@ let private getDetailText (detail: TimelineDetail) (entry: LibraryEntry) (episod
 // =====================================
 // Components
 // =====================================
+
+/// Infinite scroll sentinel - triggers load when visible
+[<ReactComponent>]
+let private InfiniteScrollSentinel (hasMore: bool) (isLoading: bool) (onLoadMore: unit -> unit) =
+    let sentinelRef = React.useRef<Element option>(None)
+
+    React.useEffect((fun () ->
+        match sentinelRef.current, hasMore, isLoading with
+        | Some el, true, false ->
+            let callback (entries: obj) =
+                let entry = entries?(0)
+                if entry?isIntersecting then onLoadMore()
+            let observer = IntersectionObserverInterop.create callback
+            IntersectionObserverInterop.observe observer el
+            { new IDisposable with member _.Dispose() = IntersectionObserverInterop.disconnect observer }
+        | _ -> { new IDisposable with member _.Dispose() = () }
+    ), [| box hasMore; box isLoading |])
+
+    Html.div [
+        prop.ref (fun el -> sentinelRef.current <- if isNull el then None else Some el)
+        prop.className "h-4"
+        prop.children [
+            if isLoading then
+                Html.div [
+                    prop.className "text-center py-4"
+                    prop.children [ Html.span [ prop.className "loading loading-spinner loading-md" ] ]
+                ]
+        ]
+    ]
+
+/// Time axis component - fixed on right side (desktop only)
+[<ReactComponent>]
+let private TimeAxis (dateRange: TimelineDateRange) (currentDate: DateTime option) (onJumpToDate: DateTime -> unit) =
+    let months = generateMonthRange dateRange.EarliestDate DateTime.Now |> List.rev
+    let totalMonths = max 1 (List.length months - 1)
+
+    Html.div [
+        prop.className "fixed right-4 top-1/2 -translate-y-1/2 h-[60vh] hidden lg:flex flex-col items-center z-30"
+        prop.children [
+            // "Now" label
+            Html.span [
+                prop.className "text-xs text-base-content/40 mb-2 font-medium"
+                prop.text "Now"
+            ]
+            // Time axis track
+            Html.div [
+                prop.className "relative flex-1 w-1 bg-base-content/10 rounded-full"
+                prop.children [
+                    // Month markers
+                    for (i, monthDate) in months |> List.indexed do
+                        let pos = float i / float totalMonths * 100.0
+                        let isActive =
+                            currentDate
+                            |> Option.map (fun d -> d.Year = monthDate.Year && d.Month = monthDate.Month)
+                            |> Option.defaultValue false
+                        let isYearStart = monthDate.Month = 1
+                        Html.div [
+                            prop.key $"month-{monthDate.Year}-{monthDate.Month}"
+                            prop.className (
+                                if isActive then
+                                    "absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-primary cursor-pointer transition-all hover:scale-125 ring-2 ring-primary/30"
+                                elif isYearStart then
+                                    "absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-base-content/40 cursor-pointer transition-all hover:scale-125 hover:bg-primary/60"
+                                else
+                                    "absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-base-content/20 cursor-pointer transition-all hover:scale-150 hover:bg-primary/60"
+                            )
+                            prop.style [ style.top (length.percent pos) ]
+                            prop.onClick (fun _ -> onJumpToDate monthDate)
+                            prop.title (monthDate.ToString("MMM yyyy"))
+                        ]
+                        // Year label for January markers
+                        if isYearStart && i > 0 then
+                            Html.span [
+                                prop.key $"year-label-{monthDate.Year}"
+                                prop.className "absolute left-4 text-xs text-base-content/30 whitespace-nowrap"
+                                prop.style [ style.top (length.percent pos); style.transform.translateY (length.percent -50) ]
+                                prop.text (string monthDate.Year)
+                            ]
+                ]
+            ]
+            // Earliest year label
+            Html.span [
+                prop.className "text-xs text-base-content/40 mt-2 font-medium"
+                prop.text (string dateRange.EarliestDate.Year)
+            ]
+        ]
+    ]
 
 /// Render image for timeline entry (responsive sizes)
 /// Mobile: smaller, md+: larger
@@ -402,7 +515,8 @@ let private monthSection (monthDate: DateTime) (entries: TimelineEntry list) (di
         |> List.sortByDescending fst
 
     Html.div [
-        prop.className "mb-8 relative"
+        prop.id $"timeline-month-{monthDate.Year}-{monthDate.Month}"
+        prop.className "mb-8 relative scroll-mt-20"
         prop.children [
             // Vertical timeline line - left on mobile, center on md+
             Html.div [
@@ -651,151 +765,149 @@ let private loadingSkeleton =
         ]
     ]
 
-/// Load more button
-let private loadMoreButton (response: PagedResponse<TimelineEntry>) (isLoading: bool) (dispatch: Msg -> unit) =
-    if response.HasNextPage then
-        Html.div [
-            prop.className "text-center py-6"
-            prop.children [
-                Html.button [
-                    prop.className "btn btn-primary btn-wide"
-                    prop.disabled isLoading
-                    prop.onClick (fun _ -> dispatch LoadMoreEntries)
-                    prop.children [
-                        if isLoading then
-                            Html.span [ prop.className "loading loading-spinner loading-sm mr-2" ]
-                        Html.span [ prop.text (if isLoading then "Loading..." else "Load More") ]
-                    ]
-                ]
-            ]
-        ]
-    else
-        Html.none
-
 // =====================================
 // Main View
 // =====================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "space-y-6"
+        prop.className "relative"
         prop.children [
-            // Header
+            // Main content with right padding for time axis on lg+
             Html.div [
-                prop.className "flex items-center gap-3 mb-6"
+                prop.className "space-y-6 lg:pr-16"
                 prop.children [
+                    // Header
                     Html.div [
-                        prop.className "w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"
+                        prop.className "flex items-center gap-3 mb-6"
                         prop.children [
-                            Html.span [
-                                prop.className "w-6 h-6 text-primary"
-                                prop.children [ clock ]
-                            ]
-                        ]
-                    ]
-                    Html.div [
-                        prop.children [
-                            Html.h1 [
-                                prop.className "text-2xl font-bold"
-                                prop.text "Timeline"
-                            ]
-                            Html.p [
-                                prop.className "text-sm text-base-content/60"
-                                prop.text "Your chronological viewing history"
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-
-            // Filter bar
-            filterBar model dispatch
-
-            // Content
-            match model.Entries with
-            | NotAsked -> Html.none
-
-            | Loading -> loadingSkeleton
-
-            | Failure err ->
-                Html.div [
-                    prop.className "glass rounded-xl p-8 text-center"
-                    prop.children [
-                        Html.span [
-                            prop.className "w-12 h-12 text-error mx-auto block mb-4"
-                            prop.children [ error ]
-                        ]
-                        Html.p [
-                            prop.className "text-error"
-                            prop.text $"Failed to load timeline: {err}"
-                        ]
-                        Html.button [
-                            prop.className "btn btn-primary mt-4"
-                            prop.onClick (fun _ -> dispatch LoadEntries)
-                            prop.text "Try Again"
-                        ]
-                    ]
-                ]
-
-            | Success response ->
-                if List.isEmpty response.Items then
-                    emptyState
-                else
-                    Html.div [
-                        prop.children [
-                            // Column labels header (md+ only)
                             Html.div [
-                                prop.className "hidden md:grid grid-cols-[1fr_auto_1fr] gap-0 items-center mb-6"
+                                prop.className "w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center"
                                 prop.children [
-                                    // Movies label (left)
-                                    Html.div [
-                                        prop.className "flex items-center justify-end gap-2 pr-6 text-base-content/60"
-                                        prop.children [
-                                            Html.span [
-                                                prop.className "text-base font-medium"
-                                                prop.text "Movies"
-                                            ]
-                                            Html.span [
-                                                prop.className "w-6 h-6"
-                                                prop.children [ film ]
-                                            ]
-                                        ]
-                                    ]
-                                    // Center spacer
-                                    Html.div [
-                                        prop.className "w-4"
-                                    ]
-                                    // Series label (right)
-                                    Html.div [
-                                        prop.className "flex items-center gap-2 pl-6 text-base-content/60"
-                                        prop.children [
-                                            Html.span [
-                                                prop.className "w-6 h-6"
-                                                prop.children [ tv ]
-                                            ]
-                                            Html.span [
-                                                prop.className "text-base font-medium"
-                                                prop.text "Series"
-                                            ]
-                                        ]
+                                    Html.span [
+                                        prop.className "w-6 h-6 text-primary"
+                                        prop.children [ clock ]
                                     ]
                                 ]
                             ]
-
-                            // Group by month and render
-                            let grouped = groupByMonth response.Items
-                            for (monthDate, entries) in grouped do
-                                monthSection monthDate entries dispatch
-
-                            // Load more button
-                            loadMoreButton response model.IsLoadingMore dispatch
-
-                            // Summary
                             Html.div [
-                                prop.className "text-center text-sm text-base-content/50 py-4"
-                                prop.text $"Showing {List.length response.Items} of {response.TotalCount} entries"
+                                prop.children [
+                                    Html.h1 [
+                                        prop.className "text-2xl font-bold"
+                                        prop.text "Timeline"
+                                    ]
+                                    Html.p [
+                                        prop.className "text-sm text-base-content/60"
+                                        prop.text "Your chronological viewing history"
+                                    ]
+                                ]
                             ]
                         ]
                     ]
+
+                    // Filter bar
+                    filterBar model dispatch
+
+                    // Content
+                    match model.Entries with
+                    | NotAsked -> Html.none
+
+                    | Loading -> loadingSkeleton
+
+                    | Failure err ->
+                        Html.div [
+                            prop.className "glass rounded-xl p-8 text-center"
+                            prop.children [
+                                Html.span [
+                                    prop.className "w-12 h-12 text-error mx-auto block mb-4"
+                                    prop.children [ error ]
+                                ]
+                                Html.p [
+                                    prop.className "text-error"
+                                    prop.text $"Failed to load timeline: {err}"
+                                ]
+                                Html.button [
+                                    prop.className "btn btn-primary mt-4"
+                                    prop.onClick (fun _ -> dispatch LoadEntries)
+                                    prop.text "Try Again"
+                                ]
+                            ]
+                        ]
+
+                    | Success entries ->
+                        if List.isEmpty entries then
+                            emptyState
+                        else
+                            Html.div [
+                                prop.children [
+                                    // Column labels header (md+ only)
+                                    Html.div [
+                                        prop.className "hidden md:grid grid-cols-[1fr_auto_1fr] gap-0 items-center mb-6"
+                                        prop.children [
+                                            // Movies label (left)
+                                            Html.div [
+                                                prop.className "flex items-center justify-end gap-2 pr-6 text-base-content/60"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "text-base font-medium"
+                                                        prop.text "Movies"
+                                                    ]
+                                                    Html.span [
+                                                        prop.className "w-6 h-6"
+                                                        prop.children [ film ]
+                                                    ]
+                                                ]
+                                            ]
+                                            // Center spacer
+                                            Html.div [
+                                                prop.className "w-4"
+                                            ]
+                                            // Series label (right)
+                                            Html.div [
+                                                prop.className "flex items-center gap-2 pl-6 text-base-content/60"
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "w-6 h-6"
+                                                        prop.children [ tv ]
+                                                    ]
+                                                    Html.span [
+                                                        prop.className "text-base font-medium"
+                                                        prop.text "Series"
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
+                                    // Group by month and render
+                                    let grouped = groupByMonth entries
+                                    for (monthDate, monthEntries) in grouped do
+                                        monthSection monthDate monthEntries dispatch
+
+                                    // Infinite scroll sentinel (replaces load more button)
+                                    InfiniteScrollSentinel model.HasNextPage model.IsLoadingMore (fun () -> dispatch LoadMoreEntries)
+
+                                    // Summary
+                                    Html.div [
+                                        prop.className "text-center text-sm text-base-content/50 py-4"
+                                        prop.text $"Showing {List.length entries} of {model.TotalCount} entries"
+                                    ]
+                                ]
+                            ]
+                ]
+            ]
+
+            // Time axis (desktop only, lg+)
+            match model.DateRange with
+            | Success (Some range) ->
+                TimeAxis range model.CurrentVisibleDate (fun date ->
+                    // Scroll to the month section
+                    let elementId = $"timeline-month-{date.Year}-{date.Month}"
+                    let element = Browser.Dom.document.getElementById(elementId)
+                    if not (isNull element) then
+                        IntersectionObserverInterop.scrollIntoViewSmooth element
+                    dispatch (UpdateVisibleDate date)
+                )
+            | _ -> Html.none
         ]
     ]

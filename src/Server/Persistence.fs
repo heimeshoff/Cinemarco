@@ -3617,6 +3617,96 @@ let getTimelineEntriesByMonth (year: int) (month: int) : Async<TimelineEntry lis
     return result.Items
 }
 
+/// Get date range for timeline (earliest and latest watched date)
+let getTimelineDateRange (filter: TimelineFilter) : Async<TimelineDateRange option> = async {
+    try
+        use conn = getConnection()
+
+        // Build filter conditions
+        let formatDate (dt: DateTime) = dt.ToString("yyyy-MM-dd")
+        let dateFilter =
+            match filter.StartDate, filter.EndDate with
+            | Some startDate, Some endDate ->
+                $"AND watched_date >= '{formatDate startDate}' AND watched_date <= '{formatDate endDate}'"
+            | Some startDate, None ->
+                $"AND watched_date >= '{formatDate startDate}'"
+            | None, Some endDate ->
+                $"AND watched_date <= '{formatDate endDate}'"
+            | None, None -> ""
+
+        let entryFilter =
+            filter.EntryId
+            |> Option.map (fun (EntryId id) -> $"AND entry_id = {id}")
+            |> Option.defaultValue ""
+
+        // MediaType filter
+        let mediaTypeFilter =
+            match filter.MediaType with
+            | Some MediaType.Movie -> "Movie"
+            | Some MediaType.Series -> "Series"
+            | None -> "All"
+
+        // Build queries based on media type filter
+        let movieQuery =
+            if mediaTypeFilter = "Series" then ""
+            else $"""
+                SELECT watched_date
+                FROM movie_watch_sessions mws
+                WHERE mws.watched_date IS NOT NULL
+                    AND mws.watched_date != ''
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let episodeQuery =
+            if mediaTypeFilter = "Movie" then ""
+            else $"""
+                SELECT watched_date
+                FROM episode_progress ep
+                WHERE ep.is_watched = 1
+                    AND ep.watched_date IS NOT NULL
+                    AND ep.watched_date != ''
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let combinedQuery =
+            match movieQuery.Trim(), episodeQuery.Trim() with
+            | "", "" -> "SELECT NULL as watched_date WHERE 1=0"
+            | "", ep -> ep
+            | mv, "" -> mv
+            | mv, ep -> $"{mv} UNION ALL {ep}"
+
+        let query = $"""
+            WITH all_events AS ({combinedQuery})
+            SELECT
+                MIN(watched_date) as earliest_date,
+                MAX(watched_date) as latest_date,
+                COUNT(*) as total_count
+            FROM all_events
+        """
+
+        let! result =
+            conn.QueryFirstOrDefaultAsync<{| earliest_date: string; latest_date: string; total_count: int |}>(query)
+            |> Async.AwaitTask
+
+        if isNull (box result) || result.total_count = 0 then
+            return None
+        else
+            match parseDateTime result.earliest_date, parseDateTime result.latest_date with
+            | Some earliest, Some latest ->
+                return Some {
+                    EarliestDate = earliest
+                    LatestDate = latest
+                    TotalCount = result.total_count
+                }
+            | _ -> return None
+    with
+    | ex ->
+        printfn "Timeline date range query error: %s" ex.Message
+        return None
+}
+
 // =====================================
 // Trakt Settings Operations
 // =====================================

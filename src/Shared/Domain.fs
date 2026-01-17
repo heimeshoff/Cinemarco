@@ -809,6 +809,13 @@ type TimelineEntry = {
     WatchedWithFriends: Friend list
 }
 
+/// Date range for timeline (for time axis visualization)
+type TimelineDateRange = {
+    EarliestDate: DateTime
+    LatestDate: DateTime
+    TotalCount: int
+}
+
 // =====================================
 // Graph Types
 // =====================================

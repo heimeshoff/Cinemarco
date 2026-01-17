@@ -353,6 +353,9 @@ type ICinemarcoApi = {
     /// Get timeline entries grouped by month (year, month)
     timelineGetByMonth: int * int -> Async<TimelineEntry list>
 
+    /// Get date range for timeline (earliest to latest watched date)
+    timelineGetDateRange: TimelineFilter -> Async<TimelineDateRange option>
+
     // =====================================
     // Trakt.tv Import Operations
     // =====================================

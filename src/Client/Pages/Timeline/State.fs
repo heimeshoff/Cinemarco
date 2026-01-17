@@ -8,10 +8,14 @@ open Types
 /// API type for Timeline operations
 type TimelineApi = {
     GetEntries: TimelineFilter * int * int -> Async<PagedResponse<TimelineEntry>>
+    GetDateRange: TimelineFilter -> Async<TimelineDateRange option>
 }
 
 let init () : Model * Cmd<Msg> =
-    Model.empty, Cmd.ofMsg LoadEntries
+    Model.empty, Cmd.batch [
+        Cmd.ofMsg LoadEntries
+        Cmd.ofMsg LoadDateRange
+    ]
 
 let private buildFilter (model: Model) : TimelineFilter =
     {
@@ -31,17 +35,22 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
                 (filter, 1, model.PageSize)
                 (Ok >> EntriesLoaded)
                 (fun ex -> Error ex.Message |> EntriesLoaded)
-        { model with Entries = Loading; Page = 1 }, cmd, NoOp
+        { model with Entries = Loading; Page = 1; TotalCount = 0; HasNextPage = false }, cmd, NoOp
 
     | EntriesLoaded (Ok response) ->
-        { model with Entries = Success response; Page = response.Page }, Cmd.none, NoOp
+        { model with
+            Entries = Success response.Items
+            TotalCount = response.TotalCount
+            HasNextPage = response.HasNextPage
+            Page = response.Page
+        }, Cmd.none, NoOp
 
     | EntriesLoaded (Error err) ->
         { model with Entries = Failure err }, Cmd.none, NoOp
 
     | LoadMoreEntries ->
         match model.Entries with
-        | Success response when response.HasNextPage && not model.IsLoadingMore ->
+        | Success _ when model.HasNextPage && not model.IsLoadingMore ->
             let filter = buildFilter model
             let nextPage = model.Page + 1
             let cmd =
@@ -55,15 +64,12 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
 
     | MoreEntriesLoaded (Ok response) ->
         match model.Entries with
-        | Success existingResponse ->
-            let combinedItems = existingResponse.Items @ response.Items
-            let updatedResponse = {
-                response with
-                    Items = combinedItems
-                    Page = response.Page
-            }
+        | Success existingItems ->
+            let combinedItems = existingItems @ response.Items
             { model with
-                Entries = Success updatedResponse
+                Entries = Success combinedItems
+                TotalCount = response.TotalCount
+                HasNextPage = response.HasNextPage
                 Page = response.Page
                 IsLoadingMore = false
             }, Cmd.none, NoOp
@@ -73,14 +79,37 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
     | MoreEntriesLoaded (Error _) ->
         { model with IsLoadingMore = false }, Cmd.none, NoOp
 
+    | LoadDateRange ->
+        let filter = buildFilter model
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetDateRange
+                filter
+                (Ok >> DateRangeLoaded)
+                (fun ex -> Error ex.Message |> DateRangeLoaded)
+        { model with DateRange = Loading }, cmd, NoOp
+
+    | DateRangeLoaded (Ok dateRange) ->
+        { model with DateRange = Success dateRange }, Cmd.none, NoOp
+
+    | DateRangeLoaded (Error err) ->
+        { model with DateRange = Failure err }, Cmd.none, NoOp
+
+    | UpdateVisibleDate date ->
+        { model with CurrentVisibleDate = Some date }, Cmd.none, NoOp
+
+    | JumpToDate _ ->
+        // Handled in view via scroll behavior
+        model, Cmd.none, NoOp
+
     | SetStartDate date ->
-        { model with StartDate = date }, Cmd.ofMsg LoadEntries, NoOp
+        { model with StartDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
 
     | SetEndDate date ->
-        { model with EndDate = date }, Cmd.ofMsg LoadEntries, NoOp
+        { model with EndDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
 
     | SetMediaTypeFilter mediaType ->
-        { model with MediaType = mediaType }, Cmd.ofMsg LoadEntries, NoOp
+        { model with MediaType = mediaType }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
 
     | ToggleDateFilter ->
         { model with IsDateFilterOpen = not model.IsDateFilterOpen }, Cmd.none, NoOp
@@ -91,7 +120,7 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
             EndDate = None
             MediaType = None
             IsDateFilterOpen = false
-        }, Cmd.ofMsg LoadEntries, NoOp
+        }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
 
     | ViewMovieDetail (entryId, title, releaseDate) ->
         model, Cmd.none, NavigateToMovieDetail (entryId, title, releaseDate)
