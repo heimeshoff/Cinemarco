@@ -1079,6 +1079,10 @@ let cinemarcoApi : ICinemarcoApi = {
         return! Persistence.getTimelineDateRange filter
     }
 
+    timelineGetYearStats = fun filter -> async {
+        return! Persistence.getTimelineYearStats filter
+    }
+
     // =====================================
     // Trakt.tv Import Operations
     // =====================================

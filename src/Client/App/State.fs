@@ -1098,6 +1098,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let timelineApi : Pages.Timeline.State.TimelineApi = {
                 GetEntries = fun (filter, page, pageSize) -> Api.api.timelineGetEntries (filter, page, pageSize)
                 GetDateRange = fun filter -> Api.api.timelineGetDateRange filter
+                GetYearStats = fun filter -> Api.api.timelineGetYearStats filter
             }
             let newPage, pageCmd, extMsg = Pages.Timeline.State.update timelineApi timelineMsg pageModel
             let model' = { model with TimelinePage = Some newPage }

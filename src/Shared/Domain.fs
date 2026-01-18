@@ -816,6 +816,12 @@ type TimelineDateRange = {
     TotalCount: int
 }
 
+/// Year statistics for timeline year scale
+type TimelineYearStats = {
+    Year: int
+    EntryCount: int
+}
+
 // =====================================
 // Graph Types
 // =====================================

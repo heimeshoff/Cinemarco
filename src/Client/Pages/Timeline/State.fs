@@ -1,5 +1,6 @@
 module Pages.Timeline.State
 
+open System
 open Elmish
 open Common.Types
 open Shared.Domain
@@ -9,12 +10,14 @@ open Types
 type TimelineApi = {
     GetEntries: TimelineFilter * int * int -> Async<PagedResponse<TimelineEntry>>
     GetDateRange: TimelineFilter -> Async<TimelineDateRange option>
+    GetYearStats: TimelineFilter -> Async<TimelineYearStats list>
 }
 
 let init () : Model * Cmd<Msg> =
     Model.empty, Cmd.batch [
         Cmd.ofMsg LoadEntries
         Cmd.ofMsg LoadDateRange
+        Cmd.ofMsg LoadYearStats
     ]
 
 let private buildFilter (model: Model) : TimelineFilter =
@@ -80,7 +83,8 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
         { model with IsLoadingMore = false }, Cmd.none, NoOp
 
     | LoadDateRange ->
-        let filter = buildFilter model
+        // Always load full range for year scale (ignore date filters)
+        let filter = { buildFilter model with StartDate = None; EndDate = None }
         let cmd =
             Cmd.OfAsync.either
                 api.GetDateRange
@@ -95,6 +99,23 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
     | DateRangeLoaded (Error err) ->
         { model with DateRange = Failure err }, Cmd.none, NoOp
 
+    | LoadYearStats ->
+        // Always load full range for year scale navigation (ignore date filters)
+        let filter = { buildFilter model with StartDate = None; EndDate = None }
+        let cmd =
+            Cmd.OfAsync.either
+                api.GetYearStats
+                filter
+                (Ok >> YearStatsLoaded)
+                (fun ex -> Error ex.Message |> YearStatsLoaded)
+        { model with YearStats = Loading }, cmd, NoOp
+
+    | YearStatsLoaded (Ok stats) ->
+        { model with YearStats = Success stats }, Cmd.none, NoOp
+
+    | YearStatsLoaded (Error err) ->
+        { model with YearStats = Failure err }, Cmd.none, NoOp
+
     | UpdateVisibleDate date ->
         { model with CurrentVisibleDate = Some date }, Cmd.none, NoOp
 
@@ -102,14 +123,24 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
         // Handled in view via scroll behavior
         model, Cmd.none, NoOp
 
+    | JumpToYear year ->
+        // Filter entries to show only the selected year
+        let startDate = Some (DateTime(year, 1, 1))
+        let endDate = Some (DateTime(year, 12, 31))
+        { model with
+            StartDate = startDate
+            EndDate = endDate
+            CurrentVisibleDate = Some (DateTime(year, 1, 1))
+        }, Cmd.ofMsg LoadEntries, NoOp
+
     | SetStartDate date ->
-        { model with StartDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
+        { model with StartDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange; Cmd.ofMsg LoadYearStats], NoOp
 
     | SetEndDate date ->
-        { model with EndDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
+        { model with EndDate = date }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange; Cmd.ofMsg LoadYearStats], NoOp
 
     | SetMediaTypeFilter mediaType ->
-        { model with MediaType = mediaType }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
+        { model with MediaType = mediaType }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange; Cmd.ofMsg LoadYearStats], NoOp
 
     | ToggleDateFilter ->
         { model with IsDateFilterOpen = not model.IsDateFilterOpen }, Cmd.none, NoOp
@@ -120,7 +151,7 @@ let update (api: TimelineApi) (msg: Msg) (model: Model) : Model * Cmd<Msg> * Ext
             EndDate = None
             MediaType = None
             IsDateFilterOpen = false
-        }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange], NoOp
+        }, Cmd.batch [Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadDateRange; Cmd.ofMsg LoadYearStats], NoOp
 
     | ViewMovieDetail (entryId, title, releaseDate) ->
         model, Cmd.none, NavigateToMovieDetail (entryId, title, releaseDate)

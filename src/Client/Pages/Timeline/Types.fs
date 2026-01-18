@@ -18,6 +18,8 @@ type Model = {
     PageSize: int
     /// Date range for time axis
     DateRange: RemoteData<TimelineDateRange option>
+    /// Year statistics for year scale navigation
+    YearStats: RemoteData<TimelineYearStats list>
     /// Currently visible date (for time axis position indicator)
     CurrentVisibleDate: DateTime option
     /// Start date filter (optional)
@@ -40,8 +42,11 @@ type Msg =
     | MoreEntriesLoaded of Result<PagedResponse<TimelineEntry>, string>
     | LoadDateRange
     | DateRangeLoaded of Result<TimelineDateRange option, string>
+    | LoadYearStats
+    | YearStatsLoaded of Result<TimelineYearStats list, string>
     | UpdateVisibleDate of DateTime
     | JumpToDate of DateTime
+    | JumpToYear of int
     | SetStartDate of DateTime option
     | SetEndDate of DateTime option
     | SetMediaTypeFilter of MediaType option
@@ -64,6 +69,7 @@ module Model =
         Page = 1
         PageSize = 30
         DateRange = NotAsked
+        YearStats = NotAsked
         CurrentVisibleDate = None
         StartDate = None
         EndDate = None

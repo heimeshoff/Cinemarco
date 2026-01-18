@@ -3617,6 +3617,14 @@ let getTimelineEntriesByMonth (year: int) (month: int) : Async<TimelineEntry lis
     return result.Items
 }
 
+/// Record type for date range query result
+[<CLIMutable>]
+type private DateRangeRecord = {
+    earliest_date: string
+    latest_date: string
+    total_count: int64
+}
+
 /// Get date range for timeline (earliest and latest watched date)
 let getTimelineDateRange (filter: TimelineFilter) : Async<TimelineDateRange option> = async {
     try
@@ -3687,10 +3695,10 @@ let getTimelineDateRange (filter: TimelineFilter) : Async<TimelineDateRange opti
         """
 
         let! result =
-            conn.QueryFirstOrDefaultAsync<{| earliest_date: string; latest_date: string; total_count: int |}>(query)
+            conn.QueryFirstOrDefaultAsync<DateRangeRecord>(query)
             |> Async.AwaitTask
 
-        if isNull (box result) || result.total_count = 0 then
+        if isNull (box result) || result.total_count = 0L then
             return None
         else
             match parseDateTime result.earliest_date, parseDateTime result.latest_date with
@@ -3698,13 +3706,112 @@ let getTimelineDateRange (filter: TimelineFilter) : Async<TimelineDateRange opti
                 return Some {
                     EarliestDate = earliest
                     LatestDate = latest
-                    TotalCount = result.total_count
+                    TotalCount = int result.total_count
                 }
             | _ -> return None
     with
     | ex ->
         printfn "Timeline date range query error: %s" ex.Message
         return None
+}
+
+/// Record type for year stats query result
+[<CLIMutable>]
+type private YearStatsRecord = {
+    year: int64
+    entry_count: int64
+}
+
+/// Get entry counts by year for timeline year scale navigation
+let getTimelineYearStats (filter: TimelineFilter) : Async<TimelineYearStats list> = async {
+    try
+        use conn = getConnection()
+
+        // Build filter conditions
+        let formatDate (dt: DateTime) = dt.ToString("yyyy-MM-dd")
+        let dateFilter =
+            match filter.StartDate, filter.EndDate with
+            | Some startDate, Some endDate ->
+                $"AND watched_date >= '{formatDate startDate}' AND watched_date <= '{formatDate endDate}'"
+            | Some startDate, None ->
+                $"AND watched_date >= '{formatDate startDate}'"
+            | None, Some endDate ->
+                $"AND watched_date <= '{formatDate endDate}'"
+            | None, None -> ""
+
+        let entryFilter =
+            filter.EntryId
+            |> Option.map (fun (EntryId id) -> $"AND entry_id = {id}")
+            |> Option.defaultValue ""
+
+        // MediaType filter
+        let mediaTypeFilter =
+            match filter.MediaType with
+            | Some MediaType.Movie -> "Movie"
+            | Some MediaType.Series -> "Series"
+            | None -> "All"
+
+        // Build queries based on media type filter
+        // Use substr to extract year from ISO date strings (YYYY-MM-DDTHH:MM:SS format)
+        let movieQuery =
+            if mediaTypeFilter = "Series" then ""
+            else $"""
+                SELECT CAST(substr(watched_date, 1, 4) AS INTEGER) as year
+                FROM movie_watch_sessions mws
+                WHERE mws.watched_date IS NOT NULL
+                    AND mws.watched_date != ''
+                    AND length(watched_date) >= 4
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let episodeQuery =
+            if mediaTypeFilter = "Movie" then ""
+            else $"""
+                SELECT CAST(substr(watched_date, 1, 4) AS INTEGER) as year
+                FROM episode_progress ep
+                WHERE ep.is_watched = 1
+                    AND ep.watched_date IS NOT NULL
+                    AND ep.watched_date != ''
+                    AND length(watched_date) >= 4
+                    {dateFilter}
+                    {entryFilter}
+            """
+
+        let combinedQuery =
+            match movieQuery.Trim(), episodeQuery.Trim() with
+            | "", "" -> "SELECT NULL as year WHERE 1=0"
+            | "", ep -> ep
+            | mv, "" -> mv
+            | mv, ep -> $"{mv} UNION ALL {ep}"
+
+        let query = $"""
+            WITH all_events AS ({combinedQuery})
+            SELECT year, COUNT(*) as entry_count
+            FROM all_events
+            WHERE year IS NOT NULL
+            GROUP BY year
+            ORDER BY year DESC
+        """
+
+        printfn "[YearStats] Query: %s" query
+
+        let! results =
+            conn.QueryAsync<YearStatsRecord>(query)
+            |> Async.AwaitTask
+
+        let resultList = results |> Seq.toList
+        printfn "[YearStats] Found %d year entries" resultList.Length
+        for r in resultList do
+            printfn "[YearStats] Year %d: %d entries" r.year r.entry_count
+
+        return
+            resultList
+            |> List.map (fun r -> { Year = int r.year; EntryCount = int r.entry_count })
+    with
+    | ex ->
+        printfn "Timeline year stats query error: %s" ex.Message
+        return []
 }
 
 // =====================================

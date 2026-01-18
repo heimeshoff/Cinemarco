@@ -20,6 +20,10 @@ module private IntersectionObserverInterop =
     [<Emit("new IntersectionObserver($0, { rootMargin: '200px', threshold: 0 })")>]
     let create (callback: obj -> unit) : obj = jsNative
 
+    // Observer for tracking visible section (triggers when element enters top 20% of viewport)
+    [<Emit("new IntersectionObserver($0, { rootMargin: '-10% 0px -80% 0px', threshold: 0 })")>]
+    let createVisibilityTracker (callback: obj -> unit) : obj = jsNative
+
     [<Emit("$0.observe($1)")>]
     let observe (observer: obj) (element: Element) : unit = jsNative
 
@@ -147,60 +151,120 @@ let private InfiniteScrollSentinel (hasMore: bool) (isLoading: bool) (onLoadMore
         ]
     ]
 
-/// Time axis component - fixed on right side (desktop only)
+/// Year scale component - fixed on right side (desktop only)
+/// Shows all years from earliest to today with density indicators
 [<ReactComponent>]
-let private TimeAxis (dateRange: TimelineDateRange) (currentDate: DateTime option) (onJumpToDate: DateTime -> unit) =
-    let months = generateMonthRange dateRange.EarliestDate DateTime.Now |> List.rev
-    let totalMonths = max 1 (List.length months - 1)
+let private YearScale
+    (yearStats: TimelineYearStats list)
+    (dateRange: TimelineDateRange)
+    (currentDate: DateTime option)
+    (onJumpToYear: int -> unit) =
+
+    // Generate all years from earliest to now
+    let years =
+        let earliest = dateRange.EarliestDate.Year
+        let latest = DateTime.Now.Year
+        [ earliest .. latest ] |> List.rev
+
+    let totalYears = max 1 (List.length years - 1)
+
+    // Get entry count for a specific year
+    let getYearCount year =
+        yearStats
+        |> List.tryFind (fun s -> s.Year = year)
+        |> Option.map (fun s -> s.EntryCount)
+        |> Option.defaultValue 0
+
+    // Calculate max count for density scaling
+    let maxCount =
+        if List.isEmpty yearStats then 1
+        else yearStats |> List.map (fun s -> s.EntryCount) |> List.max |> max 1
+
+    // Determine dot size based on entry count (quartile-based)
+    // Minimum size is visible, scales up with content density
+    let getDotSize count =
+        if count = 0 then "w-2 h-2"
+        elif count <= maxCount / 4 then "w-2.5 h-2.5"
+        elif count <= maxCount / 2 then "w-3 h-3"
+        elif count <= maxCount * 3 / 4 then "w-3.5 h-3.5"
+        else "w-4 h-4"
+
+    let currentYear = currentDate |> Option.map (fun d -> d.Year)
+
+    // Determine label visibility based on total years
+    // With many years, only show labels for decade markers
+    let yearCount = List.length years
+    let showLabel year i =
+        if yearCount <= 20 then true  // Show all if 20 or fewer years
+        elif yearCount <= 40 then i % 2 = 0  // Every other year for 21-40 years
+        else year % 10 = 0 || i = 0  // Only decades + current year for 40+ years
 
     Html.div [
-        prop.className "fixed right-4 top-1/2 -translate-y-1/2 h-[60vh] hidden lg:flex flex-col items-center z-30"
+        prop.className "fixed right-6 top-1/2 -translate-y-1/2 h-[85vh] hidden lg:flex flex-col items-end z-30"
         prop.children [
             // "Now" label
             Html.span [
                 prop.className "text-xs text-base-content/40 mb-2 font-medium"
                 prop.text "Now"
             ]
-            // Time axis track
+            // Year scale track with labels to the left
             Html.div [
-                prop.className "relative flex-1 w-1 bg-base-content/10 rounded-full"
+                prop.className "relative flex-1 flex items-center"
                 prop.children [
-                    // Month markers
-                    for (i, monthDate) in months |> List.indexed do
-                        let pos = float i / float totalMonths * 100.0
-                        let isActive =
-                            currentDate
-                            |> Option.map (fun d -> d.Year = monthDate.Year && d.Month = monthDate.Month)
-                            |> Option.defaultValue false
-                        let isYearStart = monthDate.Month = 1
-                        Html.div [
-                            prop.key $"month-{monthDate.Year}-{monthDate.Month}"
-                            prop.className (
-                                if isActive then
-                                    "absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-primary cursor-pointer transition-all hover:scale-125 ring-2 ring-primary/30"
-                                elif isYearStart then
-                                    "absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-base-content/40 cursor-pointer transition-all hover:scale-125 hover:bg-primary/60"
-                                else
-                                    "absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-base-content/20 cursor-pointer transition-all hover:scale-150 hover:bg-primary/60"
-                            )
-                            prop.style [ style.top (length.percent pos) ]
-                            prop.onClick (fun _ -> onJumpToDate monthDate)
-                            prop.title (monthDate.ToString("MMM yyyy"))
+                    // Labels column (to the left of the track)
+                    Html.div [
+                        prop.className "relative h-full mr-2"
+                        prop.style [ style.width (length.rem 3) ]
+                        prop.children [
+                            for (i, year) in years |> List.indexed do
+                                let pos = float i / float totalYears * 100.0
+                                let isActive = currentYear = Some year
+
+                                if showLabel year i then
+                                    Html.span [
+                                        prop.key $"year-label-{year}"
+                                        prop.className (
+                                            "absolute right-0 text-xs whitespace-nowrap transition-colors cursor-pointer hover:text-primary " +
+                                            if isActive then "text-primary font-semibold"
+                                            else "text-base-content/40"
+                                        )
+                                        prop.style [
+                                            style.top (length.percent pos)
+                                            style.transform.translateY (length.percent -50)
+                                        ]
+                                        prop.onClick (fun _ -> onJumpToYear year)
+                                        prop.text (string year)
+                                    ]
                         ]
-                        // Year label for January markers
-                        if isYearStart && i > 0 then
-                            Html.span [
-                                prop.key $"year-label-{monthDate.Year}"
-                                prop.className "absolute left-4 text-xs text-base-content/30 whitespace-nowrap"
-                                prop.style [ style.top (length.percent pos); style.transform.translateY (length.percent -50) ]
-                                prop.text (string monthDate.Year)
-                            ]
+                    ]
+                    // Dots track
+                    Html.div [
+                        prop.className "relative h-full w-1 bg-base-content/10 rounded-full"
+                        prop.children [
+                            for (i, year) in years |> List.indexed do
+                                let pos = float i / float totalYears * 100.0
+                                let count = getYearCount year
+                                let isActive = currentYear = Some year
+                                let dotSize = getDotSize count
+
+                                Html.div [
+                                    prop.key $"year-{year}"
+                                    prop.className (
+                                        $"absolute left-1/2 -translate-x-1/2 rounded-full cursor-pointer transition-all hover:scale-150 {dotSize} " +
+                                        if isActive then
+                                            "bg-primary ring-2 ring-primary/30 shadow-lg shadow-primary/50"
+                                        elif count > 0 then
+                                            "bg-amber-400/80 hover:bg-primary shadow-sm shadow-amber-400/30"
+                                        else
+                                            "bg-base-content/30 hover:bg-primary/60"
+                                    )
+                                    prop.style [ style.top (length.percent pos) ]
+                                    prop.onClick (fun _ -> onJumpToYear year)
+                                    prop.title $"{year} ({count} entries)"
+                                ]
+                        ]
+                    ]
                 ]
-            ]
-            // Earliest year label
-            Html.span [
-                prop.className "text-xs text-base-content/40 mt-2 font-medium"
-                prop.text (string dateRange.EarliestDate.Year)
             ]
         ]
     ]
@@ -507,7 +571,28 @@ let private dayGroup (date: DateTime) (entries: TimelineEntry list) (dispatch: M
     ]
 
 /// Month section with timeline - responsive
-let private monthSection (monthDate: DateTime) (entries: TimelineEntry list) (dispatch: Msg -> unit) =
+[<ReactComponent>]
+let private MonthSection (monthDate: DateTime) (entries: TimelineEntry list) (dispatch: Msg -> unit) =
+    let elementRef = React.useRef<HTMLDivElement option>(None)
+
+    // Set up visibility observer to track current visible month
+    React.useEffect((fun () ->
+        match elementRef.current with
+        | Some el ->
+            let callback (observerEntries: obj) =
+                let arr: obj array = observerEntries :?> obj array
+                for entry in arr do
+                    let isIntersecting: bool = entry?isIntersecting
+                    if isIntersecting then
+                        dispatch (UpdateVisibleDate monthDate)
+
+            let observer = IntersectionObserverInterop.createVisibilityTracker callback
+            IntersectionObserverInterop.observe observer el
+            { new IDisposable with member _.Dispose() = IntersectionObserverInterop.disconnect observer }
+        | None ->
+            { new IDisposable with member _.Dispose() = () }
+    ), [| box monthDate |])
+
     // Group entries by day
     let byDay =
         entries
@@ -516,6 +601,7 @@ let private monthSection (monthDate: DateTime) (entries: TimelineEntry list) (di
 
     Html.div [
         prop.id $"timeline-month-{monthDate.Year}-{monthDate.Month}"
+        prop.ref elementRef
         prop.className "mb-8 relative scroll-mt-20"
         prop.children [
             // Vertical timeline line - left on mobile, center on md+
@@ -882,7 +968,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     // Group by month and render
                                     let grouped = groupByMonth entries
                                     for (monthDate, monthEntries) in grouped do
-                                        monthSection monthDate monthEntries dispatch
+                                        MonthSection monthDate monthEntries dispatch
 
                                     // Infinite scroll sentinel (replaces load more button)
                                     InfiniteScrollSentinel model.HasNextPage model.IsLoadingMore (fun () -> dispatch LoadMoreEntries)
@@ -897,16 +983,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
 
-            // Time axis (desktop only, lg+)
-            match model.DateRange with
-            | Success (Some range) ->
-                TimeAxis range model.CurrentVisibleDate (fun date ->
-                    // Scroll to the month section
-                    let elementId = $"timeline-month-{date.Year}-{date.Month}"
-                    let element = Browser.Dom.document.getElementById(elementId)
-                    if not (isNull element) then
-                        IntersectionObserverInterop.scrollIntoViewSmooth element
-                    dispatch (UpdateVisibleDate date)
+            // Year scale (desktop only, lg+)
+            match model.DateRange, model.YearStats with
+            | Success (Some range), Success yearStats ->
+                YearScale yearStats range model.CurrentVisibleDate (fun year ->
+                    dispatch (JumpToYear year)
                 )
             | _ -> Html.none
         ]
