@@ -10,13 +10,24 @@ type RatingBadge = {
     Label: string
 }
 
-/// Status overlay configuration (for "Finished"/"Abandoned" badges at top, episode banners at bottom)
-type StatusOverlay =
-    | NextEpisode of text: string
-    | LastWatchedEpisode of text: string
-    | FinishedBadge
-    | AbandonedBadge
-    | Custom of ReactElement
+/// Badge shown at top-left (mutually exclusive)
+type TopLeftBadge =
+    | InLibraryBadge
+    | RatingBadge of RatingBadge
+    | CustomBadge of ReactElement
+
+/// Overlay shown at bottom of poster
+type BottomOverlay =
+    | EpisodeBanner of text: string * isPrimary: bool
+    | FinishedBanner
+    | AbandonedBanner
+    | RoleBanner of role: string
+    | CustomOverlay of ReactElement
+
+/// Poster card size configuration
+type PosterSize =
+    | Small   // w-32 sm:w-36 md:w-40 (horizontal scrolls, grids)
+    | Normal  // w-40 sm:w-44 md:w-48 (larger displays)
 
 /// Configuration for the PosterCard component
 type Config = {
@@ -26,35 +37,57 @@ type Config = {
     Title: string
     /// Click handler
     OnClick: unit -> unit
-    /// Optional rating badge shown on hover (top-left)
-    RatingBadge: RatingBadge option
-    /// Optional status overlay (Finished/Abandoned at top, episodes at bottom)
-    StatusOverlay: StatusOverlay option
+    /// Optional badge shown at top-left (rating, "In Library", or custom)
+    TopLeftBadge: TopLeftBadge option
+    /// Optional overlay at bottom (episode banner, finished/abandoned, role)
+    BottomOverlay: BottomOverlay option
     /// Grayscale the poster (for "In Library" items in search)
     IsGrayscale: bool
+    /// Dim the poster (70% opacity for non-library items)
+    IsDimmed: bool
     /// Media type icon for placeholder (film or tv)
     MediaType: MediaType option
-    /// Show "In Library" overlay
+    /// Show "In Library" overlay (full overlay, not badge)
     ShowInLibraryOverlay: bool
     /// Show media type badge (top-right)
     MediaTypeBadge: MediaType option
     /// Show add button on hover
     ShowAddButton: bool
+    /// Size of the card (controls width)
+    Size: PosterSize
 }
 
 module Config =
+    /// Empty configuration with required fields
+    let empty title onClick = {
+        PosterUrl = None
+        Title = title
+        OnClick = onClick
+        TopLeftBadge = None
+        BottomOverlay = None
+        IsGrayscale = false
+        IsDimmed = false
+        MediaType = None
+        ShowInLibraryOverlay = false
+        MediaTypeBadge = None
+        ShowAddButton = false
+        Size = Small
+    }
+
     /// Default configuration for library entries
     let libraryEntry posterUrl title onClick = {
         PosterUrl = posterUrl
         Title = title
         OnClick = onClick
-        RatingBadge = None
-        StatusOverlay = None
+        TopLeftBadge = None
+        BottomOverlay = None
         IsGrayscale = false
+        IsDimmed = false
         MediaType = None
         ShowInLibraryOverlay = false
         MediaTypeBadge = None
         ShowAddButton = false
+        Size = Small
     }
 
     /// Configuration for search results
@@ -62,15 +95,29 @@ module Config =
         PosterUrl = posterUrl
         Title = title
         OnClick = onClick
-        RatingBadge = None
-        StatusOverlay = None
+        TopLeftBadge = None
+        BottomOverlay = None
         IsGrayscale = isInLibrary
+        IsDimmed = false
         MediaType = Some mediaType
         ShowInLibraryOverlay = isInLibrary
         MediaTypeBadge = Some mediaType
         ShowAddButton = not isInLibrary
+        Size = Small
     }
 
-    let withRating badge config = { config with RatingBadge = Some badge }
-    let withStatusOverlay overlay config = { config with StatusOverlay = Some overlay }
-    let withGrayscale config = { config with IsGrayscale = true }
+    // Fluent builders
+    let withPoster url (config: Config) = { config with PosterUrl = Some url }
+    let withRating badge (config: Config) = { config with TopLeftBadge = Some (RatingBadge badge) }
+    let withInLibraryBadge (config: Config) = { config with TopLeftBadge = Some InLibraryBadge }
+    let withBottomOverlay overlay (config: Config) = { config with BottomOverlay = Some overlay }
+    let withEpisodeBanner text isPrimary (config: Config) = { config with BottomOverlay = Some (EpisodeBanner (text, isPrimary)) }
+    let withFinishedBanner (config: Config) = { config with BottomOverlay = Some FinishedBanner }
+    let withAbandonedBanner (config: Config) = { config with BottomOverlay = Some AbandonedBanner }
+    let withRoleBanner role (config: Config) = { config with BottomOverlay = Some (RoleBanner role) }
+    let withGrayscale (config: Config) = { config with IsGrayscale = true }
+    let withDimmed (config: Config) = { config with IsDimmed = true }
+    let withMediaType mt (config: Config) = { config with MediaType = Some mt }
+    let withMediaTypeBadge mt (config: Config) = { config with MediaTypeBadge = Some mt }
+    let withAddButton (config: Config) = { config with ShowAddButton = true }
+    let withSize size (config: Config) = { config with Size = size }

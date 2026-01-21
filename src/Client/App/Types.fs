@@ -53,6 +53,7 @@ type Model = {
     ImportPage: Pages.Import.Types.Model option
     GenericImportPage: Pages.GenericImport.Types.Model option
     GraphPage: Pages.Graph.Types.Model option
+    StyleguidePage: Pages.Styleguide.Types.Model option
 }
 
 /// Main application messages
@@ -116,6 +117,7 @@ type Msg =
     | ImportMsg of Pages.Import.Types.Msg
     | GenericImportMsg of Pages.GenericImport.Types.Msg
     | GraphMsg of Pages.Graph.Types.Msg
+    | StyleguideMsg of Pages.Styleguide.Types.Msg
 
     // API result handlers
     | FriendSaved of Friend
@@ -166,4 +168,5 @@ module Model =
         ImportPage = None
         GenericImportPage = None
         GraphPage = None
+        StyleguidePage = None
     }

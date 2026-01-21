@@ -226,6 +226,11 @@
     <Compile Include="Pages/Graph/State.fs" />
     <Compile Include="Pages/Graph/View.fs" />
 
+    <!-- Styleguide Page -->
+    <Compile Include="Pages/Styleguide/Types.fs" />
+    <Compile Include="Pages/Styleguide/State.fs" />
+    <Compile Include="Pages/Styleguide/View.fs" />
+
     <!-- API Client -->
     <Compile Include="Api.fs" />
 

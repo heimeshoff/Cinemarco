@@ -107,6 +107,9 @@ let private initializePage (page: Page) (model: Model) : Model * Cmd<Msg> =
         // Always refresh graph when navigating to the page
         let pageModel, pageCmd = Pages.Graph.State.initWithFocus focus
         { model' with GraphPage = Some pageModel }, Cmd.map GraphMsg pageCmd
+    | StyleguidePage ->
+        let pageModel, pageCmd = Pages.Styleguide.State.init ()
+        { model' with StyleguidePage = Some pageModel }, Cmd.map StyleguideMsg pageCmd
     | _ -> model', Cmd.none
 
 /// Initialize movie detail page with an entry that's already been loaded
@@ -1175,6 +1178,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Pages.Graph.Types.NavigateToCollection (_, name) ->
                 let slug = Slug.forCollection name
                 model', Cmd.batch [cmd; Cmd.ofMsg (NavigateTo (CollectionDetailPage slug))]
+        | None -> model, Cmd.none
+
+    // Page messages - Styleguide
+    | StyleguideMsg styleguideMsg ->
+        match model.StyleguidePage with
+        | Some pageModel ->
+            let newPage, pageCmd, _ = Pages.Styleguide.State.update styleguideMsg pageModel
+            let model' = { model with StyleguidePage = Some newPage }
+            let cmd = Cmd.map StyleguideMsg pageCmd
+            model', cmd
         | None -> model, Cmd.none
 
     // Slug-based entity loading (for URL navigation)

@@ -14,6 +14,7 @@ module FilterChip = Common.Components.FilterChip.View
 module GlassButton = Common.Components.GlassButton.View
 module BackButton = Common.Components.BackButton.View
 module ProgressBar = Common.Components.ProgressBar.View
+module PosterCard = Common.Components.PosterCard.View
 
 /// Format a date nicely
 let private formatDate (d: System.DateTime) =
@@ -156,14 +157,14 @@ let private isCastRole (role: ContributorRole) =
     | Actor _ -> true
     | _ -> false
 
-/// Single filmography work card
+/// Single filmography work card using PosterCard component
 let private workCard (work: TmdbWork) (isInLibrary: bool) (entryId: EntryId option) (dispatch: Msg -> unit) =
     let year =
         work.ReleaseDate
         |> Option.map (fun d -> d.Year.ToString())
         |> Option.defaultValue ""
 
-    let handleClick _ =
+    let handleClick () =
         match entryId with
         | Some id ->
             match work.MediaType with
@@ -172,74 +173,12 @@ let private workCard (work: TmdbWork) (isInLibrary: bool) (entryId: EntryId opti
         | None ->
             dispatch (AddToLibrary work)
 
+    let posterUrl = work.PosterPath |> Option.map (fun p -> getPosterUrl (Some p))
+
     Html.div [
-        prop.className "poster-card group relative cursor-pointer"
-        prop.onClick handleClick
         prop.children [
-            // Poster container
-            Html.div [
-                prop.className "poster-image-container poster-shadow"
-                prop.children [
-                    match work.PosterPath with
-                    | Some _ ->
-                        Html.img [
-                            prop.src (getPosterUrl work.PosterPath)
-                            prop.alt work.Title
-                            prop.className (if isInLibrary then "poster-image" else "poster-image opacity-70")
-                            prop.custom ("loading", "lazy")
-                        ]
-                    | None ->
-                        Html.div [
-                            prop.className "w-full h-full flex items-center justify-center"
-                            prop.children [
-                                Html.span [
-                                    prop.className "text-4xl text-base-content/20"
-                                    prop.children [ if work.MediaType = MediaType.Movie then film else tv ]
-                                ]
-                            ]
-                        ]
-
-                    // Shine effect
-                    Html.div [ prop.className "poster-shine" ]
-
-                    // In library badge (top left)
-                    if isInLibrary then
-                        Html.div [
-                            prop.className "absolute top-2 left-2 px-2 py-1 rounded-md bg-success/90 backdrop-blur-sm text-success-content text-xs font-medium flex items-center gap-1"
-                            prop.children [
-                                Html.span [ prop.className "w-3 h-3"; prop.children [ checkCircleSolid ] ]
-                                Html.span [ prop.text "In Library" ]
-                            ]
-                        ]
-
-                    // Role badge (bottom)
-                    Html.div [
-                        prop.className "absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/80 to-transparent"
-                        prop.children [
-                            Html.span [
-                                prop.className "text-xs text-white/90 line-clamp-1"
-                                prop.text (roleToString work.Role)
-                            ]
-                        ]
-                    ]
-
-                    // Add overlay for unseen works
-                    if not isInLibrary then
-                        Html.div [
-                            prop.className "poster-overlay flex items-center justify-center"
-                            prop.children [
-                                Html.div [
-                                    prop.className "w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
-                                    prop.children [
-                                        Html.span [ prop.className "w-5 h-5 text-white"; prop.children [ plus ] ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                ]
-            ]
-
-            // Title and year
+            PosterCard.filmographyCard posterUrl work.Title (roleToString work.Role) isInLibrary handleClick
+            // Title and year below poster
             Html.div [
                 prop.className "mt-2 space-y-0.5"
                 prop.children [

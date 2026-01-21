@@ -29,6 +29,7 @@ type Page =
     | ImportPage
     | GenericImportPage
     | CachePage
+    | StyleguidePage
     | NotFoundPage
 
 module Page =
@@ -74,6 +75,7 @@ module Page =
         | ImportPage -> "/import"
         | GenericImportPage -> "/import-json"
         | CachePage -> "/cache"
+        | StyleguidePage -> "/styleguide"
         | NotFoundPage -> "/404"
 
     /// Parse URL path to Page
@@ -137,6 +139,7 @@ module Page =
         | ["import"] -> ImportPage
         | ["import-json"] -> GenericImportPage
         | ["cache"] -> CachePage
+        | ["styleguide"] -> StyleguidePage
         | ["404"] -> NotFoundPage
         | _ -> NotFoundPage
 
@@ -159,6 +162,7 @@ module Page =
         | ImportPage -> "Import"
         | GenericImportPage -> "Import JSON"
         | CachePage -> "Cache"
+        | StyleguidePage -> "Styleguide"
         | NotFoundPage -> "Not Found"
 
 /// Browser history operations

@@ -326,19 +326,31 @@ let private topRatedSection (entries: LibraryEntry list) (dispatch: Msg -> unit)
                                 match entry.Media with
                                 | LibrarySeries _ ->
                                     match entry.WatchStatus with
-                                    | Completed -> Some PosterCardTypes.FinishedBadge
-                                    | Abandoned _ -> Some PosterCardTypes.AbandonedBadge
+                                    | Completed -> Some PosterCardTypes.FinishedBanner
+                                    | Abandoned _ -> Some PosterCardTypes.AbandonedBanner
                                     | _ -> None
                                 | LibraryMovie _ -> None
+                            let mediaType = match entry.Media with LibraryMovie _ -> Movie | LibrarySeries _ -> Series
+                            let config: PosterCardTypes.Config = {
+                                PosterUrl = getPosterUrl entry
+                                Title = title
+                                OnClick = fun () ->
+                                    match entry.Media with
+                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                TopLeftBadge = None
+                                BottomOverlay = overlay
+                                IsGrayscale = false
+                                IsDimmed = false
+                                MediaType = Some mediaType
+                                ShowInLibraryOverlay = false
+                                MediaTypeBadge = None
+                                ShowAddButton = false
+                                Size = PosterCardTypes.Small
+                            }
                             Html.div [
-                                prop.className "w-24 sm:w-28 md:w-32"
-                                prop.children [
-                                    PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
-                                        match entry.Media with
-                                        | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                        | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                                    )
-                                ]
+                                prop.className "flex-shrink-0"
+                                prop.children [ PosterCard.view config ]
                             ]
                     ]
                 ]
@@ -380,15 +392,26 @@ let private allMoviesSection (movies: LibraryEntry list) (dispatch: Msg -> unit)
                     prop.children [
                         for entry in movies do
                             let title = getTitle entry
+                            let config: PosterCardTypes.Config = {
+                                PosterUrl = getPosterUrl entry
+                                Title = title
+                                OnClick = fun () ->
+                                    match entry.Media with
+                                    | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
+                                    | _ -> ()
+                                TopLeftBadge = None
+                                BottomOverlay = None
+                                IsGrayscale = false
+                                IsDimmed = false
+                                MediaType = Some Movie
+                                ShowInLibraryOverlay = false
+                                MediaTypeBadge = None
+                                ShowAddButton = false
+                                Size = PosterCardTypes.Small
+                            }
                             Html.div [
-                                prop.className "w-24 sm:w-28 md:w-32"
-                                prop.children [
-                                    PosterCard.mini (getPosterUrl entry) title (fun () ->
-                                        match entry.Media with
-                                        | LibraryMovie m -> dispatch (ViewMovieDetail (entry.Id, title, m.ReleaseDate))
-                                        | _ -> ()
-                                    )
-                                ]
+                                prop.className "flex-shrink-0"
+                                prop.children [ PosterCard.view config ]
                             ]
                     ]
                 ]
@@ -432,18 +455,29 @@ let private allSeriesSection (seriesWithFlags: SeriesWithFinishedFlag list) (dis
                             let entry = swf.Entry
                             let title = getTitle entry
                             let overlay =
-                                if swf.FinishedThisYear then Some PosterCardTypes.FinishedBadge
-                                elif swf.AbandonedThisYear then Some PosterCardTypes.AbandonedBadge
+                                if swf.FinishedThisYear then Some PosterCardTypes.FinishedBanner
+                                elif swf.AbandonedThisYear then Some PosterCardTypes.AbandonedBanner
                                 else None
+                            let config: PosterCardTypes.Config = {
+                                PosterUrl = getPosterUrl entry
+                                Title = title
+                                OnClick = fun () ->
+                                    match entry.Media with
+                                    | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
+                                    | _ -> ()
+                                TopLeftBadge = None
+                                BottomOverlay = overlay
+                                IsGrayscale = false
+                                IsDimmed = false
+                                MediaType = Some Series
+                                ShowInLibraryOverlay = false
+                                MediaTypeBadge = None
+                                ShowAddButton = false
+                                Size = PosterCardTypes.Small
+                            }
                             Html.div [
-                                prop.className "w-24 sm:w-28 md:w-32"
-                                prop.children [
-                                    PosterCard.miniWithOverlay (getPosterUrl entry) title overlay (fun () ->
-                                        match entry.Media with
-                                        | LibrarySeries s -> dispatch (ViewSeriesDetail (entry.Id, title, s.FirstAirDate))
-                                        | _ -> ()
-                                    )
-                                ]
+                                prop.className "flex-shrink-0"
+                                prop.children [ PosterCard.view config ]
                             ]
                     ]
                 ]

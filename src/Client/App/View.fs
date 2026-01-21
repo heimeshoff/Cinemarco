@@ -140,6 +140,13 @@ let private pageContent (model: Model) (dispatch: Msg -> unit) =
         | None ->
             Html.div [ prop.className "loading loading-spinner" ]
 
+    | StyleguidePage ->
+        match model.StyleguidePage with
+        | Some pageModel ->
+            Pages.Styleguide.View.view pageModel (StyleguideMsg >> dispatch)
+        | None ->
+            Html.div [ prop.className "loading loading-spinner" ]
+
     | NotFoundPage ->
         Pages.NotFound.View.view ()
 

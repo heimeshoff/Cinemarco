@@ -248,21 +248,36 @@ let private recentlyWatchedScrollList (entries: LibraryEntry list) (onViewDetail
                     match entry.Media, entry.WatchStatus with
                     | LibrarySeries _, InProgress progress ->
                         match getLastWatchedEpisode progress with
-                        | Some (season, episode) -> Some (PosterCardTypes.LastWatchedEpisode $"S{season} E{episode}")
+                        | Some (season, episode) -> Some (PosterCardTypes.EpisodeBanner ($"S{season} E{episode}", false))
                         | None ->
                             match progress.CurrentSeason with
-                            | Some s -> Some (PosterCardTypes.LastWatchedEpisode $"S{s}")
+                            | Some s -> Some (PosterCardTypes.EpisodeBanner ($"S{s}", false))
                             | None -> None
-                    | LibrarySeries _, Completed -> Some PosterCardTypes.FinishedBadge
-                    | LibrarySeries _, Abandoned _ -> Some PosterCardTypes.AbandonedBadge
+                    | LibrarySeries _, Completed -> Some PosterCardTypes.FinishedBanner
+                    | LibrarySeries _, Abandoned _ -> Some PosterCardTypes.AbandonedBanner
                     | _ -> None
 
                 let posterUrl = posterPath |> Option.map (fun p -> getLocalPosterUrl (Some p))
+                let mediaType = match entry.Media with LibraryMovie _ -> Movie | LibrarySeries _ -> Series
+                let config: PosterCardTypes.Config = {
+                    PosterUrl = posterUrl
+                    Title = title
+                    OnClick = fun () -> onViewDetail entry.Id isMovie
+                    TopLeftBadge = None
+                    BottomOverlay = overlay
+                    IsGrayscale = false
+                    IsDimmed = false
+                    MediaType = Some mediaType
+                    ShowInLibraryOverlay = false
+                    MediaTypeBadge = None
+                    ShowAddButton = false
+                    Size = PosterCardTypes.Small
+                }
                 Html.div [
                     prop.key (EntryId.value entry.Id)
-                    prop.className "flex-shrink-0 w-32 sm:w-36 md:w-40"
+                    prop.className "flex-shrink-0"
                     prop.children [
-                        PosterCard.miniWithOverlay posterUrl title overlay (fun () -> onViewDetail entry.Id isMovie)
+                        PosterCard.view config
 
                         Html.div [
                             prop.className "mt-2 space-y-0.5"

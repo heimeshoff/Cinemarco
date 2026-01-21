@@ -876,12 +876,12 @@ let private renderImportedItemCard (item: ImportedItemInfo) (isImported: bool) =
         |> Option.map (fun path -> getPosterUrl path isImported)
 
     // Convert rating to badge
-    let ratingBadge =
+    let topLeftBadge =
         item.Rating
-        |> Option.map PosterCard.ratingToBadge
+        |> Option.map (PosterCard.ratingToBadge >> PosterCardTypes.RatingBadge)
 
-    // Create a custom status overlay only for skipped items
-    let statusOverlay =
+    // Create a custom bottom overlay only for skipped items
+    let bottomOverlay =
         if isImported then
             None
         else
@@ -903,20 +903,22 @@ let private renderImportedItemCard (item: ImportedItemInfo) (isImported: bool) =
                         ]
                     ]
                 ]
-            Some (PosterCardTypes.Custom badgeElement)
+            Some (PosterCardTypes.CustomOverlay badgeElement)
 
     // Build config
     let config : PosterCardTypes.Config = {
         PosterUrl = posterUrl
         Title = item.Title
         OnClick = fun () -> () // No click action in import results
-        RatingBadge = ratingBadge
-        StatusOverlay = statusOverlay
+        TopLeftBadge = topLeftBadge
+        BottomOverlay = bottomOverlay
         IsGrayscale = not isImported
+        IsDimmed = false
         MediaType = Some item.MediaType
         ShowInLibraryOverlay = false
         MediaTypeBadge = None
         ShowAddButton = false
+        Size = PosterCardTypes.Small
     }
 
     Html.div [
