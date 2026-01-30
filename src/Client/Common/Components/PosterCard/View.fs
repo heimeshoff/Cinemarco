@@ -190,6 +190,7 @@ let view (config: Config) =
 
     let sizeClass =
         match config.Size with
+        | Mobile -> "w-full"
         | Small -> "w-32 sm:w-36 md:w-40"
         | Normal -> "w-40 sm:w-44 md:w-48"
 

@@ -26,8 +26,9 @@ type BottomOverlay =
 
 /// Poster card size configuration
 type PosterSize =
+    | Mobile  // w-full (fits grid cell, for 5-up on mobile)
     | Small   // w-32 sm:w-36 md:w-40 (horizontal scrolls, grids)
-    | Normal  // w-40 sm:w-44 md:w-48 (larger displays)
+    | Normal  // w-40 sm:w-44 md:w-48 (larger displays)  // w-40 sm:w-44 md:w-48 (larger displays)
 
 /// Configuration for the PosterCard component
 type Config = {

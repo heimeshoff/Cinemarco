@@ -3,6 +3,7 @@ module Components.SearchModal.View
 open Feliz
 open Common.Types
 open Shared.Domain
+open Common.Components.PosterCard.Types
 open Types
 open State
 open Components.Icons
@@ -19,6 +20,91 @@ let private findInLibrary (libraryEntries: LibraryEntry list) (item: TmdbSearchR
         | _ -> false
     )
 
+/// TMDB search result poster card with title, sized for the search modal grid
+let private searchPosterCard (item: TmdbSearchResult) (onSelect: TmdbSearchResult -> unit) (isInLibrary: bool) =
+    let year =
+        item.ReleaseDate
+        |> Option.map (fun d -> d.Year.ToString())
+        |> Option.defaultValue ""
+
+    let posterUrl = getTmdbPosterUrl "w342" item.PosterPath
+
+    let config =
+        { Config.searchResult
+            (if posterUrl = "" then None else Some posterUrl)
+            item.Title
+            item.MediaType
+            (fun () -> onSelect item)
+            isInLibrary
+          with Size = Mobile }
+
+    Html.div [
+        prop.children [
+            PosterCard.view config
+
+            Html.div [
+                prop.className "mt-2 space-y-0.5"
+                prop.children [
+                    Html.p [
+                        prop.className (if isInLibrary then "font-medium text-xs truncate text-base-content/50" else "font-medium text-xs truncate text-base-content/90")
+                        prop.title item.Title
+                        prop.text item.Title
+                    ]
+                    if year <> "" then
+                        Html.p [
+                            prop.className "text-[10px] text-base-content/50"
+                            prop.text year
+                        ]
+                ]
+            ]
+        ]
+    ]
+
+/// Library entry poster card with title, sized for the search modal grid
+let private libraryPosterCard (entry: LibraryEntry) (onClick: unit -> unit) =
+    let (title, posterPath) =
+        match entry.Media with
+        | LibraryMovie m -> (m.Title, m.PosterPath)
+        | LibrarySeries s -> (s.Name, s.PosterPath)
+
+    let topLeftBadge =
+        entry.PersonalRating
+        |> Option.map (PosterCard.ratingToBadge >> RatingBadge)
+
+    let bottomOverlay =
+        match entry.Media with
+        | LibrarySeries _ ->
+            match entry.WatchStatus with
+            | Completed -> Some FinishedBanner
+            | Abandoned _ -> Some AbandonedBanner
+            | _ -> None
+        | LibraryMovie _ -> None
+
+    let config = {
+        PosterUrl = posterPath |> Option.map (fun p -> PosterCard.getLocalPosterUrl (Some p))
+        Title = title
+        OnClick = onClick
+        TopLeftBadge = topLeftBadge
+        BottomOverlay = bottomOverlay
+        IsGrayscale = false
+        IsDimmed = false
+        MediaType = Some (match entry.Media with LibraryMovie _ -> Movie | LibrarySeries _ -> Series)
+        ShowInLibraryOverlay = false
+        MediaTypeBadge = None
+        ShowAddButton = false
+        Size = Mobile
+    }
+
+    Html.div [
+        prop.children [
+            PosterCard.view config
+            Html.p [
+                prop.className "text-[10px] mt-2 truncate text-base-content/70 group-hover:text-primary transition-colors"
+                prop.text title
+            ]
+        ]
+    ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "fixed inset-0 z-50 flex items-start justify-center pt-[10vh] p-4"
@@ -30,7 +116,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             ]
             // Modal content
             Html.div [
-                prop.className "modal-content relative w-full max-w-2xl"
+                prop.className "modal-content relative w-full max-w-5xl"
                 prop.children [
                     // Search input
                     Html.div [
@@ -106,7 +192,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                         match entry.Media with
                                                         | LibraryMovie m -> m.Title
                                                         | LibrarySeries s -> s.Name
-                                                    PosterCard.libraryEntryWithTitle entry (fun () ->
+                                                    libraryPosterCard entry (fun () ->
                                                         dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                             ]
                                         ]
@@ -146,13 +232,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                                 let clickHandler =
                                                                     match libraryEntry with
                                                                     | Some entry ->
-                                                                        // Navigate to library entry
                                                                         let title = match entry.Media with LibraryMovie m -> m.Title | LibrarySeries s -> s.Name
                                                                         fun _ -> dispatch (SelectLibraryItem (entry.Id, item.MediaType, title))
                                                                     | None ->
-                                                                        // Add to library
                                                                         fun i -> dispatch (SelectTmdbItem i)
-                                                                posterCard item clickHandler (Option.isSome libraryEntry)
+                                                                searchPosterCard item clickHandler (Option.isSome libraryEntry)
                                                         ]
                                                     ]
                                                 | Failure err ->
@@ -193,7 +277,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                                                     match entry.Media with
                                                                     | LibraryMovie m -> m.Title
                                                                     | LibrarySeries s -> s.Name
-                                                                PosterCard.libraryEntryWithTitle entry (fun () ->
+                                                                libraryPosterCard entry (fun () ->
                                                                     dispatch (SelectLibraryItem (entry.Id, mediaType, title)))
                                                         ]
                                                     ]
